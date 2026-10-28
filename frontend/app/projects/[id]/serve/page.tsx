@@ -83,8 +83,8 @@ export default function ServePage() {
           className="group relative flex items-start gap-4 overflow-hidden rounded-2xl border border-border-strong bg-card p-4 text-left transition-colors hover:bg-[#161618] disabled:cursor-not-allowed disabled:opacity-60 sm:p-5"
         >
           <span aria-hidden className="pointer-events-none absolute -top-20 -right-20 h-44 w-44 rounded-full opacity-[0.12] blur-2xl" style={{ background: "var(--brand-gradient)" }} />
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foreground text-background">
-            {busy === "sample" ? <Spinner className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+          <span className="relative mt-0.5 shrink-0">
+            {busy === "sample" ? <Spinner className="h-5 w-5 text-pink" /> : <Sparkles className="icon-brand h-5 w-5" strokeWidth={1.75} aria-hidden />}
           </span>
           <span className="relative min-w-0">
             <span className="flex items-center gap-2 text-[14px] font-medium">
@@ -98,8 +98,8 @@ export default function ServePage() {
           disabled={busy !== null || !project.finalized}
           className="flex items-start gap-4 rounded-2xl border border-dashed border-border-strong bg-card p-4 text-left transition-colors hover:bg-[#161618] disabled:cursor-not-allowed disabled:opacity-60 sm:p-5"
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border-strong bg-card-2">
-            {busy === "upload" ? <Spinner className="h-4 w-4" /> : <Upload className="icon-brand h-4 w-4" />}
+          <span className="mt-0.5 shrink-0">
+            {busy === "upload" ? <Spinner className="h-5 w-5 text-pink" /> : <Upload className="icon-brand h-5 w-5" strokeWidth={1.75} aria-hidden />}
           </span>
           <span className="min-w-0">
             <span className="block text-[14px] font-medium">Upload a CSV to score</span>

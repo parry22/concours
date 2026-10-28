@@ -134,9 +134,7 @@ export default function ProtectPage() {
               >
                 <span aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-danger/15 blur-3xl" />
                 <div className="relative flex flex-wrap items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger/15 text-danger">
-                    <ShieldAlert className="h-4 w-4" />
-                  </span>
+                  <ShieldAlert className="h-5 w-5 text-danger" strokeWidth={1.75} aria-hidden />
                   <Badge tone="danger">High severity</Badge>
                   <span className="text-[13px] text-[#fca5a5]">{CHECK_LABEL[f.check] || f.check}</span>
                 </div>

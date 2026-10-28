@@ -259,13 +259,8 @@ function Chip({ children }: { children: React.ReactNode }) {
   return <span className="num inline-flex h-6 items-center gap-1.5 rounded-md bg-card-2 px-2 text-[11px] text-subtle">{children}</span>;
 }
 
+/** Bare gradient icon, no tile behind it. */
 function TemplateGlyph({ id, small }: { id: string; small?: boolean }) {
   const Icon = TEMPLATE_ICON[id] ?? FileUp;
-  return (
-    <span
-      className={cx("flex shrink-0 items-center justify-center border border-border-strong bg-card-2", small ? "h-9 w-9 rounded-[10px]" : "h-10 w-10 rounded-xl")}
-    >
-      <Icon className="icon-brand h-4 w-4" />
-    </span>
-  );
+  return <Icon className={cx("icon-brand shrink-0", small ? "h-5 w-5" : "h-6 w-6")} strokeWidth={1.75} aria-hidden />;
 }

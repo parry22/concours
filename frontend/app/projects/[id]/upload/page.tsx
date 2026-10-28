@@ -106,9 +106,7 @@ export default function UploadPage() {
             dragging ? "border-accent bg-accent-soft" : "border-border-strong bg-card",
           )}
         >
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border-strong bg-card-2">
-            {busy ? <Spinner className="h-6 w-6" /> : <FileSpreadsheet className="icon-brand h-6 w-6" />}
-          </span>
+          {busy ? <Spinner className="h-8 w-8 text-pink" /> : <FileSpreadsheet className="icon-brand h-9 w-9" strokeWidth={1.5} aria-hidden />}
           <div>
             <p className="text-[15px] font-medium">{busy ? "Reading the file" : "Drop a CSV here"}</p>
             <p className="mt-1 text-[13px] text-muted">Max {MAX_MB} MB. The file stays on this machine.</p>

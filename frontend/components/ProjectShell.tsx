@@ -171,9 +171,7 @@ function ProjectSteps({ project }: { project: ProjectOut }) {
   return (
     <div className="mt-6 px-3">
       <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border-strong bg-card-2">
-          {Icon ? <Icon className="icon-brand h-4 w-4" /> : null}
-        </span>
+        {Icon ? <Icon className="icon-brand h-[18px] w-[18px] shrink-0" strokeWidth={1.75} aria-hidden /> : null}
         <div className="min-w-0">
           <div className="truncate text-[13px] font-medium">{project.name}</div>
           <div className="truncate text-[11px] text-muted">

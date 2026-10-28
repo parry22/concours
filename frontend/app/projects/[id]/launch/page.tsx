@@ -195,9 +195,7 @@ export default function LaunchPage() {
           <ul className="space-y-3.5">
             {TERMS.map(([t, d]) => (
               <li key={t} className="flex gap-3">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft">
-                  <ShieldCheck className="icon-brand h-3 w-3" />
-                </span>
+                <ShieldCheck className="icon-brand mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden />
                 <div className="text-[13px] leading-relaxed">
                   <div className="font-medium">{t}</div>
                   <div className="text-muted">{d}</div>
