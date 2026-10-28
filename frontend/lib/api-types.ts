@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Templates */
+        /**
+         * Templates
+         * @description Only the enabled templates (`CONCOURS_ENABLED_TEMPLATES`, default fraud). The rest stay in the code.
+         */
         get: operations["templates_templates_get"];
         put?: never;
         post?: never;
@@ -156,6 +159,164 @@ export interface paths {
         get: operations["protect_report_projects__project_id__protect_report_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/fairness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fairness Report
+         * @description Hit rate and selection rate per group of each sensitive column, for the active version on the holdout.
+         *     Null before version 1 exists or when Protect set nothing aside.
+         */
+        get: operations["fairness_report_projects__project_id__fairness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/schema": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Schema
+         * @description The mapping screen: the user's columns, the suggested mapping, a preview and what is still missing.
+         */
+        get: operations["get_schema_projects__project_id__schema_get"];
+        /** Put Schema */
+        put: operations["put_schema_projects__project_id__schema_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/fraud-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Fraud Settings */
+        put: operations["put_fraud_settings_projects__project_id__fraud_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Queue
+         * @description Today's review queue: today's payments ranked by expected loss, cut at the daily capacity, with reasons.
+         */
+        get: operations["get_queue_projects__project_id__queue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/queue/{transaction_id}/label": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Label Case
+         * @description An analyst's verdict. Stored with label_time = today; used by the next improvement round.
+         */
+        post: operations["label_case_projects__project_id__queue__transaction_id__label_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/queue/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Queue Download */
+        get: operations["queue_download_projects__project_id__queue_download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/drift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Drift
+         * @description The last health and drift check (made when the clock moves or on POST).
+         */
+        get: operations["get_drift_projects__project_id__drift_get"];
+        put?: never;
+        /** Run Drift */
+        post: operations["run_drift_projects__project_id__drift_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/clock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move Clock
+         * @description Jump forward: move "today", check the newly mature weeks and drift. If the model is slipping and
+         *     `auto_round`, the data window moves forward and an improvement round starts (the champion first).
+         */
+        post: operations["move_clock_projects__project_id__clock_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -524,6 +685,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/intake/fraud-questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fraud Questions */
+        get: operations["fraud_questions_intake_fraud_questions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/intake/status": {
         parameters: {
             query?: never;
@@ -609,6 +787,19 @@ export interface components {
             /** File */
             file: string;
         };
+        /** ClockIn */
+        ClockIn: {
+            /**
+             * Days
+             * @default 28
+             */
+            days: number;
+            /**
+             * Auto Round
+             * @default true
+             */
+            auto_round: boolean;
+        };
         /** ColumnProfile */
         ColumnProfile: {
             /** Name */
@@ -670,6 +861,103 @@ export interface components {
             /** Positive Rate Column */
             positive_rate_column?: string | null;
         };
+        /** DriftFeature */
+        DriftFeature: {
+            /** Name */
+            name: string;
+            /** Psi */
+            psi: number;
+            /** Flagged */
+            flagged: boolean;
+        };
+        /** DriftOut */
+        DriftOut: {
+            /** As Of */
+            as_of: string;
+            /** Model Version */
+            model_version: number | null;
+            /** Baseline Share */
+            baseline_share: number | null;
+            /** Weeks */
+            weeks: components["schemas"]["WeekHealth"][];
+            /** Psi */
+            psi: components["schemas"]["DriftFeature"][];
+            /** Performance Drop */
+            performance_drop: number | null;
+            /** Slipping */
+            slipping: boolean;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "performance" | "drift" | "both" | "none";
+            /** Line */
+            line: string;
+            /**
+             * Round Started
+             * @default false
+             */
+            round_started: boolean;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+        };
+        /** FairnessColumn */
+        FairnessColumn: {
+            /** Column */
+            column: string;
+            /** Trait */
+            trait: string;
+            /** Groups */
+            groups: components["schemas"]["FairnessGroup"][];
+            /** Min Selection Ratio */
+            min_selection_ratio?: number | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** FairnessGroup */
+        FairnessGroup: {
+            /** Group */
+            group: string;
+            /** Rows */
+            rows: number;
+            /** Positives */
+            positives: number;
+            /** Selected */
+            selected: number;
+            /** Selection Rate */
+            selection_rate: number;
+            /** Hit Rate */
+            hit_rate: number | null;
+            /** Base Rate */
+            base_rate: number;
+            /** Enough Rows */
+            enough_rows: boolean;
+        };
+        /** FairnessReport */
+        FairnessReport: {
+            /** Model Version */
+            model_version?: number | null;
+            /**
+             * Split
+             * @default holdout
+             * @constant
+             */
+            split: "holdout";
+            /** Rows */
+            rows: number;
+            /** Selected */
+            selected: number;
+            /**
+             * Rule
+             * @enum {string}
+             */
+            rule: "top_k" | "fpr";
+            /** Columns */
+            columns: components["schemas"]["FairnessColumn"][];
+        };
         /** Finding */
         Finding: {
             /** Check */
@@ -687,9 +975,50 @@ export interface components {
              * Action
              * @enum {string}
              */
-            action: "dropped" | "masked" | "removed_rows" | "warned" | "resplit";
+            action: "dropped" | "masked" | "removed_rows" | "warned" | "resplit" | "set_aside" | "group_split" | "hashed" | "relabeled" | "embargoed";
             /** Evidence */
             evidence?: {
+                [key: string]: unknown;
+            };
+        };
+        /** FraudSettings */
+        FraudSettings: {
+            /**
+             * Daily Capacity
+             * @default 200
+             */
+            daily_capacity: number;
+            /**
+             * Review Cost
+             * @default 10
+             */
+            review_cost: number;
+            /**
+             * Fraud Fee
+             * @default 0
+             */
+            fraud_fee: number;
+            /**
+             * Label Delay Days
+             * @default 30
+             */
+            label_delay_days: number;
+        };
+        /** GateResult */
+        GateResult: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "hidden_data" | "same_rows" | "luck" | "segments" | "speed";
+            /** Name */
+            name: string;
+            /** Passed */
+            passed: boolean;
+            /** Line */
+            line: string;
+            /** Detail */
+            detail?: {
                 [key: string]: unknown;
             };
         };
@@ -743,6 +1072,11 @@ export interface components {
         IntakeRequest: {
             /** Message */
             message: string;
+            /**
+             * Prefer Cache
+             * @default false
+             */
+            prefer_cache: boolean;
         };
         /** IntakeResponse */
         IntakeResponse: {
@@ -820,6 +1154,47 @@ export interface components {
             /** Download */
             download: string;
         };
+        /**
+         * MaturitySummary
+         * @description Late labels: what was knowable when. Days are ISO dates.
+         */
+        MaturitySummary: {
+            /** As Of */
+            as_of: string;
+            /** Label Delay Days */
+            label_delay_days: number;
+            /** Label Time Simulated */
+            label_time_simulated: boolean;
+            /** Train End */
+            train_end: string;
+            /** Embargo Start */
+            embargo_start: string;
+            /** Embargo End */
+            embargo_end: string;
+            /** Leaderboard Start */
+            leaderboard_start: string;
+            /** Holdout Start */
+            holdout_start: string;
+            /** Holdout End */
+            holdout_end: string;
+            /** Immature Start */
+            immature_start: string;
+            /** Frauds In Train */
+            frauds_in_train: number;
+            /** Frauds Unconfirmed In Train */
+            frauds_unconfirmed_in_train: number;
+            /** Frauds Unconfirmed At Eval */
+            frauds_unconfirmed_at_eval: number;
+            /** Embargo Rows */
+            embargo_rows: number;
+            /** Immature Rows */
+            immature_rows: number;
+            /**
+             * Analyst Labels
+             * @default 0
+             */
+            analyst_labels: number;
+        };
         /** ModelVersionOut */
         ModelVersionOut: {
             /** Id */
@@ -857,6 +1232,12 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Gates */
+            gates?: components["schemas"]["GateResult"][];
+            /** Stats */
+            stats?: {
+                [key: string]: unknown;
+            };
         };
         /** PackageOut */
         PackageOut: {
@@ -904,7 +1285,7 @@ export interface components {
              * @default custom
              * @enum {string}
              */
-            template: "fraud" | "churn" | "leads" | "custom";
+            template: "fraud" | "churn" | "leads" | "payments" | "readmissions" | "attrition" | "custom";
             /**
              * Task Type
              * @default binary
@@ -922,7 +1303,7 @@ export interface components {
              * @default recall_at_fpr
              * @enum {string}
              */
-            primary_metric: "recall_at_fpr" | "recall_at_top_k" | "wape";
+            primary_metric: "recall_at_fpr" | "recall_at_top_k" | "wape" | "fraud_amount_per_day";
             /** Metric Params */
             metric_params?: {
                 [key: string]: unknown;
@@ -954,10 +1335,19 @@ export interface components {
             name?: string | null;
             /**
              * Template
-             * @default custom
+             * @default fraud
              * @enum {string}
              */
-            template: "fraud" | "churn" | "leads" | "custom";
+            template: "fraud" | "churn" | "leads" | "payments" | "readmissions" | "attrition" | "custom";
+            /**
+             * Sample
+             * @default true
+             */
+            sample: boolean;
+            /** Sample File */
+            sample_file?: string | null;
+            /** Salt */
+            salt?: string | null;
         };
         /** ProjectOut */
         ProjectOut: {
@@ -969,7 +1359,7 @@ export interface components {
              * Template
              * @enum {string}
              */
-            template: "fraud" | "churn" | "leads" | "custom";
+            template: "fraud" | "churn" | "leads" | "payments" | "readmissions" | "attrition" | "custom";
             /**
              * Stage
              * @enum {string}
@@ -1041,6 +1431,29 @@ export interface components {
             list_name: string;
             /** Updated At */
             updated_at?: string | null;
+            fraud_settings?: components["schemas"]["FraudSettings"] | null;
+            /**
+             * Source
+             * @default sample
+             */
+            source: string;
+            /**
+             * Schema Confirmed
+             * @default false
+             */
+            schema_confirmed: boolean;
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Can Jump
+             * @default false
+             */
+            can_jump: boolean;
+            drift?: components["schemas"]["DriftOut"] | null;
+            /** Money Per Day */
+            money_per_day?: number | null;
+            /** Net Per Day */
+            net_per_day?: number | null;
         };
         /** ProjectSettingsIn */
         ProjectSettingsIn: {
@@ -1057,7 +1470,7 @@ export interface components {
              * Strategy
              * @enum {string}
              */
-            strategy: "time" | "stratified";
+            strategy: "time" | "stratified" | "group" | "time_embargo";
             /**
              * Seed
              * @default 42
@@ -1082,6 +1495,104 @@ export interface components {
             checksums?: {
                 [key: string]: string;
             };
+            /** Set Aside Columns */
+            set_aside_columns?: string[];
+            maturity?: components["schemas"]["MaturitySummary"] | null;
+            /** Hashed Columns */
+            hashed_columns?: string[];
+            /** Group Column */
+            group_column?: string | null;
+        };
+        /** QueueCase */
+        QueueCase: {
+            /** Rank */
+            rank: number;
+            /** Transaction Id */
+            transaction_id: string;
+            /** Time */
+            time: string;
+            /** Amount */
+            amount: number;
+            /** Customer */
+            customer: string;
+            /** Risk */
+            risk: number;
+            /** Expected Loss */
+            expected_loss: number;
+            /** Reasons */
+            reasons: components["schemas"]["QueueReason"][];
+            /** Label */
+            label?: ("fraud" | "not_fraud") | null;
+        };
+        /** QueueLabelIn */
+        QueueLabelIn: {
+            /** Label */
+            label: ("fraud" | "not_fraud") | null;
+        };
+        /** QueueOut */
+        QueueOut: {
+            /** Day */
+            day: string;
+            /** Model Version */
+            model_version: number;
+            /** Capacity */
+            capacity: number;
+            /** Rows Scored */
+            rows_scored: number;
+            /** Cases */
+            cases: components["schemas"]["QueueCase"][];
+            /** Expected Loss Total */
+            expected_loss_total: number;
+            /** Labeled */
+            labeled: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** QueueReason */
+        QueueReason: {
+            /** Text */
+            text: string;
+            /** Weight */
+            weight: number;
+        };
+        /** SchemaField */
+        SchemaField: {
+            /** Name */
+            name: string;
+            /** Required */
+            required: boolean;
+            /** Column */
+            column?: string | null;
+            /** Suggested */
+            suggested?: string | null;
+        };
+        /** SchemaIn */
+        SchemaIn: {
+            /** Mapping */
+            mapping: {
+                [key: string]: string | null;
+            };
+        };
+        /** SchemaOut */
+        SchemaOut: {
+            /** Columns */
+            columns: string[];
+            /** Fields */
+            fields: components["schemas"]["SchemaField"][];
+            /** Preview */
+            preview?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Confirmed
+             * @default false
+             */
+            confirmed: boolean;
+            /** Problems */
+            problems?: string[];
         };
         /** Sensitivity */
         Sensitivity: {
@@ -1104,7 +1615,7 @@ export interface components {
          */
         SpecPatch: {
             /** Template */
-            template?: ("fraud" | "churn" | "leads" | "custom") | null;
+            template?: ("fraud" | "churn" | "leads" | "payments" | "readmissions" | "attrition" | "custom") | null;
             /** Task Type */
             task_type?: ("binary" | "regression") | null;
             /** Target Column */
@@ -1114,7 +1625,7 @@ export interface components {
             /** Time Column */
             time_column?: string | null;
             /** Primary Metric */
-            primary_metric?: ("recall_at_fpr" | "recall_at_top_k" | "wape") | null;
+            primary_metric?: ("recall_at_fpr" | "recall_at_top_k" | "wape" | "fraud_amount_per_day") | null;
             /** Metric Params */
             metric_params?: {
                 [key: string]: unknown;
@@ -1186,6 +1697,13 @@ export interface components {
              * @default false
              */
             is_leader: boolean;
+            /** Gates */
+            gates?: components["schemas"]["GateResult"][];
+            /**
+             * Champion
+             * @default false
+             */
+            champion: boolean;
         };
         /** ValidationError */
         ValidationError: {
@@ -1338,6 +1856,21 @@ export interface components {
             headline: string;
             /** Formula */
             formula: string;
+        };
+        /** WeekHealth */
+        WeekHealth: {
+            /** Week Start */
+            week_start: string;
+            /** Week End */
+            week_end: string;
+            /** Caught Per Day */
+            caught_per_day: number;
+            /** Fraud Per Day */
+            fraud_per_day: number;
+            /** Share */
+            share: number;
+            /** Drop */
+            drop: number;
         };
     };
     responses: never;
@@ -1672,6 +2205,333 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProtectReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fairness_report_projects__project_id__fairness_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FairnessReport"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_schema_projects__project_id__schema_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchemaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_schema_projects__project_id__schema_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchemaIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_fraud_settings_projects__project_id__fraud_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FraudSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_queue_projects__project_id__queue_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    label_case_projects__project_id__queue__transaction_id__label_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                transaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueueLabelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    queue_download_projects__project_id__queue_download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_drift_projects__project_id__drift_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriftOut"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_drift_projects__project_id__drift_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_clock_projects__project_id__clock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriftOut"];
                 };
             };
             /** @description Validation Error */
@@ -2455,6 +3315,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fraud_questions_intake_fraud_questions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

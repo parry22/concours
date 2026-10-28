@@ -1,17 +1,17 @@
-"""Arena orchestration: queue solvers, run them one at a time in a worker thread, cache, publish SSE events.
+"""Arena orchestration: queue solvers as a job, run them one at a time in the worker, cache, publish live events.
 
 A run has a purpose: "baseline" builds version 1 right after Protect; "contest" is an improvement round whose
 scored attempts are considered for promotion as they arrive (see models_registry.promotion)."""
 from __future__ import annotations
 
 import json
-import threading
 from pathlib import Path
 import time
 from datetime import datetime, timezone
 
 from sqlmodel import select
 
+from app import jobs
 from app.arena import events, leaderboard, runner
 from app.arena.stage import data_hash, round_config, solver_hash, stage
 import shutil
@@ -23,7 +23,6 @@ from app.db import session
 from app.models import ProblemSpec, ProjectRow, SubmissionRow
 
 REPLAY_STAGGER_S = 1.5
-_running: dict[str, threading.Thread] = {}
 
 
 def _log(project_id: str, line: str) -> None:
@@ -31,13 +30,14 @@ def _log(project_id: str, line: str) -> None:
 
 
 def start_run(project_id: str, solvers: list[str], *, replay: bool = True, rebuild: bool = False, purpose: str = "contest") -> list[str]:
-    """Create queued submissions and start the worker. Returns submission ids."""
-    if (t := _running.get(project_id)) and t.is_alive():
+    """Create queued submissions and a job for the worker. Returns submission ids."""
+    if jobs.busy(project_id):
         raise RuntimeError("a run is already in progress")
     with session() as s:
         row = s.get(ProjectRow, project_id)
         spec = row.spec()
         dh = data_hash(project_id)
+        solvers = with_champion(s, project_id, spec, dh, list(solvers)) if purpose == "contest" else list(solvers)
         ids = []
         for name in solvers:
             sub = SubmissionRow(project_id=project_id, solver=name, status="queued", data_hash=f"{dh}:{solver_hash(name)}", logs_path="")
@@ -48,10 +48,28 @@ def start_run(project_id: str, solvers: list[str], *, replay: bool = True, rebui
         row.finalized = False
         s.add(row)
         s.commit()
-    t = threading.Thread(target=_worker, args=(project_id, ids, spec, replay, rebuild, purpose), daemon=True)
-    _running[project_id] = t
-    t.start()
+    jobs.enqueue(project_id, "arena_run", {"ids": ids, "replay": replay, "rebuild": rebuild, "purpose": purpose})
     return ids
+
+
+def run_job_payload(project_id: str, payload: dict) -> None:
+    """Called by the worker for an `arena_run` job."""
+    with session() as s:
+        spec = s.get(ProjectRow, project_id).spec()
+    _worker(project_id, payload["ids"], spec, payload.get("replay", True), payload.get("rebuild", False), payload.get("purpose", "contest"))
+
+
+def with_champion(s, project_id: str, spec: ProblemSpec | None, dh: str, solvers: list[str]) -> list[str]:
+    """Fraud: when the active version has no score on this window (the clock moved), its solver runs first so
+    every challenger is compared with it on the same holdout rows."""
+    if not spec or spec.primary_metric != "fraud_amount_per_day":
+        return solvers
+    from app.fraud.promote import champion_submission  # noqa: PLC0415
+
+    active = promotion.active_version(s, project_id)
+    if active is None or champion_submission(s, project_id, active, dh) is not None:
+        return solvers
+    return [active.solver_name] + [x for x in solvers if x != active.solver_name]
 
 
 def _same_rule(sub: SubmissionRow, spec: ProblemSpec) -> bool:
@@ -230,7 +248,7 @@ def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, re
 
 def finalize(project_id: str) -> None:
     """Kept for older clients: marks the round closed and makes sure the versions reflect every scored attempt."""
-    if (t := _running.get(project_id)) and t.is_alive():
+    if jobs.busy(project_id):
         raise RuntimeError("wait for the run to finish")
     with session() as s:
         row = s.get(ProjectRow, project_id)
@@ -248,5 +266,4 @@ def finalize(project_id: str) -> None:
 
 
 def is_running(project_id: str) -> bool:
-    t = _running.get(project_id)
-    return bool(t and t.is_alive())
+    return jobs.busy(project_id)

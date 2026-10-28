@@ -1,0 +1,55 @@
+{
+  "name": "Missed payments",
+  "description": "Reach out early to customers who may miss a payment.",
+  "label": "Payments",
+  "icon": "wallet",
+  "dataset": "dataset.csv",
+  "target_column": "default_next_month",
+  "positive_label": 1,
+  "time_column": null,
+  "id_columns_hint": ["ID"],
+  "primary_metric": "recall_at_top_k",
+  "metric_params": {
+    "top_k": 0.1
+  },
+  "secondary_metric": "roc_auc",
+  "business_template": "churn",
+  "metric_line": "Missed payments reached early in your top 10%",
+  "rate_hint": 0.22,
+  "people": true,
+  "words": {
+    "positive": "customers who may miss a payment",
+    "negative": "customers",
+    "short": "missed payments",
+    "past": "customers who missed a payment",
+    "future": "customers will miss next month's payment",
+    "event": "the customer missed a payment",
+    "team": "customer support team",
+    "about_to": "likely to miss a payment",
+    "entity": "customer"
+  },
+  "known_leaks": {},
+  "group_labels": {
+    "SEX": {"1": "Male", "2": "Female"},
+    "MARRIAGE": {"0": "Not recorded", "1": "Married", "2": "Single", "3": "Other"}
+  },
+  "intake_goal": "We want to know which customers may miss next month's payment so we can reach out early and offer help.",
+  "replies": [
+    "We want to know which customers may miss next month's payment so we can reach out early and offer help.",
+    "We can call about 10% of customers each month.",
+    "A missed payment costs us about 400 dollars in collections, a call costs about 5. About 10,000 customers a month."
+  ],
+  "economics_defaults": {
+    "rows_per_month": 10000,
+    "value_per_positive": 400.0,
+    "action_success_rate": 0.3,
+    "cost_per_action": 5.0,
+    "cost_per_false_positive": 0.0
+  },
+  "list": {
+    "name": "Early outreach list",
+    "top_n": 1000,
+    "row_label": "customer",
+    "action_label": "Call"
+  }
+}

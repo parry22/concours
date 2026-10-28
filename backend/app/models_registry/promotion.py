@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from sqlmodel import Session, select
 
 from app.config import BASELINE_SOLVERS, DEFAULT_MIN_IMPROVEMENT
-from app.models import ModelVersionOut, ModelVersionRow, ProblemSpec, ProjectRow, SubmissionRow
+from app.models import GateResult, ModelVersionOut, ModelVersionRow, ProblemSpec, ProjectRow, SubmissionRow
 from app.shared.metrics import LOWER_IS_BETTER, METRIC_NAMES
 from app.shared.translate import headline, improvement_line
 from app.shared.translate import result_short as _result_short
@@ -70,14 +70,32 @@ def to_out(v: ModelVersionRow, spec: ProblemSpec | None, v1: ModelVersionRow | N
         id=v.id, project_id=v.project_id, version=v.version, source=v.source,  # type: ignore[arg-type]
         solver_name=v.solver_name, submission_id=v.submission_id, private_score=v.private_score, public_score=v.public_score,
         metric_name=v.metric_name, business_value=v.business_value, improvement_line=imp, status=v.status,  # type: ignore[arg-type]
-        created_at=v.created_at,
+        created_at=v.created_at, gates=[GateResult(**g) for g in json.loads(v.gates_json)] if v.gates_json else [],
     )
 
 
 def versions_out(s: Session, project_id: str, spec: ProblemSpec | None) -> list[ModelVersionOut]:
     rows = versions_for(s, project_id)
     v1 = next((v for v in rows if v.version == 1), None)
-    return [to_out(v, spec, v1) for v in rows]
+    out = [to_out(v, spec, v1) for v in rows]
+    if spec and spec.primary_metric == "fraud_amount_per_day":
+        for o, v in zip(out, rows):
+            o.stats = _queue_stats(s.get(SubmissionRow, v.submission_id) if v.submission_id else None)
+    return out
+
+
+def _queue_stats(sub: SubmissionRow | None) -> dict:
+    """The referee's holdout queue summary for a version (per-day arrays left out)."""
+    if sub is None or not sub.result_json:
+        return {}
+    try:
+        f = ((json.loads(sub.result_json).get("metadata") or {}).get("splits") or {}).get("holdout", {}).get("fraud") or {}
+    except json.JSONDecodeError:
+        return {}
+    out = {k: v for k, v in f.items() if not isinstance(v, list)}
+    days, caught = f.get("days") or [], f.get("caught_amount_by_day") or []
+    out["daily"] = [{"day": d, "caught": c} for d, c in zip(days, caught)]  # the overview's per-day chart
+    return out
 
 
 def _new_version(s: Session, row: ProjectRow, spec: ProblemSpec, sub: SubmissionRow, source: str) -> ModelVersionRow:
@@ -137,10 +155,34 @@ def consider(s: Session, project_id: str, sub: SubmissionRow, *, source: str = "
     spec = row.spec()
     if not spec:
         return None
+    if spec.primary_metric == "fraud_amount_per_day":
+        return _consider_fraud(s, row, active, sub, spec, source)
     if not should_promote(active.private_score, sub.private_score, min_improvement=row.min_improvement,
                           lower_is_better=spec.primary_metric in LOWER_IS_BETTER):
         return None
     return _new_version(s, row, spec, sub, source)
+
+
+def _consider_fraud(s: Session, row: ProjectRow, active: ModelVersionRow, sub: SubmissionRow, spec: ProblemSpec, source: str) -> ModelVersionRow | None:
+    """Fraud: the champion's re-score on a moved window refreshes the active version; anyone else must pass all five gates."""
+    from app.fraud import promote as fp  # noqa: PLC0415
+    from app.fraud.service import settings_of  # noqa: PLC0415
+
+    active_sub = s.get(SubmissionRow, active.submission_id) if active.submission_id else None
+    if sub.solver == active.solver_name:
+        if fp.data_key(sub) != fp.data_key(active_sub):
+            fp.refresh_champion(s, active, sub, spec)
+        return None
+    gates = fp.gates_for(s, row.id, sub, active, spec, settings_of(row))
+    fp.store_gates(s, sub, gates)
+    if not fp.passes(gates):
+        return None
+    v = _new_version(s, row, spec, sub, source)
+    v.gates_json = sub.gates_json
+    s.add(v)
+    s.commit()
+    s.refresh(v)
+    return v
 
 
 def after_run(s: Session, project_id: str, submission_ids: list[str]) -> list[ModelVersionRow]:

@@ -51,6 +51,33 @@ BASELINE_SOLVERS = ("baseline_logreg", "lgbm_default")
 MAX_UPLOAD_MB = 200
 SPLIT_SEED = 42
 
+# Browsers allowed to call the API from another origin (dev: the Next.js port). Production is same-origin.
+ALLOWED_ORIGINS = [o.strip() for o in env("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
+
+# One niche: payment fraud. The other templates and the generic engine stay in the code, hidden behind this flag.
+ENABLED_TEMPLATES = [t.strip() for t in env("ENABLED_TEMPLATES", "fraud").split(",") if t.strip()]
+
+# Fraud defaults: the three intake questions, the simulated label delay, the evaluation windows
+FRAUD_DEFAULTS = {
+    "daily_capacity": 200,
+    "review_cost": 10.0,
+    "fraud_fee": 0.0,
+    "label_delay_days": 30,
+}
+LABEL_DELAY_RANGE = (7, 60)  # simulated label_time = transaction_time + U(7, 60) days when the data has none
+HOLDOUT_DAYS = 14
+LEADERBOARD_DAYS = 7
+SAMPLE_AS_OF_DAY = 154  # the sample's "today": day 154 of 183, so four later weeks exist for the drift demo
+# Promotion gates
+GATE_RESAMPLES = 1000
+GATE_WIN_SHARE = 0.95
+GATE_SEGMENT_DROP = 0.05
+GATE_SECONDS_PER_10K = 5.0
+AMOUNT_BANDS = (50.0, 500.0)  # under 50, 50 to 500, over 500
+# Drift
+HEALTH_DROP = 0.15
+PSI_LIMIT = 0.2
+
 
 def project_dir(project_id: str) -> Path:
     d = WORKSPACE_DIR / project_id

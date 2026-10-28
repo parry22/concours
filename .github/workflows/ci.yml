@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_PASSWORD: test, POSTGRES_DB: concours }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Tests (SQLite)
+        working-directory: backend
+        run: uv run pytest -q
+      - name: Postgres smoke test
+        working-directory: backend
+        env:
+          CONCOURS_DATABASE_URL: postgresql+psycopg://postgres:test@127.0.0.1:5432/concours
+          CONCOURS_WORKER: external
+        run: |
+          uv run python - <<'PY'
+          from fastapi.testclient import TestClient
+          from app.db import init_db
+          from app.main import app
+          from app import jobs
+          init_db(); init_db()
+          c = TestClient(app)
+          assert c.post("/auth/signup", json={"email": "ci@test.dev", "password": "long enough pass"}).status_code == 200
+          p = c.post("/projects", json={"template": "fraud", "sample": False}).json()
+          j = jobs.enqueue(p["id"], "arena_run", {"ids": []})
+          assert jobs._claim("w1").id == j.id and jobs._claim("w2") is None
+          print("postgres ok")
+          PY
+      - name: CLI parses
+        run: python3 cli/concours_cli.py --help > /dev/null
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml }
+      - working-directory: frontend
+        run: pnpm install --frozen-lockfile && pnpm test && pnpm build

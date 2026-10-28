@@ -1,104 +1,144 @@
-"""Seed the demo through the real API: three named projects at three points in their life.
+"""Seed the demo through the real API: two fraud projects.
 
-  "Card fraud review queue, Q4"   stage Improve, v2 active (one improvement round run), improving
-  "Churn call list, postpaid"     stage Your model, v1 active, healthy (one list built, one health check)
-  "Inbound leads, November"       stage Launch, contest run, packaged, ready to launch
+  "Card fraud review queue, Q4"   v2 active, healthy, improving. Four later weeks with a new fraud pattern wait
+                                  behind "Jump forward" for the live drift moment (v3).
+  "Marketplace payments"          v1 active, drift injected and detected (slipping), improvement round ready to
+                                  run live.
 
-Arena results replay from .cache/arena/ so a reseed takes well under two minutes. Usage: seed.py [api]
+Both use the sample with the injected card-testing pattern (scripts/inject_drift.py) and fixed ID salts, so the
+protected data is identical every reseed and arena runs and fitted models replay from .cache/. Usage: seed.py [api]
 """
 from __future__ import annotations
 
+import http.cookiejar
 import json
 import os
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
-API = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
 ROOT = Path(__file__).resolve().parents[1]
+API = next((a for a in sys.argv[1:] if not a.startswith("--")), "http://127.0.0.1:8000")
+ANSWERS = ["200 cases a day", "About 10 per review, no extra fee", "Usually about 30 days"]
 
 PROJECTS = [
-    {"template": "fraud", "name": "Card fraud review queue, Q4", "contest": ["lgbm_tuned"], "lists": 0, "health": False, "package": False},
-    {"template": "churn", "name": "Churn call list, postpaid", "contest": [], "lists": 1, "health": True, "package": False},
-    {"template": "leads", "name": "Inbound leads, November", "contest": ["lgbm_tuned", "lgbm_regularized", "lgbm_ensemble"], "lists": 1, "health": False, "package": True},
+    {"name": "Card fraud review queue, Q4", "salt": "concours-demo-q4", "contest": ["lgbm_tuned"], "label_cases": 3, "jump": False},
+    {"name": "Marketplace payments", "salt": "concours-demo-marketplace", "contest": [], "label_cases": 0, "jump": True},
 ]
 
 
-def script(template: str) -> list[str]:
-    return json.loads((ROOT / "data" / "templates" / template / "defaults.json").read_text())["replies"]
+TOKEN: str | None = None  # an API key for the demo owner, set by sign_in() and revoked when the seed ends
+KEY_ID: str | None = None
+
+
+def _env_file() -> dict[str, str]:
+    """CONCOURS_DEMO_* from the environment, else from .env / .env.example at the repo root."""
+    out: dict[str, str] = {}
+    for name in (".env.example", ".env"):
+        f = ROOT / name
+        if f.exists():
+            for line in f.read_text().splitlines():
+                if "=" in line and not line.lstrip().startswith("#"):
+                    k, v = line.split("=", 1)
+                    out[k.strip()] = v.strip()
+    out.update({k: v for k, v in os.environ.items() if k.startswith("CONCOURS_")})
+    return out
+
+
+def sign_in() -> None:
+    """Sign up the demo owner on a fresh server (or sign in), then use an API key for everything else.
+    Skipped when the server has sign-in off."""
+    global TOKEN, KEY_ID
+    cfg = call("GET", "/auth/config")
+    if cfg["auth"] == "off":
+        return
+    e = _env_file()
+    email, password = e.get("CONCOURS_DEMO_EMAIL", "demo@concours.local"), e.get("CONCOURS_DEMO_PASSWORD", "")
+    if len(password) < 10:
+        raise SystemExit("[seed] set CONCOURS_DEMO_PASSWORD (10+ characters) in .env or the environment")
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    path = "/auth/signup" if cfg["first_run"] else "/auth/login"
+    body = {"email": email, "password": password, "org_name": "Concours demo"} if cfg["first_run"] else {"email": email, "password": password}
+    req = urllib.request.Request(API + path, data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json"})
+    try:
+        opener.open(req, timeout=60).read()
+        key = json.loads(opener.open(urllib.request.Request(API + "/auth/keys", data=json.dumps({"name": "demo seed"}).encode(), method="POST",
+                                                            headers={"Content-Type": "application/json"}), timeout=60).read())
+    except urllib.error.HTTPError as err:
+        raise SystemExit(f"[seed] sign-in as {email} failed: {err.code} {err.read()[:300]!r}") from err
+    TOKEN, KEY_ID = key["token"], key["id"]
+    print(f"[seed] signed in as {email} ({'new owner account' if cfg['first_run'] else 'existing account'})")
 
 
 def call(method, path, body=None, *, raw=False):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(API + path, data=data, method=method, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=900) as r:
-        out = r.read()
-        return out if raw else json.loads(out or b"{}")
+    headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {TOKEN}"} if TOKEN else {})}
+    req = urllib.request.Request(API + path, data=data, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=1800) as r:
+            out = r.read()
+            return out if raw else json.loads(out or b"null")
+    except urllib.error.HTTPError as e:
+        raise SystemExit(f"[seed] {method} {path} failed: {e.code} {e.read()[:400]!r}") from e
 
 
 def wait_arena(pid: str) -> None:
     while call("GET", f"/projects/{pid}/arena/status")["running"]:
-        time.sleep(2)
+        time.sleep(1)
 
 
 def seed(cfg: dict) -> str:
     t0 = time.time()
-    template, name = cfg["template"], cfg["name"]
-    _last = [t0]
+    last = [t0]
+    tag = cfg["name"].split(",")[0].split()[0].lower()
 
     def lap(label: str) -> None:
         now = time.time()
-        print(f"[seed:{template}] {label} ({now - _last[0]:.1f}s)")
-        _last[0] = now
+        print(f"[seed:{tag}] {label} ({now - last[0]:.1f}s)")
+        last[0] = now
 
-    p = call("POST", "/projects", {"template": template, "name": name})
+    p = call("POST", "/projects", {"template": "fraud", "name": cfg["name"], "sample": True, "sample_file": "transactions_drift.csv", "salt": cfg["salt"]})
     pid = p["id"]
-    print(f"[seed:{template}] {name!r} {pid}, {p['profile']['n_rows']} rows")
-    lap("created")
-    for msg in script(template):
-        r = call("POST", f"/projects/{pid}/intake", {"message": msg, "prefer_cache": True})
-        print(f"[seed:{template}] intake ({r['source']}): {r['message'][:80]}")
-    spec = r["spec"]
-    econ = spec.get("economics") or {}
-    econ["positive_rate"] = p["profile"]["positive_rate"]
-    spec["economics"] = econ
-    lap("intake")
-    call("PUT", f"/projects/{pid}/spec", spec)
+    lap(f"created {pid}, {p['profile']['n_rows']:,} payments")
+    sch = call("GET", f"/projects/{pid}/schema")
+    call("PUT", f"/projects/{pid}/schema", {"mapping": {f["name"]: f["column"] for f in sch["fields"]}})
+    lap("columns mapped")
+    for a in ANSWERS:
+        call("POST", f"/projects/{pid}/intake", {"message": a})
     rep = call("POST", f"/projects/{pid}/protect")
-    lap("protect")
-    print(f"[seed:{template}] protect: {len(rep['findings'])} findings, {[(x['name'], x['rows']) for x in rep['parts']]}")
-    wait_arena(pid)  # the baseline run that builds v1
-    lap("v1 run")
+    lap(f"protected: {[(x['name'], x['rows']) for x in rep['parts']]}, as of {rep['maturity']['as_of']}")
+    wait_arena(pid)
     proj = call("GET", f"/projects/{pid}")
-    print(f"[seed:{template}] v1: {proj['current_result']}")
+    lap(f"v1: {proj['current_result']}")
     if cfg["contest"]:
         call("POST", f"/projects/{pid}/arena/run", {"solvers": cfg["contest"]})
         wait_arena(pid)
-        if os.environ.get("CONCOURS_SEED_AGENT", os.environ.get("BRIEF_SEED_AGENT")) == "1":
-            call("POST", f"/projects/{pid}/arena/agent", {})
-            while call("GET", f"/projects/{pid}/arena/agent/status")["running"]:
-                time.sleep(5)
-        lap("improvement round")
         proj = call("GET", f"/projects/{pid}")
-        print(f"[seed:{template}] after the round: v{proj['active_model']['version']}, {proj['current_result']} ({proj['improvement_line']})")
-    for _ in range(cfg["lists"]):
-        lst = call("POST", f"/projects/{pid}/lists?sample=true")
-        print(f"[seed:{template}] list: {lst['name']} top {lst['top_n']} of {lst['rows_scored']} (v{lst['model_version']})")
-        lap("list")
-    if cfg["health"]:
-        h = call("POST", f"/projects/{pid}/health?sample=true")
-        print(f"[seed:{template}] health: {h['health']} ({h['line']})")
-        lap("health")
-    if cfg["package"]:
-        pk = call("POST", f"/projects/{pid}/package")
-        call("GET", f"/projects/{pid}/handoff", raw=True)
-        print(f"[seed:{template}] package validation: {pk['validation']}")
-        lap("package")
-    print(f"[seed:{template}] done in {time.time() - t0:.0f}s")
+        lap(f"round: v{proj['active_model']['version']} {proj['current_result']} ({proj['improvement_line']})")
+    if cfg["jump"]:
+        d = call("POST", f"/projects/{pid}/clock", {"days": 28, "auto_round": False})
+        lap(f"jumped to {d['as_of']}: {d['line']}")
+    else:
+        d = call("POST", f"/projects/{pid}/drift")
+        q = call("GET", f"/projects/{pid}/queue")
+        for c in q["cases"][: cfg["label_cases"]]:
+            call("POST", f"/projects/{pid}/queue/{c['transaction_id']}/label", {"label": "fraud" if c["rank"] != 2 else "not_fraud"})
+        lap(f"health: {d['line']} queue: {len(q['cases'])} cases for {q['day']}")
+    print(f"[seed:{tag}] done in {time.time() - t0:.0f}s")
     return pid
 
 
 if __name__ == "__main__":
-    for cfg in PROJECTS:
-        seed(cfg)
+    t = time.time()
+    sign_in()
+    try:
+        if "--auth-only" not in sys.argv:
+            for cfg in PROJECTS:
+                seed(cfg)
+            print(f"[seed] all done in {time.time() - t:.0f}s")
+    finally:
+        if KEY_ID:
+            call("DELETE", f"/auth/keys/{KEY_ID}")  # the seed's key is not left behind

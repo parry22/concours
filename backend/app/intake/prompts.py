@@ -21,6 +21,13 @@ Rules for spec_patch:
 - Never write numbers about the data into the message. The app computes and shows every number.
 - Set done to true once the checklist below is complete. Short sentences. No em dashes. No exclamation marks."""
 
+# Templates about people (missed payments, readmissions, attrition): the list offers support, it never decides.
+PEOPLE_RULE = (
+    "This list is about people. Use support language only: the team will {action}, reach out, follow up or check in. "
+    "Never use decision words such as flag, reject, deny, decline, approve, terminate or fire, and never describe the "
+    "list as an approval or a decision about the person. Say \"put on the list\" or \"reach out to\", not \"flag\"."
+)
+
 REQUIRED_FIELDS = ("target_column", "positive_label", "metric_params")
 
 MAX_QUESTIONS = 3
@@ -140,6 +147,8 @@ def build_system_prompt(
         "Current spec:\n" + json.dumps(current, default=str),
         "Checklist:\n" + render_checklist(spec),
     ]
+    if defaults and defaults.get("people"):
+        parts.append(PEOPLE_RULE.format(action=(defaults.get("list") or {}).get("action_label", "Reach out").lower()))
     if left == 0:
         parts.append("You have no questions left. Confirm what you have and set done to true if the checklist is complete.")
     return "\n\n".join(parts)

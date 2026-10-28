@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Field as SQLField
 from sqlmodel import SQLModel
 
-Template = Literal["fraud", "churn", "leads", "custom"]
+Template = Literal["fraud", "churn", "leads", "payments", "readmissions", "attrition", "custom"]
 Stage = Literal["upload", "intake", "protect", "model", "improve", "launch"]
 VersionSource = Literal["baseline", "local_contest", "apex_contest"]
 Health = Literal["unknown", "healthy", "slipping"]
@@ -27,7 +27,7 @@ class ProblemSpec(BaseModel):
     target_column: str
     positive_label: str | int | None = None
     time_column: str | None = None
-    primary_metric: Literal["recall_at_fpr", "recall_at_top_k", "wape"] = "recall_at_fpr"
+    primary_metric: Literal["recall_at_fpr", "recall_at_top_k", "wape", "fraud_amount_per_day"] = "recall_at_fpr"
     metric_params: dict[str, Any] = Field(default_factory=dict)
     secondary_metric: str | None = None
     metric_rationale: str = ""
@@ -49,7 +49,7 @@ class SpecPatch(BaseModel):
     target_column: str | None = None
     positive_label: str | int | None = None
     time_column: str | None = None
-    primary_metric: Literal["recall_at_fpr", "recall_at_top_k", "wape"] | None = None
+    primary_metric: Literal["recall_at_fpr", "recall_at_top_k", "wape", "fraud_amount_per_day"] | None = None
     metric_params: dict[str, Any] | None = None
     secondary_metric: str | None = None
     metric_rationale: str | None = None
@@ -92,7 +92,7 @@ class Finding(BaseModel):
     severity: Literal["high", "medium", "info"]
     column: str | None
     reason: str
-    action: Literal["dropped", "masked", "removed_rows", "warned", "resplit"]
+    action: Literal["dropped", "masked", "removed_rows", "warned", "resplit", "set_aside", "group_split", "hashed", "relabeled", "embargoed"]
     evidence: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -105,8 +105,29 @@ class SplitPart(BaseModel):
     time_max: str | None = None
 
 
+class MaturitySummary(BaseModel):
+    """Late labels: what was knowable when. Days are ISO dates."""
+
+    as_of: str  # the evaluation date ("today")
+    label_delay_days: int
+    label_time_simulated: bool
+    train_end: str  # the training cutoff
+    embargo_start: str
+    embargo_end: str
+    leaderboard_start: str
+    holdout_start: str
+    holdout_end: str
+    immature_start: str  # newest days: no mature labels yet, used only for today's queue and drift
+    frauds_in_train: int  # all frauds in the training window
+    frauds_unconfirmed_in_train: int  # confirmed after the training cutoff, so label 0 for training
+    frauds_unconfirmed_at_eval: int  # in the evaluation windows, still unconfirmed at the as-of date
+    embargo_rows: int
+    immature_rows: int
+    analyst_labels: int = 0
+
+
 class ProtectReport(BaseModel):
-    strategy: Literal["time", "stratified"]
+    strategy: Literal["time", "stratified", "group", "time_embargo"]
     seed: int = 42
     parts: list[SplitPart]
     findings: list[Finding]
@@ -115,6 +136,38 @@ class ProtectReport(BaseModel):
     masked_columns: list[str]
     rows_removed: int = 0
     checksums: dict[str, str] = Field(default_factory=dict)  # file -> sha256
+    set_aside_columns: list[str] = Field(default_factory=list)  # sensitive: not trained on, kept for the fairness report
+    maturity: MaturitySummary | None = None  # fraud projects: late labels and the embargo
+    hashed_columns: list[str] = Field(default_factory=list)  # fraud: IDs replaced by salted hashes
+    group_column: str | None = None  # the entity key of a group split
+
+
+class FairnessGroup(BaseModel):
+    group: str
+    rows: int
+    positives: int
+    selected: int
+    selection_rate: float  # selected / rows
+    hit_rate: float | None  # positives among selected / selected; None when none selected
+    base_rate: float  # positives / rows
+    enough_rows: bool
+
+
+class FairnessColumn(BaseModel):
+    column: str
+    trait: str
+    groups: list[FairnessGroup]
+    min_selection_ratio: float | None = None  # lowest group selection rate / highest, groups with enough rows
+    note: str | None = None
+
+
+class FairnessReport(BaseModel):
+    model_version: int | None = None
+    split: Literal["holdout"] = "holdout"
+    rows: int
+    selected: int
+    rule: Literal["top_k", "fpr"]
+    columns: list[FairnessColumn]
 
 
 # ---------- Arena ----------
@@ -134,6 +187,8 @@ class SubmissionOut(BaseModel):
     eval_seconds: float | None = None
     rank: int | None = None
     is_leader: bool = False
+    gates: list["GateResult"] = Field(default_factory=list)  # fraud: the five promotion gates
+    champion: bool = False  # fraud: the active version re-scored on this window
 
 
 class LeaderboardOut(BaseModel):
@@ -271,6 +326,8 @@ class ModelVersionOut(BaseModel):
     improvement_line: str | None = None  # versus v1
     status: Literal["active", "retired"]
     created_at: datetime
+    gates: list[GateResult] = Field(default_factory=list)
+    stats: dict[str, Any] = Field(default_factory=dict)  # fraud: holdout queue numbers (per day, precision, false alarms)
 
 
 class ListOut(BaseModel):
@@ -339,12 +396,121 @@ class PackageOut(BaseModel):
     files: list[str]
 
 
+# ---------- Fraud ----------
+
+FRAUD_REQUIRED = ("transaction_id", "transaction_time", "amount", "customer_id", "is_fraud")
+FRAUD_OPTIONAL = ("merchant_or_terminal_id", "currency", "label_time")
+
+
+class FraudSettings(BaseModel):
+    daily_capacity: int = Field(200, ge=1, le=100_000)  # cases the team reviews per day
+    review_cost: float = Field(10.0, ge=0)  # cost of one review
+    fraud_fee: float = Field(0.0, ge=0)  # cost of a missed fraud on top of its amount (chargeback fee)
+    label_delay_days: int = Field(30, ge=1, le=180)  # how long until fraud is usually confirmed
+
+
+class SchemaField(BaseModel):
+    name: str
+    required: bool
+    column: str | None = None  # the user's column
+    suggested: str | None = None
+
+
+class SchemaOut(BaseModel):
+    columns: list[str]
+    fields: list[SchemaField]
+    preview: list[dict[str, Any]] = Field(default_factory=list)
+    confirmed: bool = False
+    problems: list[str] = Field(default_factory=list)
+
+
+class SchemaIn(BaseModel):
+    mapping: dict[str, str | None]  # canonical name -> user column
+
+
+class GateResult(BaseModel):
+    key: Literal["hidden_data", "same_rows", "luck", "segments", "speed"]
+    name: str
+    passed: bool
+    line: str  # plain words, numbers from code
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class QueueReason(BaseModel):
+    text: str
+    weight: float
+
+
+class QueueCase(BaseModel):
+    rank: int
+    transaction_id: str
+    time: str
+    amount: float
+    customer: str  # hashed
+    risk: float
+    expected_loss: float
+    reasons: list[QueueReason]
+    label: Literal["fraud", "not_fraud"] | None = None
+
+
+class QueueOut(BaseModel):
+    day: str
+    model_version: int
+    capacity: int
+    rows_scored: int
+    cases: list[QueueCase]
+    expected_loss_total: float
+    labeled: int
+    created_at: datetime
+
+
+class QueueLabelIn(BaseModel):
+    label: Literal["fraud", "not_fraud"] | None
+
+
+class WeekHealth(BaseModel):
+    week_start: str
+    week_end: str
+    caught_per_day: float  # fraud money caught per day inside capacity
+    fraud_per_day: float  # fraud money per day
+    share: float  # caught / fraud money
+    drop: float  # relative to the version's holdout share
+
+
+class DriftFeature(BaseModel):
+    name: str
+    psi: float
+    flagged: bool
+
+
+class DriftOut(BaseModel):
+    as_of: str
+    model_version: int | None
+    baseline_share: float | None
+    weeks: list[WeekHealth]
+    psi: list[DriftFeature]
+    performance_drop: float | None  # latest mature week vs holdout, relative
+    slipping: bool
+    reason: Literal["performance", "drift", "both", "none"]
+    line: str
+    round_started: bool = False
+    checked_at: datetime
+
+
+class ClockIn(BaseModel):
+    days: int = Field(28, ge=1, le=120)
+    auto_round: bool = True
+
+
 # ---------- Project ----------
 
 
 class ProjectCreate(BaseModel):
     name: str | None = None
-    template: Template = "custom"
+    template: Template = "fraud"
+    sample: bool = True  # fraud: start from the sample transactions (False: the user uploads theirs)
+    sample_file: str | None = None  # seed only: another file in the fraud template folder (the drift copy)
+    salt: str | None = None  # seed only: a fixed ID salt so cached arena runs replay
 
 
 class ProjectOut(BaseModel):
@@ -373,6 +539,14 @@ class ProjectOut(BaseModel):
     drift_threshold: float = 0.10
     list_name: str = "Action list"
     updated_at: datetime | None = None
+    fraud_settings: FraudSettings | None = None
+    source: str = "sample"
+    schema_confirmed: bool = False
+    as_of: str | None = None
+    can_jump: bool = False  # sample data beyond the as-of date exists
+    drift: DriftOut | None = None
+    money_per_day: float | None = None  # active version, fraud caught per day inside capacity
+    net_per_day: float | None = None
 
 
 # ---------- SQLModel tables ----------
@@ -403,8 +577,22 @@ class ProjectRow(SQLModel, table=True):
     health: str = "unknown"
     health_json: str | None = None
     refresh_daily: bool = False
+    fraud_settings_json: str | None = None
+    mapping_json: str | None = None  # confirmed mapping, canonical -> user column
+    as_of: str | None = None  # simulated today (ISO date)
+    data_end: str | None = None  # last transaction date in the data
+    salt: str | None = None
+    source: str = "sample"  # sample or upload
+    drift_json: str | None = None
+    org_id: str | None = SQLField(default=None, index=True)
     created_at: datetime = SQLField(default_factory=_now)
     updated_at: datetime = SQLField(default_factory=_now)
+
+    def fraud_settings(self) -> FraudSettings | None:
+        return FraudSettings.model_validate_json(self.fraud_settings_json) if self.fraud_settings_json else None
+
+    def drift(self) -> DriftOut | None:
+        return DriftOut.model_validate_json(self.drift_json) if self.drift_json else None
 
     def spec(self) -> ProblemSpec | None:
         return ProblemSpec.model_validate_json(self.spec_json) if self.spec_json else None
@@ -468,6 +656,15 @@ class ProjectRow(SQLModel, table=True):
             drift_threshold=self.drift_threshold,
             list_name=list_framing(self.template, spec)["name"],
             updated_at=self.updated_at,
+            fraud_settings=self.fraud_settings(),
+            source=self.source or "sample",
+            schema_confirmed=self.mapping_json is not None,
+            as_of=self.as_of,
+            can_jump=bool(self.as_of and self.data_end and self.as_of < self.data_end),
+            drift=self.drift(),
+            money_per_day=active.private_score if active and spec and spec.primary_metric == "fraud_amount_per_day" else None,
+            net_per_day=(active.private_score - self.fraud_settings().daily_capacity * self.fraud_settings().review_cost)
+            if active and spec and spec.primary_metric == "fraud_amount_per_day" and self.fraud_settings() else None,
         )
 
 
@@ -485,6 +682,21 @@ class ModelVersionRow(SQLModel, table=True):
     metric_name: str = ""
     business_value: str = ""
     status: str = "active"
+    gates_json: str | None = None
+    created_at: datetime = SQLField(default_factory=_now)
+
+
+class CaseLabelRow(SQLModel, table=True):
+    """An analyst's verdict on a queued case. Fed into the next improvement round with label_time = when given."""
+
+    __tablename__ = "case_label"
+
+    id: str = SQLField(default_factory=lambda: uuid.uuid4().hex[:12], primary_key=True)
+    project_id: str = SQLField(index=True)
+    transaction_id: str = SQLField(index=True)
+    label: int = 1
+    label_time: str = ""  # simulated now (the as-of date) when given
+    model_version: int = 0
     created_at: datetime = SQLField(default_factory=_now)
 
 
@@ -520,4 +732,9 @@ class SubmissionRow(SQLModel, table=True):
     eval_seconds: float | None = None
     data_hash: str = ""
     result_json: str | None = None
+    gates_json: str | None = None
     created_at: datetime = SQLField(default_factory=_now)
+
+
+SubmissionOut.model_rebuild()
+LeaderboardOut.model_rebuild()

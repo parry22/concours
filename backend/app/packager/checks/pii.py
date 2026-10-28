@@ -18,6 +18,19 @@ def run(ctx: CheckContext) -> None:
         kind = classify_pii(ctx.df[c], c)
         if not kind:
             continue
+        if kind == "card":
+            # card numbers never leave, not even hashed: a hash of a 16-digit number with a known BIN is reversible
+            ctx.drop(
+                Finding(
+                    check="pii",
+                    severity="high",
+                    column=c,
+                    reason=f"{c} contains card numbers. Card numbers are removed before anyone sees the data.",
+                    action="dropped",
+                    evidence={"kind": kind},
+                )
+            )
+            continue
         ctx.masked.add(c)
         ctx.warn(
             Finding(

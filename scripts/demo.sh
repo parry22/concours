@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Reset and seed the demo: wipe workspace, fetch data, start the backend, create the three demo projects
-# (intake from cached replies, protect, version 1, an improvement round, a list, a health check, one package).
+# Reset and seed the demo: wipe workspace, fetch the fraud sample (and inject the drift pattern), start the
+# backend, create the two fraud projects (mapping, three questions, protect, v1, an improvement round, today's
+# queue; the second jumps forward into the new fraud pattern and is left slipping).
 # Target: under 2 minutes with the arena cache warm; the first ever run builds the player image and runs the
 # solvers in Docker (several minutes).
 set -euo pipefail
@@ -16,7 +17,8 @@ if [ "$KEEP" != "1" ]; then
 fi
 mkdir -p "$ROOT/workspace"
 [ -x "$PY" ] || (cd "$ROOT/backend" && uv sync)
-[ -f "$ROOT/data/templates/fraud/dataset.csv" ] && [ -f "$ROOT/data/templates/churn/dataset.csv" ] && [ -f "$ROOT/data/templates/leads/dataset.csv" ] || "$PY" -I "$ROOT/scripts/fetch_data.py"
+[ -f "$ROOT/data/templates/fraud/transactions.csv" ] || "$PY" -I "$ROOT/scripts/fetch_data.py" fraud
+[ -f "$ROOT/data/templates/fraud/transactions_drift.csv" ] || "$PY" -I "$ROOT/scripts/inject_drift.py"
 
 if ! curl -sf "$API/templates" >/dev/null; then
   echo "[demo] starting backend"

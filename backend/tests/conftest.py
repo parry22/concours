@@ -47,3 +47,11 @@ def leads_df():
     if not p.exists():
         pytest.skip("leads dataset not fetched")
     return pd.read_csv(p)
+
+
+@pytest.fixture(scope="session")
+def readmissions_df():
+    p = TEMPLATES_DIR / "readmissions" / "dataset.csv"
+    if not p.exists():
+        pytest.skip("readmissions dataset not fetched")
+    return pd.read_csv(p, low_memory=False)

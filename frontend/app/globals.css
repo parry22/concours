@@ -308,13 +308,29 @@ button,
   animation: pulse-dot 1.6s ease-in-out infinite;
 }
 
+/* Select menus: a short scale-and-fade from the trigger's edge. */
+@keyframes select-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.select-pop {
+  animation: select-pop 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .row-in,
   .pop-in,
   .sheet-in,
   .fade-in,
   .shimmer,
-  .pulse-dot {
+  .pulse-dot,
+  .select-pop {
     animation: none;
   }
   .cyl {

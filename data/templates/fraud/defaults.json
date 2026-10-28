@@ -46,5 +46,7 @@
     "top_n": 200,
     "row_label": "transaction",
     "action_label": "Review"
-  }
+  },
+  "transactions": "transactions.csv",
+  "transactions_drift": "transactions_drift.csv"
 }

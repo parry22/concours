@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, Lock, Play, RotateCcw, Sparkles, Terminal, Trophy } from "lucide-react";
+import { Check, Lock, Play, RotateCcw, ShieldCheck, Terminal, Trophy, X } from "lucide-react";
 import { ActionBar, NextLink, useProject } from "@/components/ProjectShell";
 import { Alert, Badge, Button, Card, ResultFigure, Spinner, cx } from "@/components/ui";
-import { api, errorText, type DockerStatus, type LeaderboardOut, type ModelVersionOut, type SolverOut, type SubmissionOut } from "@/lib/api";
+import { api, errorText, type DockerStatus, type GateResult, type LeaderboardOut, type ModelVersionOut, type SolverOut, type SubmissionOut } from "@/lib/api";
 import { openArenaStream } from "@/lib/sse";
-import { ValuePanel } from "@/components/ValuePanel";
-import { attemptLabel, figureOf, fmtPct, fmtScore } from "@/lib/format";
-import { improve as copy } from "@/lib/copy";
+import { attemptLabel } from "@/lib/format";
+import { gates as gateCopy, improve as copy } from "@/lib/copy";
+
+const money = (x: number | null | undefined) => (x == null ? "–" : `${x < 0 ? "-" : ""}$${Math.abs(Math.round(x)).toLocaleString("en-US")}`);
 
 type Row = SubmissionOut & { placeholder?: boolean };
 
@@ -60,7 +61,7 @@ export default function ImprovePage() {
           break;
         case "submission_started":
           setRunning(true);
-          setPending((p) => (p.some((r) => r.id === ev.id) ? p : [...p, { id: ev.id, solver: ev.solver, status: "running", logs_path: "", is_leader: false, placeholder: true }]));
+          setPending((p) => (p.some((r) => r.id === ev.id) ? p : [...p, { id: ev.id, solver: ev.solver, status: "running", logs_path: "", is_leader: false, placeholder: true, gates: [], champion: false }]));
           break;
         case "submission_scored":
           setPending((p) => p.filter((r) => r.id !== ev.submission.id));
@@ -106,9 +107,8 @@ export default function ImprovePage() {
     setError(null);
     setPromoted(null);
     try {
-      // The contest solvers: everything except the two that built version 1.
-      const contest = (solvers ?? []).map((s) => s.name).filter((n) => n !== "baseline_logreg" && n !== "lgbm_default");
-      await api.arenaRun(project.id, { replay: true, solvers: contest.length ? contest : undefined });
+      // The backend picks the fraud round: the current model re-scored when the data moved, then the local solvers.
+      await api.arenaRun(project.id, { replay: true });
       setRunning(true);
     } catch (e) {
       setError(errorText(e));
@@ -126,9 +126,8 @@ export default function ImprovePage() {
   const ordered = rows.slice().sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
   const hasScores = scored.some((s) => s.status === "scored");
   const doneRuns = rows.filter((r) => r.status === "scored" || r.status === "failed").length;
-  const fig = figureOf(active?.business_value);
-  const marginPct = Math.round(project.min_improvement * 1000) / 10;
-  const contestCount = (solvers ?? []).filter((s) => s.name !== "baseline_logreg" && s.name !== "lgbm_default").length;
+  const contestCount = 2;
+  const isChampion = (r: Row) => !versionBySub.get(r.id) && r.solver === active?.solver_name && !r.gates?.length;
   let attemptIndex = 0;
 
   return (
@@ -144,7 +143,6 @@ export default function ImprovePage() {
 
       {promoted ? (
         <section className="pop-in relative overflow-hidden rounded-2xl border border-border-strong bg-card p-5 sm:p-6">
-          <span aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full opacity-[0.2] blur-3xl" style={{ background: "var(--brand-gradient)" }} />
           <div className="relative flex items-center gap-2 text-[12px] font-medium text-subtle">
             <span className="bg-brand flex h-5 w-5 items-center justify-center rounded-full text-background">
               <Trophy className="h-3 w-3" />
@@ -164,12 +162,12 @@ export default function ImprovePage() {
               label={
                 <span className="flex items-center gap-2">
                   <span className="num">v{active.version}</span>
-                  <span>{fig?.label ?? active.metric_name}</span>
+                  <span>{copy.perDayLabel(project.fraud_settings?.daily_capacity ?? 200)}</span>
                 </span>
               }
-              value={fig?.value ?? fmtScore(active.private_score)}
+              value={money(active.private_score)}
               line={active.improvement_line}
-              delta={v1 && active.version > 1 ? <Badge tone="accent" className="num">{fmtPct(active.private_score - v1.private_score, 0).replace("%", " pts")}</Badge> : null}
+              delta={v1 && active.version > 1 && active.private_score > v1.private_score ? <Badge tone="accent" className="num">+{money(active.private_score - v1.private_score)}</Badge> : null}
             />
           ) : (
             <div className="text-[13px] text-muted">{copy.protectFirst}</div>
@@ -191,7 +189,7 @@ export default function ImprovePage() {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-12">
-        <Card pad={false} className="lg:col-span-8" title={copy.attempts} subtitle={copy.attemptsSub(marginPct)} actions={<Badge>{copy.localSolvers}</Badge>}>
+        <Card pad={false} className="lg:col-span-8" title={copy.attempts} subtitle={gateCopy.sub} actions={<Badge>{copy.localSolvers}</Badge>}>
           {ordered.length === 0 ? (
             <div className="px-4 pb-5 text-[13px] text-muted sm:px-5">{copy.noAttempts(contestCount)}</div>
           ) : (
@@ -202,8 +200,8 @@ export default function ImprovePage() {
                 const ver = versionBySub.get(r.id);
                 const isActive = ver?.status === "active";
                 const isV1 = ver?.version === 1;
-                if (!ver && !r.solver.startsWith("agent_solver")) attemptIndex += 1;
-                const bv = figureOf(r.business_value);
+                const champ = isChampion(r);
+                if (!ver && !champ && !r.solver.startsWith("agent_solver")) attemptIndex += 1;
                 return (
                   <li key={r.id} className={cx("flex items-center gap-3 px-4 py-3.5 sm:gap-4 sm:px-5", fresh && "row-in", isActive && "bg-[linear-gradient(90deg,rgb(167_139_250/0.08),transparent_60%)]")}>
                     <span className={cx("num flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border text-[12px]", isActive ? "bg-brand border-transparent text-background" : "border-border-strong bg-card-2 text-subtle")}>
@@ -211,21 +209,22 @@ export default function ImprovePage() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="truncate text-[14px] font-medium">{isV1 ? copy.v1 : ver ? `Version ${ver.version}` : attemptLabel(r.solver, attemptIndex)}</span>
+                        <span className="truncate text-[14px] font-medium">{isV1 ? copy.v1 : ver ? `Version ${ver.version}` : champ ? gateCopy.champion : attemptLabel(r.solver, attemptIndex)}</span>
                         {isActive ? <Badge tone="accent">{copy.active}</Badge> : ver ? <Badge>v{ver.version}</Badge> : r.is_leader ? <Badge>{copy.leading}</Badge> : null}
                       </div>
-                      <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted sm:truncate">{r.error ? <span className="text-danger">{r.error}</span> : bv ? bv.label : <StatusText status={r.status} />}</div>
+                      <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted sm:truncate">{r.error ? <span className="text-danger">{r.error}</span> : r.status === "scored" ? copy.perDayLabel(project.fraud_settings?.daily_capacity ?? 200) : <StatusText status={r.status} />}</div>
+                      {r.gates?.length ? <GateChips gates={r.gates} /> : null}
                     </div>
                     <div className="grid shrink-0 grid-cols-2 items-end gap-4 text-right sm:gap-6">
                       <div>
                         <div className="text-[11px] text-muted">{copy.businessValue}</div>
                         <div className={cx("num text-[18px] leading-none font-medium", isActive ? "text-gradient" : "text-foreground")}>
-                          {bv ? bv.value : r.status === "running" ? <Spinner className="ml-auto h-3.5 w-3.5" /> : "–"}
+                          {r.private_score != null ? money(r.private_score) : r.status === "running" ? <Spinner className="ml-auto h-3.5 w-3.5" /> : "–"}
                         </div>
                       </div>
                       <div>
                         <div className="text-[11px] text-muted">{copy.rawMetric}</div>
-                        <div className="num text-[11px] text-muted">{r.public_score != null ? fmtScore(r.public_score) : "–"}</div>
+                        <div className="num text-[11px] text-muted">{r.public_score != null ? money(r.public_score) : "–"}</div>
                       </div>
                     </div>
                   </li>
@@ -236,24 +235,17 @@ export default function ImprovePage() {
         </Card>
 
         <div className="min-w-0 space-y-4 lg:col-span-4">
-          <Card title={copy.worth} actions={<Sparkles className="icon-brand h-4 w-4" />}>
-            {board?.savings_line ? (
-              <>
-                <SavingsFigure line={board.savings_line} />
-                {board.savings_formula ? (
-                  <details className="group mt-3">
-                    <summary className="flex cursor-pointer list-none items-center gap-1 text-[12px] text-muted [&::-webkit-details-marker]:hidden">
-                      {copy.howWorked}
-                      <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-                    </summary>
-                    <p className="num mt-2 rounded-lg bg-card-2 p-3 text-[11px] leading-relaxed text-subtle">{board.savings_formula}</p>
-                  </details>
-                ) : null}
-              </>
-            ) : (
-              <p className="text-[13px] leading-relaxed text-muted">{copy.worthWaiting}</p>
-            )}
-            {board?.raw_metric_line ? <p className="mt-3 border-t border-border pt-3 text-[11px] leading-relaxed text-muted">{board.raw_metric_line}</p> : null}
+          <Card title={gateCopy.title} actions={<ShieldCheck className="icon-brand h-4 w-4" />}>
+            <ol className="space-y-2.5 text-[13px]">
+              {gateCopy.list.map((g, i) => (
+                <li key={g.name} className="flex gap-2.5">
+                  <span className="num flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border-strong text-[10px] text-subtle">{i + 1}</span>
+                  <span>
+                    <span className="font-medium">{g.name}.</span> <span className="text-subtle">{g.text}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
           </Card>
 
           <Card
@@ -282,11 +274,6 @@ export default function ImprovePage() {
         </div>
       </div>
 
-      {hasScores ? (
-        <Card title={copy.worth} subtitle={copy.worthSub}>
-          <ValuePanel projectId={project.id} version={boardVersion} activeVersion={active?.version ?? null} onChange={() => void loadBoard()} />
-        </Card>
-      ) : null}
 
       <ActionBar
         hint={project.versions.length > 1 ? copy.hintDone : copy.hintIdle}
@@ -310,13 +297,40 @@ function StatusText({ status }: { status: SubmissionOut["status"] }) {
   return <>{copy.scored}</>;
 }
 
-function SavingsFigure({ line }: { line: string }) {
-  const m = line.match(/^(.*?):\s*(.+)$/);
+/** Five gates as a segmented bar (the reference's score bar) with the deciding line; details open below. */
+function GateChips({ gates }: { gates: GateResult[] }) {
+  const passed = gates.filter((g) => g.passed).length;
+  const first = gates.find((g) => !g.passed);
   return (
-    <div>
-      <div className="text-[12px] text-muted">{m ? m[1] : "Estimate"}</div>
-      <div className="num text-gradient mt-1.5 text-[30px] leading-none font-medium tracking-[-0.02em]">{m ? m[2] : line}</div>
-    </div>
+    <details className="group mt-2.5 max-w-[460px]">
+      <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+        <span className="flex w-[110px] shrink-0 gap-[3px]" aria-hidden>
+          {gates.map((g) => (
+            <span key={g.key} className={cx("h-1.5 flex-1 rounded-[2px]", g.passed ? "bg-brand-x" : "bg-danger/70")} />
+          ))}
+        </span>
+        <span className="min-w-0 truncate text-[12px] text-subtle">
+          {first ? (
+            <>
+              <span className="font-medium text-foreground">{first.name}:</span> {first.line}
+            </>
+          ) : (
+            gateCopy.allPassed
+          )}
+        </span>
+        <span className="num shrink-0 text-[11px] text-muted">{passed}/5</span>
+      </summary>
+      <ul className="mt-2.5 space-y-1.5 border-l border-border pl-3">
+        {gates.map((g) => (
+          <li key={g.key} className="flex items-start gap-2 text-[12px]">
+            {g.passed ? <Check className="icon-brand mt-0.5 h-3 w-3 shrink-0" strokeWidth={3} /> : <X className="mt-0.5 h-3 w-3 shrink-0 text-danger" strokeWidth={3} />}
+            <span className="min-w-0">
+              <span className="font-medium">{g.name}.</span> <span className="text-muted">{g.line}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -327,14 +341,14 @@ function AttemptChart({ rows, versionBySub }: { rows: Row[]; versionBySub: Map<s
   let n = 0;
   const groups = rows.map((r) => {
     const ver = versionBySub.get(r.id);
-    const v = figureOf(r.business_value);
-    const value = v ? parseFloat(v.value) / 100 : null;
+    const value = r.private_score ?? null;
     if (!ver && !r.solver.startsWith("agent_solver")) n += 1;
     return { key: r.id, value: Number.isFinite(value as number) ? value : null, running: r.status === "running" || r.status === "queued", ver, label: ver ? `v${ver.version}` : r.solver.startsWith("agent_solver") ? attemptLabel(r.solver) : `Attempt ${n}` };
   });
   if (groups.length === 0) return null;
-  const top = Math.max(0.0001, ...groups.map((g) => g.value ?? 0));
-  const max = Math.min(1, Math.max(0.2, Math.ceil((top * 1.15) / 0.1) * 0.1));
+  const top = Math.max(1, ...groups.map((g) => g.value ?? 0));
+  const step = top > 4000 ? 2000 : top > 1000 ? 1000 : 100;
+  const max = Math.ceil((top * 1.15) / step) * step;
   const ticks = TICKS.map((t) => t * max);
   const h = (v: number | null) => (v == null ? 0 : Math.max(4, (v / max) * 100));
   return (
@@ -342,7 +356,7 @@ function AttemptChart({ rows, versionBySub }: { rows: Row[]; versionBySub: Map<s
       <div className="flex h-[200px] shrink-0 flex-col justify-between pb-0 text-right sm:h-[240px]">
         {ticks.map((t) => (
           <span key={t} className="num -translate-y-1/2 text-[11px] leading-none text-muted first:translate-y-0 last:translate-y-0">
-            {Math.round(t * 100)}%
+            {t >= 1000 ? `$${(t / 1000).toFixed(t % 1000 ? 1 : 0)}k` : `$${Math.round(t)}`}
           </span>
         ))}
       </div>
@@ -359,7 +373,7 @@ function AttemptChart({ rows, versionBySub }: { rows: Row[]; versionBySub: Map<s
                 <div key={g.key} className="relative flex h-full w-7 flex-col justify-end sm:w-10">
                   {g.value != null ? (
                     <span className={cx("num absolute inset-x-[-12px] text-center text-[10px] leading-none transition-[bottom] duration-700 sm:text-[11px]", isActive ? "text-foreground" : "text-muted")} style={{ bottom: `calc(${h(g.value)}% + 8px)` }}>
-                      {Math.round(g.value * 100)}
+                      {money(g.value)}
                     </span>
                   ) : null}
                   {kind === "ghost" ? (

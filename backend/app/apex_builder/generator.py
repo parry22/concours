@@ -30,8 +30,32 @@ def competition_id(row: ProjectRow) -> str:
     return f"concours_{row.template}_{row.id}"[:64]
 
 
+def fraud_handoff(row, report) -> dict | None:
+    """Fraud settings, the embargo and the promotion gates, for HANDOFF.md section 1."""
+    from app.config import AMOUNT_BANDS, GATE_RESAMPLES, GATE_SECONDS_PER_10K, GATE_SEGMENT_DROP, GATE_WIN_SHARE  # noqa: PLC0415
+
+    st = row.fraud_settings() if hasattr(row, "fraud_settings") else None
+    m = report.maturity
+    if st is None or m is None:
+        return None
+    lo, hi = AMOUNT_BANDS
+    return {
+        "capacity": st.daily_capacity, "review_cost": f"{st.review_cost:,.2f}", "fee": f"{st.fraud_fee:,.2f}", "delay": st.label_delay_days,
+        "as_of": m.as_of, "train_end": m.train_end, "embargo": f"{m.embargo_start} to {m.embargo_end}",
+        "leaderboard": f"{m.leaderboard_start} to {m.holdout_start}", "holdout": f"{m.holdout_start} to {m.holdout_end}",
+        "simulated": m.label_time_simulated, "unconfirmed_train": m.frauds_unconfirmed_in_train, "unconfirmed_eval": m.frauds_unconfirmed_at_eval,
+        "resamples": GATE_RESAMPLES, "win_share": f"{GATE_WIN_SHARE:.0%}", "segment_drop": f"{GATE_SEGMENT_DROP:.0%}",
+        "bands": f"under {lo:g}, {lo:g} to {hi:g}, over {hi:g}", "speed": f"{GATE_SECONDS_PER_10K:g}",
+        "hashed": ", ".join(report.hashed_columns) or "none",
+    }
+
+
 def task_description(spec: ProblemSpec, row: ProjectRow) -> str:
     w = words(spec.template, spec.business_template)
+    if spec.primary_metric == "fraud_amount_per_day":
+        cap = spec.metric_params.get("capacity", 200)
+        return (f"Score each payment's chance of fraud (target `{spec.target_column}`). Every day the {cap} payments with the highest "
+                "expected loss (score x amount) go to the fraud team; the more fraud money inside those cases, the better.")
     if spec.business_template == "fraud":
         return f"Predict which rows are {w['short']} (target `{spec.target_column}`) so that more {w['short']} is caught at a fixed false-alarm budget."
     if spec.business_template == "churn":
@@ -41,6 +65,9 @@ def task_description(spec: ProblemSpec, row: ProjectRow) -> str:
 
 def success_statement(spec: ProblemSpec) -> str:
     w = words(spec.template, spec.business_template)
+    if spec.primary_metric == "fraud_amount_per_day":
+        return ("A daily review queue that holds more fraud money than today's model, day after day, including after fraudsters change "
+                "tactics, without dropping any amount band or new customers.")
     if spec.business_template == "fraud":
         return f"A model the {w['team']} would switch on tomorrow: it catches clearly more {w['short']} than today's rules at the same number of blocked good customers, and keeps doing so on next month's transactions."
     if spec.business_template == "churn":
@@ -79,7 +106,8 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
     validation = validation or {}
     player_digest = runner.image_id(project_id, "player") or ZERO
     referee_digest = runner.image_id(project_id, "referee") or ZERO
-    hidden = {f: report.checksums.get(f, sha256_file(comp / "referee" / "data" / f)) for f in HIDDEN_FILES}
+    hidden = {f: report.checksums.get(f) or sha256_file(comp / "referee" / "data" / f) for f in HIDDEN_FILES
+              if f in report.checksums or (comp / "referee" / "data" / f).exists()}
     kept = [c for c in report.kept_columns]
     ctx = {
         "competition_id": cid,
@@ -102,7 +130,12 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
         "metric_params": ", ".join(f"{k}={v}" for k, v in spec.metric_params.items()),
         "secondary_name": METRIC_NAMES.get(spec.secondary_metric or "", spec.secondary_metric or "none"),
         "metric_rationale": spec.metric_rationale or "chosen by Concours's metric policy from the positive rate",
-        "split_strategy": "by time (oldest 70% train, next 10% leaderboard, newest 20% holdout)" if report.strategy == "time" else "stratified random 70/10/20, seed 42",
+        "fraud": fraud_handoff(row, report),
+        "split_strategy": {
+            "time_embargo": "by time with an embargo: train, a gap of label_delay_days, a leaderboard window, then the holdout window (see the fraud section)",
+            "time": "by time (oldest 70% train, next 10% leaderboard, newest 20% holdout)",
+            "group": f"by {report.group_column} 70/10/20, seed 42: every row of one {report.group_column} sits in one part",
+        }.get(report.strategy, "stratified random 70/10/20, seed 42"),
         "train_rows": train_rows,
         "lb_rows": lb_rows,
         "holdout_rows": ho_rows,

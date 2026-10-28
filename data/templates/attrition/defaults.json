@@ -1,0 +1,54 @@
+{
+  "name": "Employee attrition",
+  "description": "Check in with people who may be thinking of leaving.",
+  "label": "Attrition",
+  "icon": "users",
+  "dataset": "dataset.csv",
+  "dataset_env": "CONCOURS_ATTRITION_CSV",
+  "source_url": "https://www.kaggle.com/datasets/pavansubhasht/ibm-hr-analytics-attrition-dataset",
+  "source_note": "IBM HR Analytics sample (fictional employees). Download the CSV and upload it here.",
+  "target_column": "Attrition",
+  "positive_label": "Yes",
+  "time_column": null,
+  "id_columns_hint": ["EmployeeNumber"],
+  "primary_metric": "recall_at_top_k",
+  "metric_params": {
+    "top_k": 0.1
+  },
+  "secondary_metric": "roc_auc",
+  "business_template": "churn",
+  "metric_line": "Leavers reached by a check-in in your top 10%",
+  "rate_hint": 0.16,
+  "people": true,
+  "words": {
+    "positive": "employees who may leave",
+    "negative": "employees",
+    "short": "leavers",
+    "past": "employees who left",
+    "future": "employees will leave",
+    "event": "the employee left",
+    "team": "people team",
+    "about_to": "thinking of leaving",
+    "entity": "employee"
+  },
+  "known_leaks": {},
+  "intake_goal": "We want to know which employees may be thinking of leaving so managers can check in with them first.",
+  "replies": [
+    "We want to know which employees may be thinking of leaving so managers can check in with them first.",
+    "Managers can hold about 10% of check-ins each month.",
+    "Replacing someone costs about 20,000 dollars, a check-in costs about 50 dollars of time. About 1,500 employees."
+  ],
+  "economics_defaults": {
+    "rows_per_month": 1500,
+    "value_per_positive": 20000.0,
+    "action_success_rate": 0.2,
+    "cost_per_action": 50.0,
+    "cost_per_false_positive": 0.0
+  },
+  "list": {
+    "name": "Retention conversations",
+    "top_n": 150,
+    "row_label": "employee",
+    "action_label": "Check in"
+  }
+}

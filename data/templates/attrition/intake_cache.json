@@ -1,0 +1,40 @@
+{
+  "cb42368748d9380793b9ef2879676a865fbdbdeb78841ae0c23b9b5fd89083a7": {
+    "done": true,
+    "message": "Thank you. I have put those numbers in: about 1,500 employees a month, 20,000 dollars to replace someone who leaves, and 50 dollars for each check-in. I do not have a figure yet for how often a check-in keeps someone from leaving, so I used a cautious starting guess of 1 in 5. You can change it later. I will not put a cost on checking in with someone who was not going to leave, beyond the 50 dollars. The app will work out the rest from your data. The list is ready to build.",
+    "spec_patch": {
+      "economics": {
+        "action_success_rate": 0.2,
+        "cost_per_action": 50.0,
+        "cost_per_false_positive": 0.0,
+        "rows_per_month": 1500,
+        "value_per_positive": 20000.0
+      }
+    },
+    "user_text": "Replacing someone costs about 20,000 dollars, a check-in costs about 50 dollars of time. About 1,500 employees."
+  },
+  "d8bc8d123b5986f3871519698bc73899eeb72b5e3ac7cb868091f34078c2a933": {
+    "done": false,
+    "message": "Good, 1 in 10 matches what your managers can handle. I will use that as the size of the list each month. The file has no date column, so I will treat it as a single snapshot of your people. I have not heard of any column filled in only after someone resigns, so I will assume there is none. One last thing, if you can share it: roughly how much does it cost to replace one employee who leaves, and how often does a check-in actually keep someone from leaving? If you do not know, I will leave money out for now. We can still build the list without it.",
+    "spec_patch": {
+      "metric_params": {
+        "top_k": 0.1
+      },
+      "time_column": "none"
+    },
+    "user_text": "Managers can hold about 10% of check-ins each month."
+  },
+  "f03436a71b51b6469db6f64267e6238b7f79cb1d03f054aab21562c1ee3c54f3": {
+    "done": false,
+    "message": "Here is what I plan to use. We will predict who leaves, using the Attrition column, where Yes means the person left. Managers would check in with the group of employees most likely to leave, about 1 in 10 of them. Does that group size work for your managers? Also, I see no date column in this file, so I will treat it as a single snapshot of your people unless you tell me otherwise. One more thing: if you have a column that is filled in only after someone resigns, such as an exit interview or final pay date, tell me, because it could give away the answer.",
+    "spec_patch": {
+      "metric_params": {
+        "top_k": 0.1
+      },
+      "positive_label": "Yes",
+      "primary_metric": "recall_at_top_k",
+      "target_column": "Attrition"
+    },
+    "user_text": "We want to know which employees may be thinking of leaving so managers can check in with them first."
+  }
+}

@@ -7,6 +7,8 @@ Writes /data/result.json as GameResult:
 Also writes /data/scores_<split>.csv (one score per row, split order) so Concours's value model can price the
 operating point without re-fitting. Those files stay with the arena logs and never enter the handoff.
 Player failures (PlayerError or malformed responses) score 0 with terminal_reason "player_error".
+Fraud: when `<split>_meta.csv` (day, amount) sits next to the labels, the capacity metric reads it, and the
+metadata carries the queue summary per split and `seconds_per_10k` (holdout scoring time per 10,000 rows).
 """
 from __future__ import annotations
 
@@ -46,6 +48,16 @@ def _num(v: str):
         return v
 
 
+def _meta(name: str) -> dict | None:
+    path = DATA_DIR / f"{name}_meta.csv"
+    if not path.exists():
+        return None
+    with path.open(newline="") as f:
+        r = csv.DictReader(f)
+        rows = list(r)
+    return {"day": [x["day"] for x in rows], "amount": [float(x["amount"] or 0) for x in rows]}
+
+
 def _labels(path: Path) -> list[int]:
     with path.open(newline="") as f:
         r = csv.reader(f)
@@ -61,6 +73,7 @@ class BriefReferee(Referee):
         y = _labels(DATA_DIR / f"{name}_labels.csv")
         scores: list[float] = []
         faults = 0
+        t0 = time.monotonic()
         for i in range(0, len(rows), CHUNK):
             chunk = rows[i : i + CHUNK]
             try:
@@ -77,7 +90,8 @@ class BriefReferee(Referee):
                 faults += 1
                 scores.extend([0.0] * len(chunk))
                 self.trace({"split": name, "chunk": i, "fault": str(e)[:200]})
-        return scores, y, {"rows": len(rows), "faulted_chunks": faults}
+        secs = time.monotonic() - t0
+        return scores, y, {"rows": len(rows), "faulted_chunks": faults, "seconds_per_10k": round(secs / max(1, len(rows)) * 10_000, 3)}
 
     def _dump_scores(self, split: str, scores: list[float]) -> None:
         try:
@@ -108,17 +122,23 @@ class BriefReferee(Referee):
             s, y, info = self.score_split(player, split)
             total_faults += info["faulted_chunks"]
             self._dump_scores(split, s)
+            meta = _meta(split)
             results[split] = {
-                "primary": metrics.compute(primary, y, s, params),
+                "primary": metrics.compute(primary, y, s, params, meta),
                 "secondary": metrics.compute(secondary, y, s) if secondary else None,
                 "positives": int(sum(y)),
                 **info,
             }
+            if meta is not None and primary == "fraud_amount_per_day":
+                q = metrics.fraud_queue(y, s, meta["amount"], meta["day"], int(params.get("capacity", 200)),
+                                        float(params.get("fee", 0.0)), float(params.get("review_cost", 0.0)))
+                results[split]["fraud"] = metrics.fraud_summary(q)
         out["splits"] = results
         out["public_score"] = results["leaderboard"]["primary"]
         out["private_score"] = results["holdout"]["primary"]
         out["secondary"] = {"public": results["leaderboard"]["secondary"], "private": results["holdout"]["secondary"]}
         out["eval_time_in_seconds"] = time.monotonic() - start
+        out["seconds_per_10k"] = results["holdout"].get("seconds_per_10k")
         reason = "scored" if total_faults == 0 else "scored_with_player_faults"
         return GameResult(raw_scores=[out["private_score"]], winner=0, terminal_reason=reason,
                           steps=sum(r["rows"] for r in results.values()), metadata=out)

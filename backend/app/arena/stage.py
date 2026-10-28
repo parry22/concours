@@ -15,7 +15,8 @@ from app.models import ProblemSpec
 
 PLAYER_DATA = ("train.csv", "transform.json")
 REFEREE_DATA = ("leaderboard.csv", "leaderboard_labels.csv", "holdout.csv", "holdout_labels.csv")
-HIDDEN_FILES = ("holdout.csv", "holdout_labels.csv")  # excluded from the handoff zip
+REFEREE_META = ("leaderboard_meta.csv", "holdout_meta.csv")  # fraud: day and amount for the capacity metric
+HIDDEN_FILES = ("holdout.csv", "holdout_labels.csv", "holdout_meta.csv")  # excluded from the handoff zip
 
 
 def competition_dir(project_id: str) -> Path:
@@ -53,6 +54,11 @@ def stage(project_id: str, spec: ProblemSpec, *, max_train_rows: int = 0) -> Pat
     (referee / "data").mkdir(exist_ok=True)
     for f in REFEREE_DATA:
         shutil.copyfile(protected / f, referee / "data" / f)
+    for f in REFEREE_META:
+        if (protected / f).exists():
+            shutil.copyfile(protected / f, referee / "data" / f)
+        elif (referee / "data" / f).exists():
+            (referee / "data" / f).unlink()
     # round config = what the referee receives as CONFIG_JSON
     (comp / "fixtures").mkdir(exist_ok=True)
     (comp / "fixtures" / "input.json").write_text(json.dumps(round_config(spec, max_train_rows), indent=2))
@@ -77,7 +83,7 @@ def data_hash(project_id: str) -> str:
     """Hash of the protected artifacts; arena results are cached per (solver, data_hash)."""
     protected = project_dir(project_id) / "protected"
     h = hashlib.sha256()
-    for f in sorted(PLAYER_DATA + REFEREE_DATA):
+    for f in sorted(PLAYER_DATA + REFEREE_DATA + REFEREE_META):
         p = protected / f
         if p.exists():
             h.update(f.encode())

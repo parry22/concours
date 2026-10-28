@@ -10,7 +10,7 @@ from app.packager.split import Split
 
 
 def row_hashes(df: pd.DataFrame, cols: list[str]) -> pd.Series:
-    joined = df[cols].astype(str).agg("\x1f".join, axis=1)
+    joined = df[cols].astype(str).fillna("").agg("\x1f".join, axis=1)  # astype(str) keeps NaN on pandas 3
     return joined.map(lambda s: hashlib.blake2b(s.encode(), digest_size=16).hexdigest())
 
 

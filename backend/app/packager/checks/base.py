@@ -17,6 +17,9 @@ class CheckContext:
     dropped: set[str] = field(default_factory=set)
     masked: set[str] = field(default_factory=set)
     findings: list[Finding] = field(default_factory=list)
+    set_aside_cols: dict[str, str] = field(default_factory=dict)  # sensitive column -> trait, not trained on
+    keep_aside: set[str] = field(default_factory=set)  # dropped columns the split still needs (group key)
+    group_column: str | None = None
 
     @property
     def feature_columns(self) -> list[str]:
@@ -29,6 +32,13 @@ class CheckContext:
     def drop(self, finding: Finding) -> None:
         if finding.column:
             self.dropped.add(finding.column)
+        self.findings.append(finding)
+
+    def set_aside(self, finding: Finding) -> None:
+        """Sensitive: out of the features like a drop, but kept for the fairness report."""
+        if finding.column:
+            self.dropped.add(finding.column)
+            self.set_aside_cols[finding.column] = str(finding.evidence.get("trait", ""))
         self.findings.append(finding)
 
     def warn(self, finding: Finding) -> None:

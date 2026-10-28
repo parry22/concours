@@ -19,7 +19,9 @@ from docker.errors import DockerException, ImageNotFound, NotFound
 from app.config import SOLVER_CPUS, SOLVER_MEM, SOLVER_TIMEOUT_S, SOLVERS_DIR, project_dir
 from app.arena.stage import competition_dir
 
-SOLVERS = ["baseline_logreg", "lgbm_default", "lgbm_tuned", "lgbm_regularized", "lgbm_ensemble"]
+SOLVERS = ["baseline_logreg", "lgbm_default", "lgbm_tuned", "lgbm_regularized", "lgbm_ensemble", "lgbm_velocity"]
+# a fraud improvement round: the champion runs first when the window moved (see arena.service.with_champion)
+FRAUD_CONTEST = ["lgbm_tuned", "lgbm_velocity"]
 
 
 @dataclass
@@ -67,7 +69,10 @@ def run_submission(project_id: str, submission_id: str, solver: str, config: dic
     out_dir = logs_dir / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_dir.chmod(0o777)
-    sub_path = submission_path or (SOLVERS_DIR / solver / "submission.py")
+    # Bind mounts are resolved by the Docker host. The worker may itself run in a container, so the submission is
+    # copied into the run folder (workspace/ is mounted at the same path on the host and in the worker).
+    sub_path = logs_dir / "submission.py"
+    shutil.copyfile(submission_path or (SOLVERS_DIR / solver / "submission.py"), sub_path)
     net_name = f"concours-net-{project_id}-{submission_id}"
     player_name = f"concours-player-{project_id}-{submission_id}"
     t0 = time.monotonic()

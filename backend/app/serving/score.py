@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from app.arena.stage import data_hash, solver_hash
-from app.config import SOLVERS_DIR, project_dir
+from app.config import ARENA_CACHE_DIR, SOLVERS_DIR, project_dir
 from app.models import ProblemSpec
 from app.packager.transform import Transform
 from app.shared.metrics import threshold_at_fpr
@@ -40,8 +40,9 @@ def fitted_model(project_id: str, solver: str, spec: ProblemSpec, submission_pat
     """Return (solver instance, threshold). Cached on disk per (solver code, data).
     `submission_path` points at code outside solvers/ (an agent-written attempt)."""
     protected = project_dir(project_id) / "protected"
-    cache_dir = project_dir(project_id) / "serving"
-    cache_dir.mkdir(exist_ok=True)
+    # next to the arena cache, outside workspace/: the same data and solver code reuse the fit after a reseed
+    cache_dir = ARENA_CACHE_DIR.parent / "serving"
+    cache_dir.mkdir(parents=True, exist_ok=True)
     code_hash = _file_hash(submission_path) if submission_path else solver_hash(solver)
     key = hashlib.sha256(f"{solver}:{code_hash}:{data_hash(project_id)}".encode()).hexdigest()[:16]
     cache = cache_dir / f"{solver}-{key}.pkl"

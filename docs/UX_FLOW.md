@@ -76,7 +76,7 @@ flowchart LR
 | 3, 9 | Progress is a 6-segment bar (done, current, locked) with "Step 3 of 6". Desktop: a labelled sidebar groups the steps by phase (Setup, Prove, Deliver) with done, current and locked states; it replaces the earlier icon rail, breadcrumb bar and progress strip. Mobile: one sticky header shows the project, the current step and a gradient progress line; tap the step chip to open a step sheet. Each step ends in a **sticky action bar** holding the single primary action, pinned above the home indicator on phones. |
 | 4 | Goal is chat-first. The right panel is a plain-language **scoring rule** that ticks off four parts as the chat fills them (outcome, how we score, split, economics). The raw form moves into "Fine-tune". On mobile, a Chat / Rule switch replaces the side-by-side layout. |
 | 5 | Numbered **suggested replies** under the chat (fraud and churn templates, and outcome-column guesses for a blank CSV). One tap sends. |
-| 6 | Protect **runs on arrival** when there is no report yet, showing the seven checks. "Run again" stays available. |
+| 6 | Protect **runs on arrival** when there is no report yet, showing the nine checks. "Run again" stays available. |
 | 7 | Arena has one primary action that changes with state: Run local solvers, then Finalize and reveal, then Use the winner. Validation moves to Launch. The run log is a collapsed panel. |
 | 8 | Arena hero: the winner's figure in large monospace, "vs baseline" beneath, and a bar chart per solver: grey bars for the public leaderboard, gradient bars for the private holdout that rise when you finalize. |
 | 10 | Tables scroll inside their card with a sticky first column. Leaderboard and project lists become stacked cards under 640 px. |

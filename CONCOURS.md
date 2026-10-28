@@ -1,86 +1,107 @@
 # Concours
 
-**A working model today. A global network of solvers keeps improving it.**
+**Fraud models that keep up with fraudsters.**
 
-Concours turns a spreadsheet prediction problem into a model a business team can use the same day, then keeps
-that model improving through a private competition on Apex (a competition network on Bittensor). The customer
-buys an outcome: a ranked list each morning that gets better over time. The competition is the engine, never
-the product. Customers never see bounties, rewards, tokens, subnets, miners or emissions; Apex is named only on
-the Launch screen and in tooltips.
+Concours serves one niche: payment fraud. The user is a fraud operations lead at a fintech, payment company
+or marketplace who has fraud analysts but no ML team. They get a working fraud model and a daily review queue
+on day one, and a model that keeps adapting as fraudsters change tactics, improved by a global network of
+solvers through a private competition on Apex (Bittensor subnet 1). The competition is the engine, never the
+product. Customers never see bounties, rewards, tokens, subnets, miners or emissions; Apex is named only on the
+Launch screen and in tooltips.
+
+The generic engine (churn, leads, payments, readmissions, attrition, the fairness report, lists, the value
+model) stays in the code with its tests, hidden by `config.ENABLED_TEMPLATES` (env `CONCOURS_ENABLED_TEMPLATES`,
+default `fraud`). `docs/FRAUD_FOCUS_PLAN.md` lists every change of the fraud focus.
 
 ## Principles
 
-- **Day-one value.** Every project produces a usable model (v1) before any contest runs.
-- **The contest improves the model.** Improvements are promoted as new versions; nothing is promoted on a
-  public score, only on the private holdout.
-- **Business outcomes first.** Every result is a sentence about the business ("Fraud caught at 1 false alarm
-  per 1,000 good transactions: 30%"), never an algorithm name or a raw metric first. Every number comes from
-  code; the language model never writes a number the user sees.
-- **Batch delivery.** Lists (fraud review queue, churn call list, lead call list), not real-time APIs.
+- **Day-one value.** Every project produces a working model (v1) and today's review queue before any contest.
+- **Money inside capacity.** Every result is fraud money caught per day inside the team's review capacity,
+  measured on recent days the model never saw, with labels as they were known then.
+- **Promotion is earned.** A new version must pass five gates on the private holdout. Public scores never decide.
+- **Batch delivery.** A daily review queue sized to analyst capacity. Real-time scoring is out of scope.
+- **Every number comes from code.** No language model writes a number the user sees; the three intake
+  questions are parsed in code.
 
 ## Flow
 
-Six steps, in three phases. Lists open from step 4 onward.
+Setup, then five tabs.
 
-| # | Step | Phase | What happens |
-|---|---|---|---|
-| 1 | Your data | Setup | Upload a CSV (or start from a template). Rows, columns, outcome rate, a 10-row preview, column health. |
-| 2 | The goal | Setup | A short chat; the scoring rule fills in live. Target, positive label, how to measure, how to split, what it is worth. |
-| 3 | Protect the data | Model | Split (train, public check, private holdout), seven checks (leaks, identifiers, post-outcome names, duplicates, time order, constants, personal data). Then version 1 is built automatically. |
-| 4 | Your model | Model | "Your model v1 is ready." Business line, versions timeline, Lists, performance watch, technical details drawer. |
-| 5 | Improve | Improve | Improvement attempts arrive; one that beats the active version on the private holdout by the margin is promoted: "New model v2 promoted". Money per month. |
-| 6 | Launch | Improve | What will be submitted, the illustrative improvement plan, IP terms, the handoff zip. The only screen that explains Apex. |
+| Step | What happens |
+|---|---|
+| Your transactions | Upload a CSV (or the sample). Map columns to `transaction_id`, `transaction_time`, `amount`, `customer_id`, `is_fraud` (required) and `merchant_or_terminal_id`, `currency`, `label_time` (optional), suggested by name. |
+| Three questions | Cases reviewed per day (200), cost per review and fee on a missed fraud (10, 0), days until fraud is confirmed (30). Stored as `project.fraud_settings`. |
+| Protect the data | IDs hashed with a per-project salt, card numbers dropped, leaks (TX_FRAUD_SCENARIO), future information and clock counters caught, late labels simulated when missing, time split with an embargo. Then v1 builds. |
+| Overview | Model card ("$X of fraud caught per day in a 200-case queue", up from v1, net value), versions, weekly health on mature labels, PSI drift, jump forward. |
+| Review queue | Today's payments ranked by expected loss, cut at capacity, top three reasons each, Fraud / Not fraud verdicts (new labels), CSV. |
+| Improve | Attempts with money per day first, the five gates per attempt, the promotion moment. |
+| Data | Protection report, late-label timeline and counts, findings. |
+| Launch | What goes to Apex, the illustrative plan, IP terms, handoff. The only screen that explains Apex. |
 
-## Data model
+## Accounts, workers and storage
 
-- **Project**: name, template, stage (`upload`, `intake`, `protect`, `model`, `improve`, `launch`), spec, profile,
-  protection report, `active_model_id`, `min_improvement` (default 1% relative), `drift_threshold` (default
-  10% relative), `health` (`unknown`, `healthy`, `slipping`), `refresh_daily` (stored preference only).
-- **ModelVersion**: `version` (1, 2, ...), `source` (`baseline`, `local_contest`, `apex_contest`),
-  `solver_name` (internal, technical drawer only), `private_score`, `public_score`, `metric_name`,
-  `business_value` (the headline line), `status` (`active`, `retired`), `created_at`.
-- **List**: the rows scored, the version used, `top_n`, the row and action labels from the template, the CSV
-  on disk (`rank`, `score`, `action`, then the input columns), `created_at`.
-- **Health check**: score on the uploaded labeled rows, the version's holdout score, the relative drop, the
-  verdict, a line in plain words.
-- **Submission** (an improvement attempt): solver, public and private scores, logs. Unchanged from before.
+- Organisations, users (scrypt passwords), session cookies and API keys (`backend/app/auth.py`). Every project
+  belongs to one organisation; requests only see their own. The first account is the owner; others join by
+  invite. `CONCOURS_AUTH=off` for single-user local use.
+- Improvement rounds are jobs in the database, run by `python -m app.worker` (a thread in the API locally).
+  Live events are stored rows the stream endpoint reads, so API and worker can be separate processes.
+- Uploads, the canonical dataset, the ID map and recent payments are encrypted at rest (`CONCOURS_DATA_KEY`);
+  the raw upload is deleted after the columns are confirmed; card-number columns never reach disk.
+- Postgres in production, SQLite locally. `docs/DEPLOY.md` covers the VM, backups and monitoring.
+- The `concours` command line (`cli/`) drives the same API.
 
-### Promotion rules (`backend/app/models_registry/promotion.py`)
+## Late labels (`backend/app/fraud/labels.py`)
 
-- After Protect, `baseline_logreg` and `lgbm_default` run through the arena; the better private holdout score
-  becomes v1 (source `baseline`).
-- A scored attempt is promoted when `candidate_private >= active_private * (1 + min_improvement)` (inverted
-  for lower-is-better metrics). The old version is retired. Public scores never promote.
-- Each version stores its business line, computed in `shared/translate.py`.
+From the as-of date E (the simulated today) and D = `label_delay_days`: holdout = 14 days ending D days before
+E, leaderboard = 7 days before it, embargo = D days before that (dropped), train = everything earlier, the
+newest D days are immature (queue and drift only). Training labels are as known at the training cutoff,
+evaluation labels as known at E. Missing `label_time` is simulated: transaction time + U(7, 60) days, seed 42.
+Analyst verdicts override labels with `label_time` = the day they were given.
 
-## Endpoints
+## Metric and gates
+
+- `shared/metrics.fraud_queue`: per day, rank by `score x (amount + fee)`, review the top `daily_capacity`.
+  Primary (`fraud_amount_per_day`): mean fraud amount caught per day. Also frauds per day, queue precision,
+  false alarms per 1,000 legitimate payments, net value per day (`caught - capacity x review_cost`). The
+  referee reads `holdout_meta.csv` (day, amount, new customer).
+- `fraud/gates.py`: hidden data, same rows, luck test (day-block bootstrap, 1,000 resamples, 95% wins), no
+  segment regression over 5% (amount under 50, 50 to 500, over 500; new and returning customers), speed
+  (10,000 rows under 5 s). Stored on the submission and on the version it becomes.
+- When the clock moves, the champion is re-scored on the new window first so comparisons stay paired.
+
+## Drift (`backend/app/fraud/service.py`)
+
+Weekly health on mature weeks after the version's holdout: the share of fraud money caught inside capacity,
+compared with the same share on the holdout (absolute money cannot fall when a new pattern adds fraud). A
+relative drop over 15% or a PSI over 0.2 (amount, hour of day, payments per terminal per day) sets `slipping`;
+`POST /projects/{id}/clock` then moves the window and starts a round. `scripts/inject_drift.py` adds card
+testing followed by cash-outs at terminals new to the card; `lgbm_velocity` catches it.
+
+## Endpoints (fraud)
 
 | Method and path | Purpose |
 |---|---|
-| `GET /templates` | Template cards, list framing, scripted replies. |
-| `POST /projects`, `GET /projects`, `GET /projects/{id}`, `DELETE /projects/{id}` | Projects. `ProjectOut` carries `active_model`, `versions`, `current_result`, `improvement_line`, `result_short`, `health`, `model_status`. |
-| `PUT /projects/{id}/settings` | `refresh_daily`, `min_improvement`, `drift_threshold`. |
-| `POST /projects/{id}/data`, `GET /projects/{id}/data/profile` | Upload and profile. |
-| `POST /projects/{id}/intake`, `GET`, `DELETE` | The goal chat. |
-| `PUT /projects/{id}/spec` | Confirm the scoring rule. |
-| `POST /projects/{id}/protect`, `GET /projects/{id}/protect/report` | Protection. The POST starts the baseline run that builds v1. |
-| `GET /projects/{id}/versions` | Model versions. |
-| `POST /projects/{id}/arena/run`, `GET .../leaderboard`, `GET .../stream`, `GET .../status` | Improvement rounds (local solvers), the attempts board, SSE events including `model_version` and `model_promoted`. |
-| `POST /projects/{id}/arena/agent` | An agent-written attempt (stretch). |
-| `POST /projects/{id}/lists`, `GET /projects/{id}/lists`, `GET .../lists/{lid}`, `GET .../lists/{lid}/download` | Lists. Upload a CSV or pass `sample=true`. |
-| `POST /projects/{id}/health` | Performance watch. Upload labeled rows or pass `sample=true` (`degrade=true` for a deliberately worse sample). |
-| `GET /projects/{id}/value`, `PUT /projects/{id}/value/params` | Money per month for the active version, compared with v1. |
-| `GET /projects/{id}/plan` | The illustrative improvement plan. |
-| `POST /projects/{id}/package`, `GET .../package`, `GET .../package/file`, `GET /projects/{id}/handoff` | The Apex package, validation and the handoff zip. HANDOFF.md carries the suggested contest reward and `min_improvement`. |
-| `GET /projects/{id}/sample-csv` | Fresh rows for the demo (`labeled`, `degrade`). |
+| `POST /projects` | `{template: "fraud", sample}`; `sample_file` and `salt` for the seed. |
+| `POST /projects/{id}/data` | Upload transactions (the raw file; mapping next). |
+| `GET/PUT /projects/{id}/schema` | The mapping screen and its confirmation (writes the canonical dataset). |
+| `POST /projects/{id}/intake`, `GET /intake/fraud-questions` | The three questions. `PUT /projects/{id}/fraud-settings` sets them directly. |
+| `POST /projects/{id}/protect` | Fraud protection, then the baseline run that builds v1. |
+| `GET /projects/{id}/queue`, `POST .../queue/{tx}/label`, `GET .../queue/download` | Today's review queue, verdicts, CSV. |
+| `GET/POST /projects/{id}/drift`, `POST /projects/{id}/clock` | Health and drift; jump forward (`days`, `auto_round`). |
+| `POST /projects/{id}/arena/run` | An improvement round (moves the window first if the clock moved). |
+| `GET /projects/{id}/versions`, `GET .../arena/leaderboard` | Versions and attempts, each with its gates. |
+| `POST /projects/{id}/package`, `GET /projects/{id}/handoff` | The Apex package; HANDOFF.md carries fraud_settings, the embargo and the gate thresholds. |
 
 ## Copy guidelines
 
 - All strings live in `frontend/lib/copy.ts`. `pnpm test` runs `scripts/copy-lint.mjs`, which fails on
   bounty, reward, TAO, subnet, miner, emission, LightGBM, XGBoost, logistic anywhere in the UI sources, and on
-  "Apex" outside the Launch page and the tooltips section.
-- Results are sentences about the business. The measure is named in plain words ("Fraud caught at 1 false
-  alarm per 1,000 good transactions"), the raw metric is secondary and smaller.
+  "Apex" outside the Launch page and the tooltips section. It also fails on decision words (reject, deny,
+  decline, approve, terminate, fire, disqualify, blacklist and their forms) in the UI sources, and on those words
+  plus "flag" in any string of a people template's `defaults.json` (`"people": true`).
+- Results are sentences about the business: "$X of fraud caught per day in a 200-case queue", "Up from $Y with
+  your first model", "Net value: $Z per day after review costs". Reasons in the queue are plain English
+  ("Unusual amount for this customer", "Terminal had recent fraud"), never feature or algorithm names.
 - Models are "v1", "v2". Algorithm names appear only in the technical details drawer (`lib/technical.ts`).
 - Attempts on the Improve screen are "Attempt 1", "Attempt 2", labelled "Local solvers (demo)".
 - Pricing is an illustrative improvement plan: a subscription plus a success fee on measured improvement over
@@ -96,5 +117,5 @@ screen; the gradient is reserved for them, the active version and primary states
 ## Repository
 
 See `README.md` for how to run it, `docs/DEMO_SCRIPT.md` for the three-minute demo, `docs/APEX_CONTRACT.md`
-for the verified competition contract, `docs/VALUE_MODEL.md` for money per month, `docs/CHANGES_PLAN.md`
-for the repositioning change list.
+for the verified competition contract, `docs/FRAUD_FOCUS_PLAN.md` for the fraud focus, `docs/CHANGES_PLAN.md`
+for the earlier repositioning.

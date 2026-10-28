@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowRight, Check, ChevronDown, LayoutGrid, ListOrdered, Lock, Plus, X } from "lucide-react";
-import { api, errorText, type ProjectOut, type Stage } from "@/lib/api";
-import { PHASES, STEPS, TEMPLATE_ICON, TEMPLATE_LABEL, doneCount, isUnlocked, listsHref, listsUnlocked, reachedIndex, stepHref } from "@/lib/stages";
-import { fmtCompact } from "@/lib/format";
-import { brand, nav } from "@/lib/copy";
+import { ArrowRight, Check, Lock, Menu, X } from "lucide-react";
+import { ProjectSwitcher } from "@/components/ProjectSwitcher";
+import { api, errorText, type ProjectOut } from "@/lib/api";
+import { SETUP, STEPS, TABS, isUnlocked, landing, setupDone, slugOf, stepHref, type Slug } from "@/lib/stages";
+import { brand, nav, phases } from "@/lib/copy";
+import { rememberProject } from "@/lib/last-project";
 import { Alert, Logo, Segments, Skeleton, StatusPill, cx } from "./ui";
 
 type Ctx = {
@@ -22,15 +23,6 @@ export function useProject(): Ctx {
   const ctx = useContext(ProjectContext);
   if (!ctx) throw new Error("useProject outside ProjectShell");
   return ctx;
-}
-
-function currentStage(pathname: string): Stage | undefined {
-  const last = pathname.split("/").pop() || "";
-  return STEPS.find((s) => s.stage === last)?.stage;
-}
-
-function onLists(pathname: string): boolean {
-  return pathname.endsWith("/lists");
 }
 
 export function ProjectShell({ id, children }: { id: string; children: ReactNode }) {
@@ -51,7 +43,8 @@ export function ProjectShell({ id, children }: { id: string; children: ReactNode
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    rememberProject(id);
+  }, [refresh, id]);
 
   const value = useMemo(() => (project ? { project, setProject, refresh } : null), [project, refresh]);
 
@@ -72,7 +65,6 @@ export function ProjectShell({ id, children }: { id: string; children: ReactNode
         </div>
       ) : (
         <ProjectContext.Provider value={value}>
-          <StepEyebrow />
           <StepGuard project={value.project}>{children}</StepGuard>
         </ProjectContext.Provider>
       )}
@@ -81,8 +73,8 @@ export function ProjectShell({ id, children }: { id: string; children: ReactNode
 }
 
 /**
- * Desktop: a labelled sidebar (navigation, and the steps when a project is open). Phones: one sticky header with the
- * current step and a progress line. `project` undefined means the projects home.
+ * Desktop: a sidebar with the project's pages, its setup steps below them, and the project switcher at the foot.
+ * Phones: a sticky header; the menu opens the same navigation as a sheet. `project` undefined: no project open.
  */
 export function AppFrame({ project, children }: { project?: ProjectOut | null; children: ReactNode }) {
   return (
@@ -97,161 +89,103 @@ export function AppFrame({ project, children }: { project?: ProjectOut | null; c
 }
 
 function Sidebar({ project }: { project?: ProjectOut | null }) {
-  const pathname = usePathname();
   return (
-    <aside className="scroll-thin fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col overflow-y-auto border-r border-border bg-background lg:flex">
-      <Link href="/" className="flex items-center gap-2 px-5 pt-5 pb-4">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-border bg-background lg:flex">
+      <Link href="/" className="flex items-center gap-2 px-5 pt-5 pb-3" aria-label={brand.name}>
         <Logo />
         <span className="text-[15px] font-semibold tracking-[-0.01em]">{brand.name}</span>
       </Link>
-      <nav className="space-y-0.5 px-3">
-        <SideLink href="/" active={pathname === "/"} icon={<LayoutGrid className="h-4 w-4" />}>
-          {nav.allProjects}
-        </SideLink>
-        <SideLink href="/#start" icon={<Plus className="h-4 w-4" />}>
-          {nav.newProject}
-        </SideLink>
-      </nav>
-
-      {project === undefined ? <HowItWorks /> : project ? <ProjectSteps project={project} /> : <Skeleton className="mx-4 mt-6 h-40" />}
-
-      <div className="mt-auto p-3">
-        <div className="rounded-xl border border-border bg-card px-3 py-2.5" title={nav.localModeHint}>
-          <div className="flex items-center gap-2 text-[12px] font-medium">
-            <span className="h-1.5 w-1.5 rounded-full bg-pink" />
-            {nav.localMode}
-          </div>
-          <div className="mt-0.5 text-[11px] leading-snug text-muted">{nav.localModeHint}</div>
-        </div>
+      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        {project ? <ProjectNav project={project} /> : project === null ? <Skeleton className="mt-4 h-56" /> : null}
+      </div>
+      <div className="border-t border-border p-3">
+        <ProjectSwitcher current={project ?? null} />
       </div>
     </aside>
   );
 }
 
-function SideLink({ href, active, icon, children }: { href: string; active?: boolean; icon: ReactNode; children: ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className={cx(
-        "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors",
-        active ? "bg-card-2 text-foreground" : "text-subtle hover:bg-card hover:text-foreground",
-      )}
-    >
-      <span className={active ? "[&>svg]:[stroke:url(#brand-stroke)]" : "text-muted"}>{icon}</span>
-      {children}
-    </Link>
-  );
-}
-
-function HowItWorks() {
-  return (
-    <div className="mt-7 px-5">
-      <div className="text-[11px] font-medium tracking-[0.06em] text-muted uppercase">{nav.howItWorks}</div>
-      <ol className="mt-3 space-y-4">
-        {PHASES.map((phase, pi) => (
-          <li key={phase} className="flex gap-3">
-            <span className="num flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border-strong text-[10px] text-subtle">{pi + 1}</span>
-            <div className="min-w-0">
-              <div className="text-[13px] font-medium">{phase}</div>
-              <div className="mt-0.5 text-[12px] leading-snug text-muted">
-                {STEPS.filter((s) => s.phase === phase)
-                  .map((s) => s.label)
-                  .join(", ")}
-              </div>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-function ProjectSteps({ project }: { project: ProjectOut }) {
+/** The project's pages, then its setup steps (with progress until setup is done). */
+function ProjectNav({ project, onNavigate, roomy }: { project: ProjectOut; onNavigate?: () => void; roomy?: boolean }) {
   const pathname = usePathname();
-  const current = currentStage(pathname);
-  const done = doneCount(project);
-  const Icon = TEMPLATE_ICON[project.template];
+  const current = slugOf(pathname);
+  const done = setupDone(project);
+  const finished = done >= SETUP.length;
   return (
-    <div className="mt-6 px-3">
-      <div className="rounded-xl border border-border bg-card p-2.5">
-        <div className="flex items-center gap-3">
-          {Icon ? <Icon className="icon-brand h-[18px] w-[18px] shrink-0" strokeWidth={1.75} aria-hidden /> : null}
-          <div className="min-w-0">
-            <div className="truncate text-[13px] font-medium">{project.name}</div>
-            <div className="truncate text-[11px] text-muted">
-              {TEMPLATE_LABEL[project.template]}
-              {project.profile?.n_rows ? ` · ${fmtCompact(project.profile.n_rows)} rows` : ""}
-            </div>
-          </div>
+    <nav aria-label={nav.steps}>
+      <div className="mt-3">
+        <div className="flex h-6 items-center justify-between px-2">
+          <span className="text-[11px] font-medium tracking-[0.06em] text-muted uppercase">{phases.Project}</span>
+          {project.active_model ? (
+            <span className="flex items-center gap-1.5">
+              <span className="num text-[11px] font-medium text-subtle">v{project.active_model.version}</span>
+              <StatusPill status={project.model_status} />
+            </span>
+          ) : null}
         </div>
-        {project.active_model ? (
-          <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
-            <span className="num text-[12px] font-medium">v{project.active_model.version}</span>
-            <StatusPill status={project.model_status} />
-          </div>
-        ) : null}
+        <ol className="mt-1 space-y-0.5">
+          {TABS.map((s) => (
+            <li key={s.slug}>
+              <TabRow project={project} slug={s.slug} active={current === s.slug} onNavigate={onNavigate} roomy={roomy} />
+            </li>
+          ))}
+        </ol>
       </div>
-      <div className="mt-4 flex items-center gap-3 px-1">
-        <Segments total={STEPS.length} filled={done} size="sm" className="flex-1" />
-        <span className="num shrink-0 text-[11px] text-muted">
-          {done}/{STEPS.length}
-        </span>
+      <div className="mt-6">
+        <div className="flex h-6 items-center justify-between px-2">
+          <span className="text-[11px] font-medium tracking-[0.06em] text-muted uppercase">{phases.Setup}</span>
+          <span className={cx("num text-[11px]", finished ? "text-subtle" : "text-muted")}>
+            {done}/{SETUP.length}
+          </span>
+        </div>
+        {!finished ? <Segments total={SETUP.length} filled={done} size="sm" className="mt-1.5 px-2" /> : null}
+        <ol className="mt-1.5 space-y-0.5">
+          {SETUP.map((s, i) => (
+            <li key={s.slug}>
+              <StepRow project={project} slug={s.slug} n={i + 1} active={current === s.slug} done={i < done} onNavigate={onNavigate} roomy={roomy} />
+            </li>
+          ))}
+        </ol>
       </div>
-      <nav aria-label={nav.steps} className="mt-2">
-        {PHASES.map((phase) => (
-          <div key={phase} className="mt-4">
-            <div className="px-2 text-[11px] font-medium tracking-[0.06em] text-muted uppercase">{phase}</div>
-            <ol className="mt-1.5 space-y-0.5">
-              {STEPS.map((s, i) => ({ s, i }))
-                .filter(({ s }) => s.phase === phase)
-                .map(({ s, i }) => (
-                  <li key={s.stage}>
-                    <StepRow project={project} index={i} active={current === s.stage} done={i < done} />
-                    {s.stage === "model" ? <ListsRow project={project} active={onLists(pathname)} /> : null}
-                  </li>
-                ))}
-            </ol>
-          </div>
-        ))}
-      </nav>
-    </div>
+    </nav>
   );
 }
 
-/** Lists sit under Your model and open from step 4 onward: value before any contest. */
-function ListsRow({ project, active, onNavigate, roomy }: { project: ProjectOut; active: boolean; onNavigate?: () => void; roomy?: boolean }) {
-  const unlocked = listsUnlocked(project);
+function TabRow({ project, slug, active, onNavigate, roomy }: { project: ProjectOut; slug: Slug; active: boolean; onNavigate?: () => void; roomy?: boolean }) {
+  const s = STEPS.find((x) => x.slug === slug)!;
+  const unlocked = isUnlocked(project, slug);
+  const Icon = s.icon;
+  const alert = slug === "overview" && project.health === "slipping";
   const body = (
-    <div className={cx("ml-7 flex items-center gap-2 rounded-lg px-2", roomy ? "py-2.5" : "py-1.5", active ? "bg-card-2 text-foreground" : unlocked ? "text-subtle hover:bg-card" : "text-muted opacity-45")}>
-      <ListOrdered className={cx("h-3.5 w-3.5 shrink-0", active && "icon-brand")} />
-      <span className="text-[12px] font-medium">{project.list_name}</span>
+    <div className={cx("flex items-center gap-2.5 rounded-lg px-2", roomy ? "h-11" : "h-9", active ? "bg-card-2 text-foreground" : unlocked ? "text-subtle hover:bg-card hover:text-foreground" : "text-muted opacity-50")}>
+      <Icon className={cx("h-4 w-4 shrink-0", active ? "icon-brand" : "text-muted")} strokeWidth={1.75} />
+      <span className="text-[13px] font-medium">{s.label}</span>
+      {alert ? <span className="ml-auto h-1.5 w-1.5 rounded-full bg-danger" aria-label={nav.slipping} /> : null}
+      {!unlocked ? <Lock className="ml-auto h-3 w-3" aria-hidden /> : null}
     </div>
   );
   return unlocked ? (
-    <Link href={listsHref(project.id)} onClick={onNavigate} className="block">
+    <Link href={stepHref(project.id, slug)} aria-current={active ? "page" : undefined} onClick={onNavigate} className="block">
       {body}
     </Link>
   ) : (
-    <div aria-disabled title={nav.stepLocked}>
+    <div aria-disabled title={nav.tabsLocked}>
       {body}
     </div>
   );
 }
 
-function StepRow({ project, index, active, done, onNavigate, roomy }: { project: ProjectOut; index: number; active: boolean; done: boolean; onNavigate?: () => void; roomy?: boolean }) {
-  const s = STEPS[index];
-  const unlocked = isUnlocked(project, s.stage);
+function StepRow({ project, slug, n, active, done, onNavigate, roomy }: { project: ProjectOut; slug: Slug; n: number; active: boolean; done: boolean; onNavigate?: () => void; roomy?: boolean }) {
+  const s = STEPS.find((x) => x.slug === slug)!;
+  const unlocked = isUnlocked(project, slug);
   const body = (
-    <div className={cx("flex items-start gap-3 rounded-lg px-2", roomy ? "py-3" : "py-2", active ? "bg-card-2" : unlocked ? "hover:bg-card" : "opacity-45")}>
-      <StepDot n={index + 1} state={done && !active ? "done" : active ? "active" : unlocked ? "todo" : "locked"} />
-      <div className="min-w-0 pt-px">
-        <div className={cx("text-[13px] font-medium", active ? "text-foreground" : "text-subtle")}>{s.label}</div>
-        {active || roomy ? <div className="mt-0.5 text-[12px] leading-snug text-muted">{s.blurb}</div> : null}
-      </div>
+    <div className={cx("flex items-center gap-2.5 rounded-lg px-2", roomy ? "h-11" : "h-9", active ? "bg-card-2" : unlocked ? "hover:bg-card" : "opacity-50")}>
+      <StepDot n={n} state={done && !active ? "done" : active ? "active" : unlocked ? "todo" : "locked"} />
+      <span className={cx("text-[13px] font-medium", active ? "text-foreground" : "text-subtle")}>{s.label}</span>
     </div>
   );
   return unlocked ? (
-    <Link href={stepHref(project.id, s.stage)} aria-current={active ? "step" : undefined} onClick={onNavigate} className="block">
+    <Link href={stepHref(project.id, slug)} aria-current={active ? "step" : undefined} onClick={onNavigate} className="block">
       {body}
     </Link>
   ) : (
@@ -264,77 +198,59 @@ function StepRow({ project, index, active, done, onNavigate, roomy }: { project:
 function StepDot({ n, state }: { n: number; state: "done" | "active" | "todo" | "locked" }) {
   if (state === "done")
     return (
-      <span className="bg-brand flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-background">
-        <Check className="h-3 w-3" strokeWidth={3} />
+      <span className="bg-brand flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-background">
+        <Check className="h-2.5 w-2.5" strokeWidth={3.5} />
       </span>
     );
   if (state === "locked")
     return (
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border text-muted">
-        <Lock className="h-2.5 w-2.5" />
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border text-muted">
+        <Lock className="h-2 w-2" />
       </span>
     );
   return (
-    <span className={cx("num flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px]", state === "active" ? "bg-foreground font-semibold text-background" : "border border-border-strong text-subtle")}>{n}</span>
+    <span className={cx("num flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px]", state === "active" ? "bg-foreground font-semibold text-background" : "border border-border-strong text-subtle")}>{n}</span>
   );
 }
 
 function MobileHeader({ project }: { project?: ProjectOut | null }) {
   const pathname = usePathname();
-  const current = currentStage(pathname);
-  const idx = STEPS.findIndex((s) => s.stage === current);
+  const step = STEPS.find((s) => s.slug === slugOf(pathname));
   const [open, setOpen] = useState(false);
-  useEffect(() => setOpen(false), [pathname]);
-  const done = project ? doneCount(project) : 0;
-  const title = idx >= 0 ? STEPS[idx].label : onLists(pathname) && project ? project.list_name : "Project";
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   return (
     <>
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 pt-[var(--safe-top)] backdrop-blur-xl lg:hidden">
         <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
-          <Link href="/" aria-label={nav.allProjects} className="shrink-0">
-            <Logo className={project === undefined ? undefined : "h-6 w-[19px]"} />
+          <Link href="/" aria-label={brand.name} className="shrink-0">
+            <Logo className="h-6 w-[19px]" />
           </Link>
-          {project === undefined ? (
-            <span className="flex-1 text-[15px] font-semibold">{brand.name}</span>
-          ) : (
-            <div className="min-w-0 flex-1 leading-tight">
-              {project ? (
-                <>
-                  <div className="truncate text-[11px] text-muted">{project.name}</div>
-                  <div className="truncate text-[14px] font-medium">{title}</div>
-                </>
-              ) : (
-                <Skeleton className="h-4 w-32" />
-              )}
-            </div>
-          )}
-          {project ? (
-            <button onClick={() => setOpen(true)} className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border-strong bg-card-2 px-3 text-[12px] font-medium" aria-label={nav.steps}>
-              <span className="num">{idx >= 0 ? `${idx + 1}/${STEPS.length}` : nav.steps}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-muted" />
-            </button>
-          ) : project === undefined ? (
-            <Link href="/#start" className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border-strong bg-card-2 px-3 text-[12px] font-medium">
-              <Plus className="h-3.5 w-3.5" />
-              New
-            </Link>
-          ) : null}
-        </div>
-        {project ? (
-          <div className="h-[2px] w-full bg-card-3" aria-hidden>
-            <div className="bg-brand-x h-full transition-[width] duration-500" style={{ width: `${(Math.max(done, idx + 0.5) / STEPS.length) * 100}%` }} />
+          <div className="min-w-0 flex-1 leading-tight">
+            {project ? (
+              <>
+                <div className="truncate text-[11px] text-muted">{project.name}</div>
+                <div className="truncate text-[14px] font-medium">{step?.label ?? nav.project}</div>
+              </>
+            ) : project === null ? (
+              <Skeleton className="h-4 w-32" />
+            ) : (
+              <span className="text-[15px] font-semibold">{brand.name}</span>
+            )}
           </div>
-        ) : null}
+          <button onClick={() => setOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong bg-card-2" aria-label={nav.menu}>
+            <Menu className="h-4 w-4" />
+          </button>
+        </div>
       </header>
-      {open && project ? <StepSheet project={project} current={current} onClose={() => setOpen(false)} /> : null}
+      {open ? <MenuSheet project={project ?? null} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
 
-function StepSheet({ project, current, onClose }: { project: ProjectOut; current?: Stage; onClose: () => void }) {
-  const pathname = usePathname();
-  const done = doneCount(project);
+function MenuSheet({ project, onClose }: { project: ProjectOut | null; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -346,40 +262,20 @@ function StepSheet({ project, current, onClose }: { project: ProjectOut; current
     };
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal aria-label={nav.steps}>
+    <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal aria-label={nav.menu}>
       <button className="fade-in absolute inset-0 bg-black/60 backdrop-blur-[2px]" aria-label="Close" onClick={onClose} />
       <div className="sheet-in absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-[24px] border-t border-border-strong bg-card px-3 pt-2 pb-[calc(16px+var(--safe-bottom))]">
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
-        <div className="mb-1 flex items-center justify-between px-2">
-          <div>
-            <h2 className="text-[15px] font-semibold">{project.name}</h2>
-            <div className="num text-[12px] text-muted">
-              {done}/{STEPS.length} steps done
-            </div>
-          </div>
+        <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border-strong" />
+        <div className="flex items-center justify-between px-2">
+          <h2 className="truncate text-[15px] font-semibold">{project?.name ?? brand.name}</h2>
           <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-card-2" aria-label="Close">
             <X className="h-4 w-4" />
           </button>
         </div>
-        {PHASES.map((phase) => (
-          <div key={phase} className="mt-3">
-            <div className="px-2 text-[11px] font-medium tracking-[0.06em] text-muted uppercase">{phase}</div>
-            <ol className="mt-1">
-              {STEPS.map((s, i) => ({ s, i }))
-                .filter(({ s }) => s.phase === phase)
-                .map(({ s, i }) => (
-                  <li key={s.stage}>
-                    <StepRow project={project} index={i} active={current === s.stage} done={i < done} onNavigate={onClose} roomy />
-                    {s.stage === "model" ? <ListsRow project={project} active={onLists(pathname)} onNavigate={onClose} roomy /> : null}
-                  </li>
-                ))}
-            </ol>
-          </div>
-        ))}
-        <Link href="/" onClick={onClose} className="mt-3 flex h-11 items-center justify-center gap-2 rounded-xl border border-border-strong text-[13px] font-medium text-subtle">
-          <LayoutGrid className="h-4 w-4" />
-          {nav.allProjects}
-        </Link>
+        {project ? <ProjectNav project={project} onNavigate={onClose} roomy /> : null}
+        <div className="mt-5 rounded-xl border border-border bg-background/40">
+          <ProjectSwitcher current={project} placement="sheet" onNavigate={onClose} />
+        </div>
       </div>
     </div>
   );
@@ -387,31 +283,16 @@ function StepSheet({ project, current, onClose }: { project: ProjectOut; current
 
 function StepGuard({ project, children }: { project: ProjectOut; children: ReactNode }) {
   const pathname = usePathname();
-  const stage = currentStage(pathname);
-  const lists = onLists(pathname);
-  if (lists ? listsUnlocked(project) : !stage || isUnlocked(project, stage)) return <>{children}</>;
-  const reached = STEPS[reachedIndex(project)];
+  const slug = slugOf(pathname);
+  if (!slug || isUnlocked(project, slug)) return <>{children}</>;
+  const to = STEPS.find((s) => s.slug === landing(project))!;
   return (
     <Alert kind="warn">
       {nav.stepOpensLater}{" "}
-      <Link href={stepHref(project.id, reached.stage)} className="font-medium underline underline-offset-2">
-        {nav.goTo(reached.label)}
+      <Link href={stepHref(project.id, to.slug)} className="font-medium underline underline-offset-2">
+        {nav.goTo(to.label)}
       </Link>
     </Alert>
-  );
-}
-
-/** Small "Step 4 of 6 · Model" line above a step title, desktop only (phones show it in the header). */
-function StepEyebrow() {
-  const pathname = usePathname();
-  const idx = STEPS.findIndex((s) => s.stage === currentStage(pathname));
-  if (idx < 0) return null;
-  return (
-    <div className="mb-2 hidden items-center gap-2 text-[12px] font-medium text-muted lg:flex">
-      <span className="num">{nav.stepOf(idx + 1, STEPS.length)}</span>
-      <span className="text-[#3a3a40]">·</span>
-      {STEPS[idx].phase}
-    </div>
   );
 }
 
@@ -431,9 +312,9 @@ export function ActionBar({ hint, secondary, children }: { hint?: ReactNode; sec
 }
 
 /** Link to a later step, rendered as the primary button. */
-export function NextLink({ stage, label, disabled, href }: { stage?: Stage; label?: string; disabled?: boolean; href?: string }) {
+export function NextLink({ stage, label, disabled, href }: { stage?: Slug; label?: string; disabled?: boolean; href?: string }) {
   const { project } = useProject();
-  const step = stage ? STEPS.find((s) => s.stage === stage) : undefined;
+  const step = stage ? STEPS.find((s) => s.slug === stage) : undefined;
   const ok = !disabled && (href ? true : stage ? isUnlocked(project, stage) : false);
   const text = label || step?.label || "Continue";
   const target = href || (stage ? stepHref(project.id, stage) : "#");

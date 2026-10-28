@@ -47,8 +47,10 @@ def test_leads_template(leads_df, tmp_path: Path):
     # call length is known only after the call; too weak for the statistical test, so the template names it
     assert by_col["duration"].check == "known_leak" and by_col["duration"].action == "dropped"
     assert by_col["poutcome"].action == "warned"  # previous campaign's outcome: a name match, available before the call
-    for c in ("age", "balance", "campaign", "pdays", "previous", "month", "day"):
+    for c in ("balance", "campaign", "pdays", "previous", "month", "day"):
         assert c not in by_col, f"false positive on {c}: {by_col.get(c)}"
+    # sensitive traits are set aside for the fairness report, not treated as leaks
+    assert by_col["age"].check == by_col["marital"].check == "sensitive" and set(report.set_aside_columns) == {"age", "marital"}
     assert report.strategy == "stratified"
     assert all(abs(p.positive_rate - 0.117) < 0.005 for p in report.parts)
     assert "duration" not in transform.kept and "y" not in transform.kept

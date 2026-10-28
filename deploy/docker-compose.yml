@@ -1,0 +1,89 @@
+# Concours on one VM. Usage (from the repo root):
+#   cp deploy/env.production.example deploy/.env   # fill it in
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# See docs/DEPLOY.md.
+
+x-backend: &backend
+  build: { context: .., dockerfile: deploy/Dockerfile.backend }
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    CONCOURS_ENV: production
+    CONCOURS_DATABASE_URL: postgresql+psycopg://concours:${POSTGRES_PASSWORD}@db:5432/concours
+    CONCOURS_WORKSPACE: ${CONCOURS_DATA_ROOT}/workspace
+    CONCOURS_ARENA_CACHE: ${CONCOURS_DATA_ROOT}/cache/arena
+    CONCOURS_COOKIE_SECURE: "1"
+    CONCOURS_ALLOWED_ORIGINS: https://${CONCOURS_DOMAIN}
+  volumes:
+    # the same absolute path inside and outside: solver containers bind-mount files from the workspace,
+    # and the Docker host resolves those paths
+    - ${CONCOURS_DATA_ROOT}:${CONCOURS_DATA_ROOT}
+    - ../data:/app/data:ro
+  depends_on:
+    db: { condition: service_healthy }
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: concours
+      POSTGRES_DB: concours
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${CONCOURS_DATA_ROOT}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U concours -d concours"]
+      interval: 5s
+      retries: 20
+
+  api:
+    <<: *backend
+    environment:
+      CONCOURS_ENV: production
+      CONCOURS_DATABASE_URL: postgresql+psycopg://concours:${POSTGRES_PASSWORD}@db:5432/concours
+      CONCOURS_WORKSPACE: ${CONCOURS_DATA_ROOT}/workspace
+      CONCOURS_ARENA_CACHE: ${CONCOURS_DATA_ROOT}/cache/arena
+      CONCOURS_COOKIE_SECURE: "1"
+      CONCOURS_ALLOWED_ORIGINS: https://${CONCOURS_DOMAIN}
+      CONCOURS_WORKER: external
+    # the API checks Docker in /readyz and builds the Apex package; it does not run solvers
+    volumes:
+      - ${CONCOURS_DATA_ROOT}:${CONCOURS_DATA_ROOT}
+      - ../data:/app/data:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add: ["${DOCKER_GID}"]
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+    environment:
+      CONCOURS_ENV: production
+      CONCOURS_DATABASE_URL: postgresql+psycopg://concours:${POSTGRES_PASSWORD}@db:5432/concours
+      CONCOURS_WORKSPACE: ${CONCOURS_DATA_ROOT}/workspace
+      CONCOURS_ARENA_CACHE: ${CONCOURS_DATA_ROOT}/cache/arena
+      CONCOURS_WORKER: external
+    volumes:
+      - ${CONCOURS_DATA_ROOT}:${CONCOURS_DATA_ROOT}
+      - ../data:/app/data:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add: ["${DOCKER_GID}"]
+    healthcheck: { disable: true }
+    stop_grace_period: 15m  # a round in progress finishes before the worker stops
+
+  web:
+    build: { context: .., dockerfile: deploy/Dockerfile.frontend }
+    restart: unless-stopped
+    depends_on: [api]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      CONCOURS_DOMAIN: ${CONCOURS_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CONCOURS_DATA_ROOT}/caddy:/data
+    depends_on: [web, api]

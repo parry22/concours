@@ -8,13 +8,21 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 
-from app.config import BASELINE_SOLVERS, MAX_UPLOAD_MB, project_dir
+from app.config import ALLOWED_ORIGINS, BASELINE_SOLVERS, ENABLED_TEMPLATES, MAX_UPLOAD_MB, TEMPLATES_DIR, project_dir
 from app.db import get_session, init_db
 from app.models import (
+    ClockIn,
+    DriftOut,
+    FairnessReport,
+    FraudSettings,
+    QueueLabelIn,
+    QueueOut,
+    SchemaIn,
+    SchemaOut,
     DataProfile,
     HealthOut,
     ListOut,
@@ -36,23 +44,61 @@ from app.models_registry import promotion
 from app.packager.profile import profile_dataframe, read_csv
 from app.value import params as value_params_mod
 from app.value import service as value_service
+from app import secure_store
+from app.fraud import intake as fraud_intake
+from app.fraud import service as fraud
+from app.fraud.schema import profile as fraud_profile
+from app.fraud.schema import schema_out
+from app.packager import fairness
 from app.packager.protect import protect
 from app.templates import dataset_path, list_templates, load_defaults, spec_from_defaults
 
-app = FastAPI(title="Concours", version="0.2.0", description="A working model today. A global network of solvers keeps improving it.")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+from app import auth  # noqa: E402
+from app.observability import install as install_observability  # noqa: E402
+
+app = FastAPI(title="Concours", version="0.3.0", description="Fraud models that keep up with fraudsters.",
+              dependencies=[Depends(auth.require_auth)])
+# Same-origin in production (Caddy serves the app and /api); a dev frontend on another port is listed explicitly.
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.include_router(auth.router)
+install_observability(app)
 
 STAGES = ["upload", "intake", "protect", "model", "improve", "launch"]
 
 
 @app.on_event("startup")
 def _startup() -> None:
+    production_checks()
     init_db()
 
 
+def production_checks() -> None:
+    """`CONCOURS_ENV=production` refuses settings that are only safe on a laptop."""
+    from app.config import env as _env  # noqa: PLC0415
+    from app.db import IS_SQLITE  # noqa: PLC0415
+
+    if _env("ENV", "development") != "production":
+        return
+    problems = []
+    if IS_SQLITE:
+        problems.append("CONCOURS_DATABASE_URL must point at Postgres")
+    if not _env("DATA_KEY", ""):
+        problems.append("CONCOURS_DATA_KEY is required (encryption at rest)")
+    if auth.AUTH_MODE != "required":
+        problems.append("CONCOURS_AUTH must be required")
+    if not auth.COOKIE_SECURE:
+        problems.append("CONCOURS_COOKIE_SECURE must be 1 (HTTPS only)")
+    if auth.SIGNUP == "open":
+        problems.append("CONCOURS_SIGNUP=open lets anyone create an organisation; use first or invite")
+    if problems:
+        raise RuntimeError("Refusing to start in production: " + "; ".join(problems))
+
+
 def get_project(project_id: str, s: Session) -> ProjectRow:
+    """A project of the caller's organisation; another organisation's project is reported as missing."""
     row = s.get(ProjectRow, project_id)
-    if not row:
+    org = auth.current_org.get()
+    if not row or (org is not None and row.org_id != org):
         raise HTTPException(404, "project not found")
     return row
 
@@ -74,19 +120,26 @@ def project_out(row: ProjectRow, s: Session) -> ProjectOut:
 
 @app.get("/templates")
 def templates() -> list[dict]:
-    return list_templates()
+    """Only the enabled templates (`CONCOURS_ENABLED_TEMPLATES`, default fraud). The rest stay in the code."""
+    return [t for t in list_templates() if t["id"] in ENABLED_TEMPLATES]
 
 
 @app.get("/projects", response_model=list[ProjectOut])
 def list_projects(s: Session = Depends(get_session)) -> list[ProjectOut]:
-    rows = s.exec(select(ProjectRow).order_by(ProjectRow.created_at.desc())).all()
-    return [project_out(r, s) for r in rows]
+    q = select(ProjectRow).order_by(ProjectRow.created_at.desc())
+    if (org := auth.current_org.get()) is not None:
+        q = q.where(ProjectRow.org_id == org)
+    return [project_out(r, s) for r in s.exec(q).all()]
 
 
 @app.post("/projects", response_model=ProjectOut)
 def create_project(body: ProjectCreate, s: Session = Depends(get_session)) -> ProjectOut:
+    if body.template not in ENABLED_TEMPLATES:
+        raise HTTPException(400, f"template {body.template} is not enabled")
+    if body.template == "fraud":
+        return _create_fraud(body, s)
     cfg = load_defaults(body.template) if body.template != "custom" else None
-    row = ProjectRow(name=body.name or (cfg["name"] if cfg else "New problem"), template=body.template)
+    row = ProjectRow(name=body.name or (cfg["name"] if cfg else "New problem"), template=body.template, org_id=auth.current_org.get())
     s.add(row)
     s.commit()
     s.refresh(row)
@@ -154,7 +207,7 @@ def _ingest_csv(row: ProjectRow, src: Path) -> DataProfile:
 @app.post("/projects/{project_id}/data", response_model=DataProfile)
 async def upload_data(project_id: str, file: UploadFile = File(...), s: Session = Depends(get_session)) -> DataProfile:
     row = get_project(project_id, s)
-    dst = project_dir(project_id) / "dataset.csv"
+    dst = fraud.raw_path(project_id) if row.template == "fraud" else project_dir(project_id) / "dataset.csv"
     size = 0
     with open(dst, "wb") as f:
         while chunk := await file.read(1 << 20):
@@ -162,6 +215,16 @@ async def upload_data(project_id: str, file: UploadFile = File(...), s: Session 
             if size > MAX_UPLOAD_MB << 20:
                 raise HTTPException(413, f"CSV larger than {MAX_UPLOAD_MB} MB")
             f.write(chunk)
+    if row.template == "fraud":
+        try:
+            secure_store.encrypt_in_place(dst)
+            prof = _profile_raw(row)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(400, f"Could not read CSV: {e}") from e
+        row.source = "upload"
+        s.add(row)
+        s.commit()
+        return prof
     try:
         prof = _ingest_csv(row, dst)
     except Exception as e:  # noqa: BLE001
@@ -208,6 +271,15 @@ def run_protect(project_id: str, s: Session = Depends(get_session)) -> ProtectRe
     spec = row.spec()
     if not spec:
         raise HTTPException(409, "confirm the problem spec first")
+    if row.template == "fraud":
+        if not row.mapping_json:
+            raise HTTPException(409, "map your columns first")
+        report = _fraud_protect(row, s, keep_versions=False)
+        try:
+            arena.start_run(project_id, list(BASELINE_SOLVERS), replay=True, purpose="baseline")
+        except RuntimeError:
+            pass
+        return report
     df = read_csv(project_dir(project_id) / "dataset.csv")
     if spec.target_column not in df.columns:
         raise HTTPException(400, f"target column {spec.target_column} is not in the data")
@@ -240,6 +312,213 @@ def protect_report(project_id: str, s: Session = Depends(get_session)) -> Protec
     return rep
 
 
+@app.get("/projects/{project_id}/fairness", response_model=FairnessReport | None)
+def fairness_report(project_id: str, s: Session = Depends(get_session)) -> FairnessReport | None:
+    """Hit rate and selection rate per group of each sensitive column, for the active version on the holdout.
+    Null before version 1 exists or when Protect set nothing aside."""
+    return fairness.for_project(s, get_project(project_id, s))
+
+
+# ---------- fraud ----------
+
+
+def _create_fraud(body: ProjectCreate, s: Session) -> ProjectOut:
+    """A fraud project: from the sample transactions (mapping screen next) or empty (the user uploads theirs)."""
+    row = ProjectRow(name=body.name or ("Sample transactions" if body.sample else "My transactions"), template="fraud",
+                     source="sample" if body.sample else "upload", salt=body.salt, org_id=auth.current_org.get(),
+                     fraud_settings_json=FraudSettings().model_dump_json())
+    s.add(row)
+    s.commit()
+    s.refresh(row)
+    if body.sample:
+        name = body.sample_file or load_defaults("fraud")["transactions"]
+        src = TEMPLATES_DIR / "fraud" / Path(name).name
+        if not src.exists():
+            raise HTTPException(409, "the sample transactions are not fetched yet: run scripts/fetch_data.py fraud")
+        shutil.copyfile(src, fraud.raw_path(row.id))
+        secure_store.encrypt_in_place(fraud.raw_path(row.id))
+        _profile_raw(row)
+    s.add(row)
+    s.commit()
+    return project_out(row, s)
+
+
+def _profile_raw(row: ProjectRow) -> DataProfile:
+    import pandas as pd  # noqa: PLC0415
+    from app.fraud.schema import suggest  # noqa: PLC0415
+
+    df = secure_store.read_csv(fraud.raw_path(row.id), low_memory=False)
+    sug = suggest(df)
+    prof = fraud_profile(df, target=sug.get("is_fraud"), positive=1 if sug.get("is_fraud") else None)
+    row.profile_json = prof.model_dump_json()
+    row.mapping_json = None
+    row.protect_json = None
+    row.stage = "upload"
+    row.updated_at = datetime.now(timezone.utc)
+    return prof
+
+
+def _fraud_row(project_id: str, s: Session) -> ProjectRow:
+    row = get_project(project_id, s)
+    if row.template != "fraud":
+        raise HTTPException(400, "this endpoint is for fraud projects")
+    return row
+
+
+@app.get("/projects/{project_id}/schema", response_model=SchemaOut)
+def get_schema(project_id: str, s: Session = Depends(get_session)) -> SchemaOut:
+    """The mapping screen: the user's columns, the suggested mapping, a preview and what is still missing."""
+    import json as _json  # noqa: PLC0415
+    import pandas as pd  # noqa: PLC0415
+
+    row = _fraud_row(project_id, s)
+    cols_file = fraud.private_dir(project_id) / "columns.json"
+    if not fraud.raw_path(project_id).exists():
+        if row.mapping_json and cols_file.exists():  # confirmed: the upload is gone, the mapping and column names stay
+            cols = _json.loads(cols_file.read_text())["columns"]
+            return schema_out(pd.DataFrame(columns=cols), _json.loads(row.mapping_json), True)
+        raise HTTPException(409, "upload your transactions first")
+    df = secure_store.read_csv(fraud.raw_path(project_id), nrows=5000, low_memory=False)
+    mapping = _json.loads(row.mapping_json) if row.mapping_json else None
+    return schema_out(df, mapping, row.mapping_json is not None)
+
+
+@app.put("/projects/{project_id}/schema", response_model=ProjectOut)
+def put_schema(project_id: str, body: SchemaIn, s: Session = Depends(get_session)) -> ProjectOut:
+    import pandas as pd  # noqa: PLC0415
+    from app.fraud.schema import validate  # noqa: PLC0415
+
+    row = _fraud_row(project_id, s)
+    if not fraud.raw_path(project_id).exists():
+        raise HTTPException(409, "upload your transactions first")
+    problems = validate(secure_store.read_csv(fraud.raw_path(project_id), nrows=20000, low_memory=False), body.mapping)
+    if problems:
+        raise HTTPException(400, " ".join(problems))
+    try:
+        df = fraud.confirm_schema(row, body.mapping, sample=row.source == "sample")
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    prof = fraud_profile(df.drop(columns=["label_time"]), target="is_fraud", positive=1)
+    row.profile_json = prof.model_dump_json()
+    row.protect_json = None
+    advance(row, "intake")
+    s.add(row)
+    s.commit()
+    return project_out(row, s)
+
+
+@app.put("/projects/{project_id}/fraud-settings", response_model=ProjectOut)
+def put_fraud_settings(project_id: str, body: FraudSettings, s: Session = Depends(get_session)) -> ProjectOut:
+    row = _fraud_row(project_id, s)
+    row.fraud_settings_json = body.model_dump_json()
+    row.set_spec(fraud.spec_for(body))
+    if row.mapping_json:
+        advance(row, "protect")
+    s.add(row)
+    s.commit()
+    return project_out(row, s)
+
+
+def _fraud_protect(row: ProjectRow, s: Session, *, keep_versions: bool) -> ProtectReport:
+    try:
+        report = fraud.run_protect(s, row)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    if not keep_versions:
+        for v in promotion.versions_for(s, row.id):
+            s.delete(v)
+        row.active_model_id = None
+        row.finalized = False
+        row.health, row.health_json, row.drift_json = "unknown", None, None
+        row.stage = "protect"
+    row.updated_at = datetime.now(timezone.utc)
+    s.add(row)
+    s.commit()
+    return report
+
+
+def _start_fraud_round(project_id: str, solvers: list[str] | None = None) -> list[str]:
+    return arena.start_run(project_id, solvers or list(runner.FRAUD_CONTEST), replay=True, purpose="contest")
+
+
+@app.get("/projects/{project_id}/queue", response_model=QueueOut)
+def get_queue(project_id: str, s: Session = Depends(get_session)) -> QueueOut:
+    """Today's review queue: today's payments ranked by expected loss, cut at the daily capacity, with reasons."""
+    row = _fraud_row(project_id, s)
+    v = promotion.active_version(s, project_id)
+    if v is None:
+        raise HTTPException(409, "your first model is not ready yet")
+    if fraud.window_moved(row):
+        raise HTTPException(409, "the data moved forward; run the improvement round to refresh the model first")
+    return fraud.build_queue(s, row, v)
+
+
+@app.post("/projects/{project_id}/queue/{transaction_id}/label", response_model=QueueOut)
+def label_case(project_id: str, transaction_id: str, body: QueueLabelIn, s: Session = Depends(get_session)) -> QueueOut:
+    """An analyst's verdict. Stored with label_time = today; used by the next improvement round."""
+    row = _fraud_row(project_id, s)
+    v = promotion.active_version(s, project_id)
+    if v is None:
+        raise HTTPException(409, "your first model is not ready yet")
+    fraud.set_label(s, row, transaction_id, body.label, v.version)
+    return fraud.build_queue(s, row, v)
+
+
+@app.get("/projects/{project_id}/queue/download")
+def queue_download(project_id: str, s: Session = Depends(get_session)):
+    from fastapi.responses import Response  # noqa: PLC0415
+
+    row = _fraud_row(project_id, s)
+    v = promotion.active_version(s, project_id)
+    if v is None:
+        raise HTTPException(409, "your first model is not ready yet")
+    q = fraud.build_queue(s, row, v)
+    name = f"review-queue-{q.day}-v{q.model_version}.csv"
+    return Response(fraud.queue_csv(q), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.get("/projects/{project_id}/drift", response_model=DriftOut | None)
+def get_drift(project_id: str, s: Session = Depends(get_session)) -> DriftOut | None:
+    """The last health and drift check (made when the clock moves or on POST)."""
+    return _fraud_row(project_id, s).drift()
+
+
+@app.post("/projects/{project_id}/drift", response_model=DriftOut)
+def run_drift(project_id: str, s: Session = Depends(get_session)) -> DriftOut:
+    row = _fraud_row(project_id, s)
+    out = fraud.check(s, row)
+    row.drift_json = out.model_dump_json()
+    row.health = "slipping" if out.slipping else "healthy" if out.model_version else row.health
+    s.add(row)
+    s.commit()
+    return out
+
+
+@app.post("/projects/{project_id}/clock", response_model=DriftOut)
+def move_clock(project_id: str, body: ClockIn, s: Session = Depends(get_session)) -> DriftOut:
+    """Jump forward: move "today", check the newly mature weeks and drift. If the model is slipping and
+    `auto_round`, the data window moves forward and an improvement round starts (the champion first)."""
+    row = _fraud_row(project_id, s)
+    if promotion.active_version(s, project_id) is None:
+        raise HTTPException(409, "your first model is not ready yet")
+    if arena.is_running(project_id):
+        raise HTTPException(409, "wait for the running round to finish")
+    if not (row.as_of and row.data_end and row.as_of < row.data_end):
+        raise HTTPException(400, "This file has no payments after today, so there is nothing to move into. Upload newer transactions instead.")
+    out, moved = fraud.jump(s, row, body.days)
+    s.add(row)
+    s.commit()
+    if out.slipping and body.auto_round and moved:
+        _fraud_protect(row, s, keep_versions=True)
+        _start_fraud_round(project_id)
+        advance(row, "improve")
+        out.round_started = True
+        row.drift_json = out.model_dump_json()
+        s.add(row)
+        s.commit()
+    return out
+
+
 # ---------- arena ----------
 
 import asyncio  # noqa: E402
@@ -251,8 +530,11 @@ from app.models import LeaderboardOut, SubmissionRow  # noqa: E402
 
 
 @app.on_event("startup")
-async def _loop() -> None:
-    events.set_loop(asyncio.get_running_loop())
+def _worker_inline() -> None:
+    from app import jobs as _jobs  # noqa: PLC0415
+
+    if _jobs.WORKER_MODE == "inline":
+        _jobs.ensure_inline_worker()
 
 
 from pydantic import BaseModel  # noqa: E402
@@ -283,7 +565,9 @@ def arena_run(project_id: str, body: ArenaRunRequest | None = None, s: Session =
     if not row.protect():
         raise HTTPException(409, "run protection first")
     body = body or ArenaRunRequest()
-    solvers = body.solvers or runner.SOLVERS
+    if row.template == "fraud" and fraud.window_moved(row) and not arena.is_running(project_id):
+        _fraud_protect(row, s, keep_versions=True)  # the clock moved: the round runs on the newest mature window
+    solvers = body.solvers or (list(runner.FRAUD_CONTEST) if row.template == "fraud" else runner.SOLVERS)
     unknown = [x for x in solvers if x not in runner.SOLVERS]
     if unknown:
         raise HTTPException(400, f"unknown solvers {unknown}")
@@ -351,20 +635,35 @@ def value_params(project_id: str, body: ValueParamsIn, solver: str | None = None
 
 
 @app.get("/projects/{project_id}/arena/stream")
-async def arena_stream(project_id: str):
-    q = events.subscribe(project_id)
+async def arena_stream(project_id: str, request: Request):
+    """Live events (from the database, so the worker can be another process). Starts at the newest event."""
+    from app import jobs as _jobs  # noqa: PLC0415
+    from app.db import session as _session  # noqa: PLC0415
+
+    def _own() -> None:
+        with _session() as s:
+            get_project(project_id, s)  # 404 for another organisation's project
+
+    await asyncio.to_thread(_own)
+    after = await asyncio.to_thread(_jobs.last_event_id, project_id)
 
     async def gen():
-        try:
-            yield {"event": "connected", "data": "{}"}
-            while True:
-                try:
-                    msg = await asyncio.wait_for(q.get(), timeout=15)
-                    yield msg
-                except asyncio.TimeoutError:
-                    yield {"event": "ping", "data": "{}"}
-        finally:
-            events.unsubscribe(project_id, q)
+        nonlocal after
+        yield {"event": "connected", "data": "{}"}
+        idle = 0.0
+        while not await request.is_disconnected():
+            rows = await asyncio.to_thread(_jobs.events_after, project_id, after)
+            for r in rows:
+                after = r.id
+                yield {"event": r.event, "data": r.data}
+            if rows:
+                idle = 0.0
+                continue
+            await asyncio.sleep(0.5)
+            idle += 0.5
+            if idle >= 15:
+                idle = 0.0
+                yield {"event": "ping", "data": "{}"}
 
     return EventSourceResponse(gen())
 
@@ -605,6 +904,8 @@ _agent = IntakeAgent()
 @app.post("/projects/{project_id}/intake", response_model=IntakeResponse)
 async def intake(project_id: str, body: IntakeRequest, s: Session = Depends(get_session)) -> IntakeResponse:
     row = get_project(project_id, s)
+    if row.template == "fraud":
+        return _fraud_intake(row, body, s)
     prof = row.profile()
     if not prof:
         raise HTTPException(409, "upload a CSV first")
@@ -617,6 +918,28 @@ async def intake(project_id: str, body: IntakeRequest, s: Session = Depends(get_
     s.add(row)
     s.commit()
     return resp
+
+
+def _fraud_intake(row: ProjectRow, body: IntakeRequest, s: Session) -> IntakeResponse:
+    from app.models import SpecPatch  # noqa: PLC0415
+
+    if not row.mapping_json:
+        raise HTTPException(409, "map your columns first")
+    hist, st, reply, done = fraud_intake.turn(row.intake(), body.message, fraud.settings_of(row))
+    row.set_intake(hist)
+    row.fraud_settings_json = st.model_dump_json()
+    spec = fraud.spec_for(st)
+    row.set_spec(spec)
+    if done:
+        advance(row, "protect")
+    s.add(row)
+    s.commit()
+    return IntakeResponse(message=reply, spec_patch=SpecPatch(), spec=spec, done=done, source="defaults", history=hist)
+
+
+@app.get("/intake/fraud-questions")
+def fraud_questions() -> dict:
+    return {"questions": fraud_intake.QUESTIONS, "suggested": fraud_intake.SUGGESTED}
 
 
 @app.get("/projects/{project_id}/intake", response_model=list[IntakeMessage])

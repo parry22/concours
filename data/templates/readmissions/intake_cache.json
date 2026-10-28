@@ -1,0 +1,31 @@
+{
+  "255f40069e92f2ae9da6853ec5df1a9759fecd2bffce77102dc22df345666785": {
+    "done": false,
+    "message": "Thanks. I have the money numbers: about 2,000 discharges a month, about 15,000 dollars per readmission, and about 25 dollars per follow-up call. I will use those. One thing I still need: do you have a discharge date we could add? If not, just say none and we will test on a random mix of patients. Also, I have not assumed how often a follow-up call actually prevents a return. I will leave that for the app to estimate unless you have a number.",
+    "spec_patch": {
+      "economics": {
+        "cost_per_action": 25.0,
+        "rows_per_month": 2000,
+        "value_per_positive": 15000.0
+      }
+    },
+    "user_text": "A readmission costs about 15,000 dollars, a follow-up call about 25. About 2,000 discharges a month."
+  },
+  "9b3e4b9d9213768f3a8dbe511aaf5bde3e6cc987c5ff755de6f201e2334ee018": {
+    "done": false,
+    "message": "Here is what I will start from. We want to find discharged patients who are likely to come back within 30 days, so the care team can follow up with them first. The outcome is the 30 day return column, and a return counts as a yes. The care team would reach out to the 10 percent of patients most likely to return. Does that match what your team can handle? Also, I do not see a date column in this file. Is there a discharge date we should use to test on newer patients, or should we go without one?",
+    "spec_patch": {},
+    "user_text": "We want to know which discharged patients are likely to come back within 30 days so the care team can follow up first."
+  },
+  "9f4ba573d139d1e13d6460d3c74902908ef8626febe2bad5cae9d88008e85b99": {
+    "done": false,
+    "message": "Good. We will plan around the care team reaching out to the 10% of discharged patients most likely to return. One thing is still open. This file has no date column. Do you have a discharge date we could add, so we can test on newer patients? If not, just say none and we will test on a random mix of patients.",
+    "spec_patch": {
+      "metric_params": {
+        "top_k": 0.1
+      },
+      "primary_metric": "recall_at_top_k"
+    },
+    "user_text": "The care team can call about 10% of discharged patients."
+  }
+}

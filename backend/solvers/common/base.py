@@ -132,8 +132,11 @@ class FeaturePrep:
             t = None
         y = df["label"].to_numpy().astype(int) if "label" in df.columns else None
         X = self._base(df)
+        self.entities = self._entities(X)
         if self.history:
             X = self._history_features(X, y, t, fit=True)
+        # an entity ID's value means nothing (and is a salted hash for fraud); only its history aggregates are features
+        X = X.drop(columns=[e for e in self.entities if e in X.columns])
         for c in X.columns:
             if X[c].dtype == object or pd.api.types.is_string_dtype(X[c]):
                 levels = X[c].astype(str).value_counts().index[:50].tolist()
@@ -148,6 +151,7 @@ class FeaturePrep:
         X = self._base(df)
         if self.history:
             X = self._history_features(X, None, None, fit=False)
+        X = X.drop(columns=[e for e in self.entities if e in X.columns])
         for c, levels in self.cat_levels.items():
             if c in X.columns:
                 X[c] = pd.Categorical(X[c].astype(str), categories=levels).codes

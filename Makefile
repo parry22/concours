@@ -5,7 +5,7 @@
 dev:        ## start backend (8000) and frontend (3000)
 	./scripts/dev.sh
 
-demo:       ## reset workspace, fetch data, seed the three demo projects
+demo:       ## reset workspace, fetch the fraud sample, seed the two fraud projects
 	./scripts/demo.sh
 
 backend:

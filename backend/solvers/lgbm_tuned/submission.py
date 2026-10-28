@@ -28,6 +28,8 @@ class Solver(SolverBase):
             random_state=42,
             verbose=-1,
             n_jobs=2,
+            # a larger payment is never less risky, all else equal (when the data has an amount column)
+            monotone_constraints=[1 if c == "amount" else 0 for c in X.columns],
         )
         self.model.fit(X, y)
 

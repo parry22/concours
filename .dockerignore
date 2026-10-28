@@ -1,0 +1,14 @@
+# Build contexts are the repo root; only source goes in.
+.git
+**/node_modules
+**/.next
+**/.next-*
+**/.venv
+**/__pycache__
+workspace
+.cache
+data
+deploy/.env
+.env
+backend/.env
+*.log

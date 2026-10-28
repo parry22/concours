@@ -51,7 +51,7 @@ function parse(name: string, raw: string): ArenaEvent | null {
 
 /** Open the project event stream. Returns a close function. */
 export function openArenaStream(url: string, onEvent: (e: ArenaEvent) => void): () => void {
-  const es = new EventSource(url);
+  const es = new EventSource(url, { withCredentials: true });
   for (const name of EVENT_NAMES) {
     es.addEventListener(name, (ev) => {
       const parsed = parse(name, (ev as MessageEvent).data);

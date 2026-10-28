@@ -8,13 +8,15 @@ and is what the value model and the metric policy key on; the words come from th
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from app.config import TEMPLATES_DIR
 from app.models import ProblemSpec
 
-CARD_FIELDS = ("name", "description", "label", "icon", "metric_line", "intake_goal", "replies", "list")
+# `people`: the list is about people, so its copy offers support ("reach out", "check in") and never decides about them
+CARD_FIELDS = ("name", "description", "label", "icon", "metric_line", "intake_goal", "replies", "list", "people", "source_url", "source_note")
 
 # Words when neither the template nor the shape has a folder (custom project with an unknown shape).
 DEFAULT_WORDS: dict[str, str] = {
@@ -26,6 +28,7 @@ DEFAULT_WORDS: dict[str, str] = {
     "event": "a confirmed case",
     "team": "team",
     "about_to": "about to happen",
+    "entity": "record",
 }
 
 
@@ -37,7 +40,7 @@ def list_templates() -> list[dict[str, Any]]:
             cfg = json.loads(f.read_text())
             card = {k: cfg.get(k) for k in CARD_FIELDS}
             card["goal"] = card.pop("intake_goal")
-            out.append({"id": d.name, **card, "has_dataset": (d / cfg["dataset"]).exists()})
+            out.append({"id": d.name, **card, "has_dataset": dataset_path(d.name) is not None})
     return out
 
 
@@ -67,11 +70,25 @@ def known_leaks(template: str | None) -> dict[str, str]:
 
 
 def dataset_path(template: str) -> Path | None:
+    """The bundled file, else the file named by the template's `dataset_env` variable (for data that may not be
+    redistributed: the user downloads it and points the variable at it, or uploads it on the data screen)."""
     cfg = load_defaults(template)
     if not cfg:
         return None
     p = TEMPLATES_DIR / template / cfg["dataset"]
-    return p if p.exists() else None
+    if p.exists():
+        return p
+    env = cfg.get("dataset_env")
+    if env and os.environ.get(env):
+        q = Path(os.environ[env]).expanduser()
+        return q if q.is_file() else None
+    return None
+
+
+def group_labels(template: str | None) -> dict[str, dict[str, str]]:
+    """Names for coded group values in the fairness report, e.g. SEX 1 -> Male."""
+    cfg = load_defaults(template) if template else None
+    return dict(cfg.get("group_labels") or {}) if cfg else {}
 
 
 def spec_from_defaults(template: str) -> ProblemSpec | None:

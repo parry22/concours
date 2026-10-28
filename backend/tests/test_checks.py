@@ -31,7 +31,9 @@ def test_pii_masks_email_and_card(toy_df):
     pii.run(c)
     kinds = {f.column: f.evidence["kind"] for f in c.findings}
     assert kinds["email"] == "email" and kinds["card_number"] == "card"
-    assert all(f.action == "masked" for f in c.findings)
+    by = {f.column: f.action for f in c.findings}
+    assert by["email"] == "masked"
+    assert by["card_number"] == "dropped" and "card_number" in c.dropped  # card numbers never leave, even hashed
 
 
 def test_post_outcome_name_warns(toy_df):

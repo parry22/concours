@@ -1,0 +1,33 @@
+{
+  "3b21a6f7f9a0d3783d142616f2da8d1bfe7fa52335b411252726e76676c1f51f": {
+    "done": false,
+    "message": "That matches the plan. The team will reach out to the 10% of customers most likely to miss. I will also treat the data as having no time column. Question 2: roughly how much money is at stake when one customer misses a payment, and what does one call or check-in cost your team? A rough guess is fine, or say skip and I will use standard estimates.",
+    "spec_patch": {
+      "metric_params": {
+        "top_k": 0.1
+      }
+    },
+    "user_text": "We can call about 10% of customers each month."
+  },
+  "555210ff53d6e1f3630433a3101ca2a88efe314c6a4e7f217338e854c1809e2d": {
+    "done": false,
+    "message": "Your goal fits the template defaults. I will use them unless you say otherwise. The target is whether a customer misses next month's payment. The team would reach out to the top 10% of customers most likely to miss. There is no time column in this data, so I will treat it as none. One thing to check: the PAY columns record past payment delays, so they should be fine, but tell me if any column is only filled in after a customer misses. Question 1: roughly how many customers can your team call or follow up with each month?",
+    "spec_patch": {
+      "time_column": null
+    },
+    "user_text": "We want to know which customers may miss next month's payment so we can reach out early and offer help."
+  },
+  "687479c024118db1fe2f4e02751d0b7a4c3d53a5dde24e82441b0232f33a19ea": {
+    "done": true,
+    "message": "Thanks. I will record about 400 dollars at stake per missed payment, 5 dollars per call, and about 10,000 customers a month. I have no figure for how often a call helps a customer catch up, so I will leave that to the app to estimate from the data. The plan is complete: the team will reach out to the 10% of customers most likely to miss next month's payment, and there is no time column.",
+    "spec_patch": {
+      "economics": {
+        "cost_per_action": 5.0,
+        "rows_per_month": 10000,
+        "value_per_positive": 400.0
+      },
+      "time_column": null
+    },
+    "user_text": "A missed payment costs us about 400 dollars in collections, a call costs about 5. About 10,000 customers a month."
+  }
+}

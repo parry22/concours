@@ -8,14 +8,18 @@ from pathlib import Path
 import pandas as pd
 
 from app.models import Finding, ProblemSpec, ProtectReport
-from app.packager.checks import constant, cross_split_dup, id_like, pii, post_outcome_name, target_leak, temporal
+from app.packager.checks import (
+    constant, cross_split_dup, id_like, pii, post_outcome_name, repeated_entity, sensitive, target_leak, temporal,
+)
 from app.packager.checks.base import CheckContext
+from app.packager.fairness import sensitive_path
 from app.packager.split import make_split, split_parts
 from app.packager.transform import Transform
-from app.templates import known_leaks
+from app.templates import known_leaks, words
 
+# sensitive and repeated_entity run first so a trait or an entity key is reported as such, not as an identifier;
 # target_leak runs before constant: a rare-but-perfect column (99% zeros) is a leak, not noise
-COLUMN_CHECKS = (id_like.run, pii.run, post_outcome_name.run, target_leak.run, constant.run)
+COLUMN_CHECKS = (sensitive.run, id_like.run, pii.run, post_outcome_name.run, target_leak.run, constant.run)
 
 
 def sha256_file(p: Path) -> str:
@@ -47,6 +51,7 @@ def run_column_checks(df: pd.DataFrame, spec: ProblemSpec) -> CheckContext:
     for col, reason in known_leaks(spec.template).items():
         if col in df.columns and col != spec.target_column:
             ctx.drop(Finding(check="known_leak", severity="high", column=col, reason=reason, action="dropped", evidence={"source": "template"}))
+    repeated_entity.run(ctx, words(spec.template, spec.business_template))
     for check in COLUMN_CHECKS:
         check(ctx)
     # a warned post-outcome column that was then dropped by target_leak: keep only the drop finding
@@ -71,10 +76,19 @@ def protect(df: pd.DataFrame, spec: ProblemSpec, out_dir: Path) -> tuple[Protect
         reasons={f.column: f.reason for f in findings if f.column},
     )
     work = transform.apply(df, require_target=True)
-    split = make_split(work, spec.target_column, spec.time_column)
+    # set-aside columns ride along through the split, then leave before anything is written for solvers
+    aside = list(ctx.set_aside_cols) + sorted(ctx.keep_aside - set(ctx.set_aside_cols))
+    for c in aside:
+        work[c] = df.loc[work.index, c]
+    split = make_split(work, spec.target_column, spec.time_column, ctx.group_column, ctx.positive)
     split = temporal.run(split, spec.time_column, findings)
     features = [c for c in kept if c != spec.time_column] or kept
     removed = cross_split_dup.run(split, features, findings)
+    sensitive_parts = {}
+    for name in ("train", "leaderboard", "holdout"):
+        part = getattr(split, name)
+        sensitive_parts[name] = part[list(ctx.set_aside_cols)].copy()
+        setattr(split, name, part.drop(columns=aside))
 
     # severity order: high first
     order = {"high": 0, "medium": 1, "info": 2}
@@ -92,6 +106,12 @@ def protect(df: pd.DataFrame, spec: ProblemSpec, out_dir: Path) -> tuple[Protect
         labels.to_csv(lp, index=False)
         checksums[fp.name] = sha256_file(fp)
         checksums[lp.name] = sha256_file(lp)
+    for name, side in sensitive_parts.items():
+        p = sensitive_path(out_dir, name)
+        if ctx.set_aside_cols:
+            side.to_csv(p, index=False)  # never staged for player or referee
+        elif p.exists():
+            p.unlink()
     transform.save(out_dir / "transform.json")
     report = ProtectReport(
         strategy=split.strategy,  # type: ignore[arg-type]
@@ -102,6 +122,8 @@ def protect(df: pd.DataFrame, spec: ProblemSpec, out_dir: Path) -> tuple[Protect
         masked_columns=sorted(ctx.masked),
         rows_removed=removed,
         checksums=checksums,
+        set_aside_columns=list(ctx.set_aside_cols),
+        group_column=ctx.group_column if split.strategy == "group" else None,
     )
     (out_dir / "leakage_report.json").write_text(json.dumps(report.model_dump(), indent=2, default=str))
     return report, transform

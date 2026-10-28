@@ -1,8 +1,10 @@
 """Improvement attempts: ordering, the 1% takeover rule for the leader badge, business value per attempt."""
 from __future__ import annotations
 
+import json
+
 from app.config import TAKEOVER_MARGIN
-from app.models import DataProfile, LeaderboardOut, ProblemSpec, ProtectReport, SubmissionOut, SubmissionRow
+from app.models import GateResult, DataProfile, LeaderboardOut, ProblemSpec, ProtectReport, SubmissionOut, SubmissionRow
 from app.shared.translate import business_card, headline, raw_metric_line
 
 
@@ -18,6 +20,7 @@ def to_out(r: SubmissionRow, finalized: bool) -> SubmissionOut:
         logs_path=r.logs_path,
         error=r.error,
         eval_seconds=r.eval_seconds,
+        gates=[GateResult(**g) for g in json.loads(r.gates_json)] if r.gates_json else [],
     )
 
 

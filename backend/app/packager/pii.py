@@ -41,9 +41,13 @@ def classify_pii(series: pd.Series, name: str) -> str | None:
     if not numeric:
         if _share(series, lambda v: bool(EMAIL_RE.match(v))) > 0.8:
             return "email"
-    if not numeric or any(h in lname for h in CARD_COL_HINTS):
-        if _share(series, lambda v: v.replace(" ", "").replace("-", "").isdigit() and luhn_ok(v)) > 0.8:
-            return "card"
+    # card numbers by content whatever the column is called: 13 to 19 digits passing the Luhn check
+    # (a float column prints as "4111...0.0", so integers are checked as integers)
+    if pd.api.types.is_float_dtype(series):
+        series = series.dropna()
+        series = series[series == series.round()].astype("int64") if len(series) else series
+    if _share(series, lambda v: v.replace(" ", "").replace("-", "").isdigit() and luhn_ok(v)) > 0.8:
+        return "card"
     if any(h in lname for h in ("phone", "mobile", "tel")) and _share(series, lambda v: bool(PHONE_RE.match(v))) > 0.8:
         return "phone"
     if not numeric and (lname in NAME_COLS or any(lname.endswith("_" + h) for h in NAME_COLS)):

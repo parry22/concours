@@ -1,0 +1,30 @@
+# HTTPS (certificates from Let's Encrypt), /api to the API, everything else to the web app.
+{
+	email {$ACME_EMAIL}
+}
+
+{$CONCOURS_DOMAIN} {
+	request_body {
+		max_size 210MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy same-origin
+		-Server
+	}
+	handle_path /api/* {
+		reverse_proxy api:8000 {
+			flush_interval -1
+			transport http {
+				read_timeout 30m
+			}
+		}
+	}
+	handle {
+		# pages only: compressing /api would buffer the live event stream
+		encode zstd gzip
+		reverse_proxy web:3000
+	}
+}

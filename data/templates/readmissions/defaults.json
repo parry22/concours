@@ -1,0 +1,51 @@
+{
+  "name": "Hospital readmissions",
+  "description": "Follow up with patients most likely to come back within 30 days.",
+  "label": "Readmissions",
+  "icon": "stethoscope",
+  "dataset": "dataset.csv",
+  "target_column": "readmitted_30d",
+  "positive_label": "yes",
+  "time_column": null,
+  "id_columns_hint": ["encounter_id", "patient_nbr"],
+  "primary_metric": "recall_at_top_k",
+  "metric_params": {
+    "top_k": 0.1
+  },
+  "secondary_metric": "roc_auc",
+  "business_template": "churn",
+  "metric_line": "Readmissions reached by follow-up in your top 10%",
+  "rate_hint": 0.11,
+  "people": true,
+  "words": {
+    "positive": "patients readmitted within 30 days",
+    "negative": "patients",
+    "short": "readmissions",
+    "past": "patients readmitted within 30 days",
+    "future": "patients will be readmitted within 30 days",
+    "event": "the patient came back within 30 days",
+    "team": "care team",
+    "about_to": "likely to come back soon",
+    "entity": "patient"
+  },
+  "known_leaks": {},
+  "intake_goal": "We want to know which discharged patients are likely to come back within 30 days so the care team can follow up first.",
+  "replies": [
+    "We want to know which discharged patients are likely to come back within 30 days so the care team can follow up first.",
+    "The care team can call about 10% of discharged patients.",
+    "A readmission costs about 15,000 dollars, a follow-up call about 25. About 2,000 discharges a month."
+  ],
+  "economics_defaults": {
+    "rows_per_month": 2000,
+    "value_per_positive": 15000.0,
+    "action_success_rate": 0.1,
+    "cost_per_action": 25.0,
+    "cost_per_false_positive": 0.0
+  },
+  "list": {
+    "name": "Follow-up list",
+    "top_n": 200,
+    "row_label": "patient",
+    "action_label": "Call"
+  }
+}

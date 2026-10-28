@@ -13,6 +13,7 @@ copy. Numeric columns (age) are grouped into fixed bands; a template may name co
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import numpy as np
@@ -46,8 +47,9 @@ def group_values(s: pd.Series, labels: dict[str, str] | None = None) -> pd.Serie
     if labels:
         return s.map(lambda v: labels.get(str(v), labels.get(str(v).split(".")[0], str(v))) if pd.notna(v) else "Not recorded")
     if pd.api.types.is_numeric_dtype(s) and s.nunique(dropna=True) > 12:
-        return pd.cut(s, AGE_BANDS, labels=AGE_LABELS, right=False).astype(str).replace("nan", "Not recorded")
-    return s.astype(str).replace({"nan": "Not recorded", "?": "Not recorded", "": "Not recorded"})
+        return pd.cut(s, AGE_BANDS, labels=AGE_LABELS, right=False).astype(object).fillna("Not recorded").astype(str)
+    # astype(str) keeps NaN on pandas 3, so fill first
+    return s.astype(object).fillna("Not recorded").astype(str).replace({"nan": "Not recorded", "?": "Not recorded", "": "Not recorded"})
 
 
 def column_report(column: str, trait: str, groups: pd.Series, y: np.ndarray, sel: np.ndarray) -> FairnessColumn:
@@ -64,7 +66,10 @@ def column_report(column: str, trait: str, groups: pd.Series, y: np.ndarray, sel
             base_rate=round(float(y[i].mean()), 4) if rows else 0.0,
             enough_rows=rows >= MIN_GROUP_ROWS,
         ))
-    out.sort(key=lambda g: -g.rows)
+    if trait == "age":  # bands read in order: "Under 25", "25 to 34" or "[20-30)"
+        out.sort(key=lambda g: (g.group == "Not recorded", -1 if g.group.startswith("Under") else int(m.group()) if (m := re.search(r"\d+", g.group)) else 999))
+    else:
+        out.sort(key=lambda g: (g.group == "Not recorded", -g.rows))
     judged = [g for g in out if g.enough_rows and g.group != "Not recorded"]
     ratio, note = None, None
     if len(judged) >= 2:
@@ -95,3 +100,26 @@ def report(protected: Path, spec: ProblemSpec, scores: np.ndarray, y: np.ndarray
         model_version=model_version, split="holdout", rows=int(len(scores)), selected=int(sel.sum()),
         rule=("top_k" if spec.primary_metric != "recall_at_fpr" else "fpr"), columns=cols,
     )
+
+
+def for_project(s, row) -> FairnessReport | None:
+    """The fairness report for a project's active version, or None before v1 or when nothing was set aside."""
+    from app.config import project_dir  # noqa: PLC0415 - keep the packager importable without the app layers
+    from app.models import SubmissionRow  # noqa: PLC0415
+    from app.models_registry.promotion import active_version  # noqa: PLC0415
+    from app.templates import group_labels  # noqa: PLC0415
+    from app.value.scores import labels, split_scores  # noqa: PLC0415
+
+    spec, rep = row.spec(), row.protect()
+    if not spec or not rep or not rep.set_aside_columns:
+        return None
+    v = active_version(s, row.id)
+    sub = s.get(SubmissionRow, v.submission_id) if v and v.submission_id else None
+    if sub is None:
+        return None
+    scores = split_scores(row.id, sub, spec, allow_refit=True)
+    if not scores:
+        return None
+    traits = {f.column: str(f.evidence.get("trait", f.column)) for f in rep.findings if f.check == "sensitive" and f.column}
+    return report(project_dir(row.id) / "protected", spec, scores["holdout"], labels(row.id, "holdout"), traits,
+                  group_labels(row.template), model_version=v.version)

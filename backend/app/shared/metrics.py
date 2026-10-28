@@ -14,6 +14,7 @@ METRIC_NAMES = {
     "roc_auc": "ROC AUC",
     "wape": "Weighted absolute percentage error",
     "mae": "Mean absolute error",
+    "fraud_amount_per_day": "Fraud amount caught per day within review capacity",
 }
 LOWER_IS_BETTER = {"wape", "mae"}
 
@@ -118,8 +119,74 @@ def mae(y_true, y_pred) -> float:
     return float(np.abs(y - p).mean()) if len(y) else 0.0
 
 
-def compute(name: str, y_true, scores, params: dict | None = None) -> float:
+def fraud_queue(y_true, scores, amount, day, capacity: int = 200, fee: float = 0.0, review_cost: float = 0.0) -> dict:
+    """Capacity-based fraud evaluation. For each day, rank that day's transactions by expected loss
+    (score x (amount + fee)) and review the top `capacity`. Money-weighted: what matters is the fraud amount
+    inside the reviewed cases.
+
+    Returns per-day arrays (for the promotion gates) and the summary numbers:
+      amount_per_day   mean fraud amount caught per day (the primary metric)
+      count_per_day    mean frauds caught per day
+      precision        share of reviewed cases that were fraud
+      false_alarms_per_1000  reviewed legitimate cases per 1,000 legitimate transactions
+      net_per_day      amount_per_day - capacity x review_cost
+      share            fraud amount caught / all fraud amount
+    """
+    y, s = _prep(y_true, scores)
+    amt = np.nan_to_num(np.asarray(amount, dtype=float).ravel(), nan=0.0)
+    days = np.asarray(day).ravel()
+    if not (len(y) == len(amt) == len(days)):
+        raise ValueError("y, scores, amount and day must have the same length")
+    uniq, codes = np.unique(days, return_inverse=True)
+    n_days = len(uniq)
+    el = s * (amt + fee)
+    el = np.where(np.isfinite(el), el, -np.inf)
+    order = np.lexsort((-el, codes))  # by day, then expected loss descending
+    sorted_codes = codes[order]
+    first = np.searchsorted(sorted_codes, np.arange(n_days), side="left")
+    rank = np.arange(len(order)) - first[sorted_codes]
+    picked = np.zeros(len(y), dtype=bool)
+    picked[order[rank < capacity]] = True
+    caught = picked & (y == 1)
+    caught_amount = np.bincount(codes, weights=np.where(caught, amt, 0.0), minlength=n_days)
+    caught_count = np.bincount(codes, weights=caught.astype(float), minlength=n_days)
+    fraud_amount = np.bincount(codes, weights=np.where(y == 1, amt, 0.0), minlength=n_days)
+    reviewed = np.bincount(codes, weights=picked.astype(float), minlength=n_days)
+    legit = int((y == 0).sum())
+    false_alarms = int((picked & (y == 0)).sum())
+    amount_per_day = float(caught_amount.mean()) if n_days else 0.0
+    return {
+        "days": [str(d) for d in uniq],
+        "caught_amount_by_day": caught_amount,
+        "caught_count_by_day": caught_count,
+        "fraud_amount_by_day": fraud_amount,
+        "reviewed_by_day": reviewed,
+        "picked": picked,
+        "amount_per_day": amount_per_day,
+        "count_per_day": float(caught_count.mean()) if n_days else 0.0,
+        "precision": float(caught.sum() / picked.sum()) if picked.sum() else 0.0,
+        "false_alarms_per_1000": float(false_alarms / legit * 1000) if legit else 0.0,
+        "net_per_day": amount_per_day - capacity * review_cost,
+        "share": float(caught_amount.sum() / fraud_amount.sum()) if fraud_amount.sum() else 0.0,
+        "fraud_per_day": float(fraud_amount.mean()) if n_days else 0.0,
+    }
+
+
+def fraud_summary(q: dict) -> dict:
+    """The JSON-safe part of `fraud_queue` for result.json."""
+    return {k: q[k] for k in ("amount_per_day", "count_per_day", "precision", "false_alarms_per_1000", "net_per_day", "share", "fraud_per_day")} | {
+        "days": q["days"], "caught_amount_by_day": [round(float(v), 2) for v in q["caught_amount_by_day"]],
+    }
+
+
+def compute(name: str, y_true, scores, params: dict | None = None, meta: dict | None = None) -> float:
+    """`meta` carries per-row `amount` and `day` for the capacity metric."""
     params = params or {}
+    if name == "fraud_amount_per_day":
+        if not meta:
+            raise ValueError("fraud_amount_per_day needs per-row amount and day")
+        return fraud_queue(y_true, scores, meta["amount"], meta["day"], int(params.get("capacity", 200)),
+                           float(params.get("fee", 0.0)), float(params.get("review_cost", 0.0)))["amount_per_day"]
     if name == "recall_at_fpr":
         return recall_at_fpr(y_true, scores, float(params.get("fpr", 0.001)))
     if name == "recall_at_top_k":

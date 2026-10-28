@@ -1,37 +1,47 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Clock, EyeOff, FileSpreadsheet, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { FileSpreadsheet, Upload } from "lucide-react";
 import { ActionBar, NextLink, useProject } from "@/components/ProjectShell";
-import { Alert, Badge, Button, Card, DataTable, Meter, PageHeader, Spinner, Stat, cx } from "@/components/ui";
-import { api, errorText, type DataProfile } from "@/lib/api";
-import { fmtCompact, fmtInt, fmtPct } from "@/lib/format";
-import { upload as copy } from "@/lib/copy";
+import { Select } from "@/components/Select";
+import { Alert, Badge, Button, Card, DataTable, PageHeader, Skeleton, Spinner, Stat, cx } from "@/components/ui";
+import { api, errorText, type SchemaOut } from "@/lib/api";
+import { fmtInt, fmtPct } from "@/lib/format";
+import { mapping as copy } from "@/lib/copy";
+import { stepHref } from "@/lib/stages";
 
 const MAX_MB = 200;
 
-const TYPE_COLOR: Record<string, string> = {
-  int: "var(--c-indigo)",
-  float: "var(--c-violet)",
-  object: "var(--c-peach)",
-  str: "var(--c-peach)",
-  bool: "var(--c-orchid)",
-  datetime: "var(--c-pink)",
-};
-
-function typeColor(dtype: string): string {
-  const key = Object.keys(TYPE_COLOR).find((k) => dtype.toLowerCase().includes(k));
-  return key ? TYPE_COLOR[key] : "var(--c-orchid)";
-}
-
-export default function UploadPage() {
+export default function TransactionsPage() {
   const { project, refresh } = useProject();
-  const [busy, setBusy] = useState(false);
+  const router = useRouter();
+  const [schema, setSchema] = useState<SchemaOut | null | undefined>(undefined);
+  const [choice, setChoice] = useState<Record<string, string | null>>({});
+  const [busy, setBusy] = useState<"upload" | "confirm" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const profile: DataProfile | null | undefined = project.profile;
-  const isTemplate = project.template !== "custom";
+  const hasFile = Boolean(project.profile);
+
+  const load = useCallback(async () => {
+    if (!hasFile) {
+      setSchema(null);
+      return;
+    }
+    try {
+      const s = await api.schema(project.id);
+      setSchema(s);
+      setChoice(Object.fromEntries(s.fields.map((f) => [f.name, f.column ?? null])));
+    } catch (e) {
+      setError(errorText(e));
+      setSchema(null);
+    }
+  }, [project.id, hasFile]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function upload(file: File) {
     setError(null);
@@ -39,53 +49,68 @@ export default function UploadPage() {
       setError(copy.tooBig(Number((file.size / 1024 / 1024).toFixed(0)), MAX_MB));
       return;
     }
-    setBusy(true);
+    setBusy("upload");
     try {
       await api.uploadData(project.id, file);
       await refresh();
     } catch (e) {
       setError(errorText(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
-  const target = profile?.target_candidates?.[0];
-  const previewCols = profile?.columns.map((c) => c.name) ?? [];
-  const picker = (
-    <input
-      ref={inputRef}
-      type="file"
-      accept=".csv,text/csv"
-      className="hidden"
-      onChange={(e) => {
-        const f = e.target.files?.[0];
-        if (f) void upload(f);
-        e.target.value = "";
-      }}
-    />
-  );
+  async function confirm() {
+    setBusy("confirm");
+    setError(null);
+    try {
+      const p = await api.putSchema(project.id, choice);
+      await refresh();
+      router.push(stepHref(p.id, "intake"));
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const fields = schema?.fields ?? [];
+  const used = new Set(Object.values(choice).filter(Boolean));
+  const missing = fields.filter((f) => f.required && !choice[f.name]);
+  const requiredCount = fields.filter((f) => f.required).length;
+  const extra = schema ? schema.columns.filter((c) => !used.has(c)).length : 0;
+  const prof = project.profile;
 
   return (
     <div className="space-y-5">
-      {picker}
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void upload(f);
+          e.target.value = "";
+        }}
+      />
       <PageHeader
         title={copy.title}
         actions={
-          profile ? (
-            <Button variant="secondary" busy={busy} onClick={() => inputRef.current?.click()}>
+          hasFile ? (
+            <Button variant="secondary" busy={busy === "upload"} onClick={() => inputRef.current?.click()}>
               <Upload className="h-4 w-4" />
-              {isTemplate ? copy.useOwn : copy.replace}
+              {copy.replace}
             </Button>
           ) : null
         }
       >
-        {profile ? (isTemplate ? copy.templateLoaded : copy.ownLoaded) : copy.empty}
+        {project.source === "sample" && hasFile ? copy.sampleSub : copy.sub}
       </PageHeader>
 
       {error ? <Alert>{error}</Alert> : null}
 
-      {!profile ? (
+      {!hasFile ? (
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -103,80 +128,113 @@ export default function UploadPage() {
             dragging ? "border-accent bg-accent-soft" : "border-border-strong bg-card",
           )}
         >
-          {busy ? <Spinner className="h-8 w-8 text-pink" /> : <FileSpreadsheet className="icon-brand h-9 w-9" strokeWidth={1.5} aria-hidden />}
+          {busy === "upload" ? <Spinner className="h-8 w-8 text-pink" /> : <FileSpreadsheet className="icon-brand h-9 w-9" strokeWidth={1.5} aria-hidden />}
           <div>
-            <p className="text-[15px] font-medium">{busy ? copy.reading : copy.drop}</p>
+            <p className="text-[15px] font-medium">{busy === "upload" ? copy.reading : copy.drop}</p>
             <p className="mt-1 text-[13px] text-muted">{copy.max(MAX_MB)}</p>
           </div>
-          <Button size="lg" busy={busy} onClick={() => inputRef.current?.click()}>
+          <Button size="lg" busy={busy === "upload"} onClick={() => inputRef.current?.click()}>
             <Upload className="h-4 w-4" />
             {copy.choose}
           </Button>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label={copy.rows} value={fmtInt(profile.n_rows)} hint={isTemplate ? copy.sample : copy.asUploaded} />
-            <Stat label={copy.columns} value={fmtInt(profile.n_cols)} hint={copy.lookLikeTime(profile.columns.filter((c) => c.looks_like_time).length)} />
-            <Stat
-              label={copy.outcomeRate}
-              value={profile.positive_rate != null ? fmtPct(profile.positive_rate, 2) : "n/a"}
-              hint={profile.positive_rate != null ? copy.oneIn(fmtInt(Math.round(1 / Math.max(profile.positive_rate, 1e-9)))) : copy.confirmedNext}
-            />
-            <Stat label={copy.likelyOutcome} value={<span className="num font-sans text-[16px] font-medium sm:text-[18px]">{target || copy.notSure}</span>} hint={copy.confirmTogether} />
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label={copy.rows} value={fmtInt(prof?.n_rows ?? 0)} />
+            <Stat label={copy.fraudRate} value={prof?.positive_rate != null ? fmtPct(prof.positive_rate, 2) : "n/a"} />
           </div>
 
           <Card
-            title={copy.first10}
-            subtitle={copy.first10Sub}
-            actions={<Badge>{fmtCompact(profile.n_rows)} rows</Badge>}
+            title={copy.card}
+            subtitle={schema ? copy.extra(extra) : undefined}
+            actions={
+              project.schema_confirmed ? (
+                <Badge tone="ok">{copy.confirmed}</Badge>
+              ) : schema ? (
+                <Badge tone={missing.length ? "neutral" : "ok"} className="num">
+                  {copy.matched(requiredCount - missing.length, requiredCount)}
+                </Badge>
+              ) : null
+            }
           >
-            <DataTable columns={previewCols} rows={profile.preview_rows.slice(0, 10)} highlight={target ? [target] : undefined} className="max-h-[420px]" />
+            {schema === undefined ? (
+              <div className="space-y-2">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-11" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {[
+                  { title: copy.required, list: fields.filter((f) => f.required) },
+                  { title: copy.optional, list: fields.filter((f) => !f.required) },
+                ].map((group) => (
+                  <section key={group.title}>
+                    <h3 className="mb-1 text-[11px] font-medium tracking-[0.06em] text-muted uppercase">{group.title}</h3>
+                    <ul className="divide-y divide-border">
+                      {group.list.map((f) => {
+                        const meta = copy.fields[f.name] ?? { label: f.name, hint: "" };
+                        const val = choice[f.name] ?? null;
+                        return (
+                          <li key={f.name} className="grid gap-2 py-3 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-center md:gap-6">
+                            <label htmlFor={`map-${f.name}`} className="min-w-0">
+                              <span className="block text-[13px] font-medium">{meta.label}</span>
+                              <span className="block text-[12px] leading-snug text-muted">{meta.hint}</span>
+                            </label>
+                            <Select
+                              id={`map-${f.name}`}
+                              value={val}
+                              placeholder={copy.pick}
+                              emptyOption={f.required ? undefined : copy.notMapped}
+                              invalid={f.required && !val}
+                              onChange={(v) => setChoice((c) => ({ ...c, [f.name]: v }))}
+                              options={(schema?.columns ?? []).map((c) => {
+                                const owner = Object.entries(choice).find(([k, v]) => v === c && k !== f.name)?.[0];
+                                return {
+                                  value: c,
+                                  label: c,
+                                  detail: sampleOf(schema?.preview ?? [], c),
+                                  tag: c === f.suggested ? copy.suggested : undefined,
+                                  disabledReason: owner ? copy.usedFor(copy.fields[owner]?.label ?? owner) : undefined,
+                                };
+                              })}
+                            />
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            )}
           </Card>
 
-          <Card title={copy.health} subtitle={copy.healthSub}>
-            <ul className="grid gap-x-8 gap-y-1 md:grid-cols-2">
-              {profile.columns.map((c) => {
-                const filled = 1 - c.null_pct / 100;
-                return (
-                  <li key={c.name} className="flex flex-col gap-2 border-b border-border/70 py-3 last:border-b-0 md:[&:nth-last-child(2)]:border-b-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: typeColor(c.dtype) }} />
-                        <span className="num truncate text-[13px] font-medium">{c.name}</span>
-                        {c.name === target ? <Badge tone="accent">outcome?</Badge> : null}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1.5">
-                        {c.looks_like_time ? (
-                          <span title={copy.looksLikeTime}>
-                            <Clock className="icon-brand h-3.5 w-3.5" />
-                          </span>
-                        ) : null}
-                        {c.pii_masked ? (
-                          <span title={copy.piiMasked}>
-                            <EyeOff className="icon-brand h-3.5 w-3.5" />
-                          </span>
-                        ) : null}
-                        <span className="text-[12px] text-muted">{c.dtype}</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Meter value={filled} color={filled > 0.98 ? "brand" : filled > 0.8 ? "var(--c-peach)" : "var(--danger)"} className="h-1.5 min-w-0 flex-1" />
-                      <span className="num shrink-0 text-right text-[11px] whitespace-nowrap text-muted">
-                        {fmtPct(filled, 0)} · {fmtCompact(c.n_unique)} {copy.distinct}
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
+          {schema?.preview?.length ? (
+            <Card title={copy.preview}>
+              <DataTable columns={schema.columns} rows={schema.preview} highlight={Object.values(choice).filter(Boolean) as string[]} className="max-h-[320px]" />
+            </Card>
+          ) : null}
         </>
       )}
 
-      <ActionBar hint={profile ? copy.hintNext : copy.hintUpload}>
-        <NextLink stage="intake" label={copy.next} disabled={!project.has_data} />
+      <ActionBar hint={project.schema_confirmed ? copy.hintDone : copy.hintTodo}>
+        {hasFile && schema ? (
+          <Button size="lg" busy={busy === "confirm"} disabled={missing.length > 0} onClick={() => void confirm()}>
+            {busy === "confirm" ? copy.confirming : copy.confirm}
+          </Button>
+        ) : (
+          <NextLink stage="intake" label={copy.next} disabled={!project.schema_confirmed} />
+        )}
       </ActionBar>
     </div>
   );
+}
+
+/** A short sample of a column for the picker: the first non-empty value in the preview rows. */
+function sampleOf(rows: Record<string, unknown>[], col: string): string | undefined {
+  const v = rows.map((r) => r[col]).find((x) => x !== null && x !== undefined && x !== "");
+  if (v === undefined) return undefined;
+  const s = String(v);
+  return s.length > 22 ? `${s.slice(0, 21)}…` : s;
 }

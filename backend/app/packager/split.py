@@ -63,9 +63,37 @@ def split_stratified(df: pd.DataFrame, target: str, seed: int = SPLIT_SEED) -> S
     )
 
 
-def make_split(df: pd.DataFrame, target: str, time_col: str | None) -> Split:
+def split_grouped(df: pd.DataFrame, target: str, group_col: str, positive=None, seed: int = SPLIT_SEED) -> Split:
+    """Every row of one entity (a patient) lands in one part. Entities are shuffled within two strata (any
+    positive row or none) and dealt out until each part holds its share of rows."""
+    rng = np.random.default_rng(seed)
+    y = (df[target] == positive) if positive is not None else (df[target] == df[target].value_counts().index[-1])
+    keys = df[group_col].astype(str).to_numpy()
+    sizes = pd.Series(1, index=keys).groupby(level=0).sum()
+    has_pos = pd.Series(y.to_numpy(), index=keys).groupby(level=0).any()
+    assign: dict[str, int] = {}
+    for flag in (True, False):
+        groups = has_pos.index[has_pos == flag].to_numpy().copy()
+        rng.shuffle(groups)
+        cum = np.cumsum(sizes.loc[groups].to_numpy())
+        total = cum[-1] if len(cum) else 0
+        a, b = total * FRACTIONS[0], total * (FRACTIONS[0] + FRACTIONS[1])
+        for g, c in zip(groups, cum):
+            assign[g] = 0 if c <= a else (1 if c <= b else 2)
+    part = np.array([assign[k] for k in keys])
+    return Split(
+        "group",
+        df.loc[part == 0].reset_index(drop=True),
+        df.loc[part == 1].reset_index(drop=True),
+        df.loc[part == 2].reset_index(drop=True),
+    )
+
+
+def make_split(df: pd.DataFrame, target: str, time_col: str | None, group_col: str | None = None, positive=None) -> Split:
     if time_col and time_col in df.columns:
         return split_by_time(df, time_col)
+    if group_col and group_col in df.columns:
+        return split_grouped(df, target, group_col, positive)
     return split_stratified(df, target)
 
 
