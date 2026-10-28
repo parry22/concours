@@ -49,6 +49,12 @@ DEFAULT_DRIFT_THRESHOLD = float(env("DRIFT_THRESHOLD", "0.10"))
 # The solvers that build version 1 right after Protect
 BASELINE_SOLVERS = ("baseline_logreg", "lgbm_default")
 MAX_UPLOAD_MB = 200
+
+# Apex filing: the private competition repo (owner/name on GitHub) and who to contact. The generator writes them into
+# spec.yaml (image refs, cosign identity), HANDOFF.md and ONBOARDING_ISSUE.md; unset leaves TODO placeholders.
+GITHUB_REPO = env("GITHUB_REPO", "").strip()
+OWNER_NAME = env("OWNER_NAME", "").strip()
+OWNER_EMAIL = env("OWNER_EMAIL", "").strip()
 SPLIT_SEED = 42
 
 # Browsers allowed to call the API from another origin (dev: the Next.js port). Production is same-origin.

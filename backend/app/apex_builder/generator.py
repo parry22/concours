@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import re
 import shutil
 from datetime import date
 from pathlib import Path
@@ -9,8 +10,10 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlmodel import select
 
+from app.apex_builder import adversarial
 from app.arena import leaderboard, runner
 from app.arena.stage import HIDDEN_FILES, competition_dir, stage
+from app import config
 from app.config import SOLVER_CPUS, SOLVER_TIMEOUT_S, project_dir
 from app.db import session
 from app.models import ProblemSpec, ProjectRow, SubmissionRow
@@ -28,6 +31,30 @@ env = Environment(loader=FileSystemLoader(str(TEMPLATES)), autoescape=select_aut
 
 def competition_id(row: ProjectRow) -> str:
     return f"concours_{row.template}_{row.id}"[:64]
+
+
+REPO_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
+
+
+def owner(cid: str) -> dict:
+    """The competition repo and contact from CONCOURS_GITHUB_REPO / OWNER_NAME / OWNER_EMAIL; TODO placeholders when unset.
+
+    release.yml pushes to ghcr.io/${{ github.repository }}-<player|referee> (GHCR lowercases), so the spec refs use
+    exactly that form, and the cosign identity is the release workflow's URL in the same repo.
+    """
+    repo = config.GITHUB_REPO
+    if repo and not REPO_RE.match(repo):
+        raise ValueError(f"CONCOURS_GITHUB_REPO must be owner/name, got {repo!r}")
+    slug = repo or f"your-org/{cid.replace('_', '-')}"
+    contact = " ".join(x for x in (config.OWNER_NAME, f"<{config.OWNER_EMAIL}>" if config.OWNER_EMAIL else "") if x)
+    return {
+        "repo": repo or None,
+        "repo_url": f"https://github.com/{repo}" if repo else None,
+        "image_ref": f"ghcr.io/{slug.lower()}-player",
+        "referee_ref": f"ghcr.io/{slug.lower()}-referee",
+        "cosign_identity": f"https://github.com/{slug}/.github/workflows/release.yml",
+        "contact": contact or None,
+    }
 
 
 def fraud_handoff(row, report) -> dict | None:
@@ -109,6 +136,11 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
     hidden = {f: report.checksums.get(f) or sha256_file(comp / "referee" / "data" / f) for f in HIDDEN_FILES
               if f in report.checksums or (comp / "referee" / "data" / f).exists()}
     kept = [c for c in report.kept_columns]
+    own = owner(cid)
+    adv = adversarial.load(project_id)
+    adv_base = v1.private_score if v1 and v1.private_score is not None else (base.private_score if base else None)
+    adv_rows = adversarial.verdicts(adv, adv_base) if adv else []
+    money = spec.primary_metric == "fraud_amount_per_day"
     ctx = {
         "competition_id": cid,
         "version": "0.1.0",
@@ -116,14 +148,16 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
         "date": date.today().isoformat(),
         "cpu_limit": int(SOLVER_CPUS) if float(SOLVER_CPUS).is_integer() else SOLVER_CPUS,
         "mem_limit": "2Gi",
-        "image_ref": f"ghcr.io/your-org/{cid.replace('_', '-')}-player",
-        "referee_ref": f"ghcr.io/your-org/{cid.replace('_', '-')}-referee",
+        "image_ref": own["image_ref"],
+        "referee_ref": own["referee_ref"],
+        "repo_url": own["repo_url"],
+        "contact": own["contact"],
         "player_digest": player_digest,
         "referee_digest": referee_digest,
         "reveal_days": 7,
         "evaluate_timeout_s": evaluate_timeout,
         "referee_timeout_s": referee_timeout,
-        "cosign_identity": f"https://github.com/your-org/{cid.replace('_', '-')}/.github/workflows/release.yml",
+        "cosign_identity": own["cosign_identity"],
         "task_description": task_description(spec, row),
         "success_statement": success_statement(spec),
         "metric_name": METRIC_NAMES.get(spec.primary_metric, spec.primary_metric),
@@ -161,6 +195,13 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
         "worst_case_s": worst,
         "fits": "yes" if worst < referee_timeout else "NO",
         "hidden_checksums": hidden,
+        "adversarial": [{**r, "score_text": f"${r['score']:,.0f}/day" if money else f"{r['score']:.4f}",
+                         "share_text": f"{r['share']:.1%}" if r["share"] is not None else "n/a"} for r in adv_rows],
+        "adversarial_date": adv["date"] if adv else None,
+        "adversarial_baseline": (f"${adv_base:,.0f}/day" if money else f"{adv_base:.4f}") if adv_base is not None else "not run",
+        "adversarial_ok": bool(adv_rows) and all(r["below"] for r in adv_rows),
+        "adversarial_margin": f"{adversarial.CLEAR_MARGIN:.0%}",
+        "money_metric": money,
         "checksums": report.checksums,
         "preflight_status": validation.get("preflight", "not run"),
         "preflight_box": "☑" if validation.get("preflight") == "pass" else "☐",

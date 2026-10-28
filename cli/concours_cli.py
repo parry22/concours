@@ -13,6 +13,7 @@ Standard library only. Sign in once with `concours login`; the API key is kept i
   concours improve                                         # an improvement round, with the five gates
   concours jump --days 28                                  # simulated clock (sample data)
   concours package --out handoff.zip
+  concours package --repo repo.zip                         # the private competition repo, holdout included
 
 Add --json to most commands for machine output. `concours <command> --help` for options.
 """
@@ -497,6 +498,9 @@ def cmd_package(args, cfg):
     if args.out:
         Path(args.out).write_bytes(c.raw("GET", f"/projects/{pid}/handoff").read())
         print(f"Wrote {args.out}.")
+    if args.repo:
+        Path(args.repo).write_bytes(c.raw("GET", f"/projects/{pid}/package/repo").read())
+        print(f"Wrote {args.repo}. It holds the private holdout: push it only to a PRIVATE repository.")
 
 
 def cmd_keys(args, cfg):
@@ -580,6 +584,7 @@ def parser() -> argparse.ArgumentParser:
     add("data", cmd_data, "Protection report and late labels")
     p = add("package", cmd_package, "Package for Apex and validate", json_=False)
     p.add_argument("--out", help="also download the handoff zip here")
+    p.add_argument("--repo", help="also download the private competition repo (holdout included) here")
     p = add("keys", cmd_keys, "API keys: list, create NAME, revoke ID", project=False)
     p.add_argument("action", nargs="?", default="list", choices=["list", "create", "revoke"])
     p.add_argument("name", nargs="?")
