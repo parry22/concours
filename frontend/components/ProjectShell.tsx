@@ -95,8 +95,8 @@ function Sidebar({ project }: { project?: ProjectOut | null }) {
   const pathname = usePathname();
   return (
     <aside className="scroll-thin fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col overflow-y-auto border-r border-border bg-background lg:flex">
-      <Link href="/" className="flex items-center gap-2.5 px-5 pt-5 pb-4">
-        <Logo className="h-7 w-7" />
+      <Link href="/" className="flex items-center gap-2 px-5 pt-5 pb-4">
+        <Logo />
         <span className="text-[15px] font-semibold tracking-[-0.01em]">Brief</span>
       </Link>
       <nav className="space-y-0.5 px-3">
@@ -283,7 +283,7 @@ function MobileHeader({ project }: { project?: ProjectOut | null }) {
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 pt-[var(--safe-top)] backdrop-blur-xl lg:hidden">
         <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
           <Link href="/" aria-label="All projects" className="shrink-0">
-            <Logo className="h-7 w-7" />
+            <Logo className={project === undefined ? undefined : "h-6 w-[19px]"} />
           </Link>
           {project === undefined ? (
             <span className="flex-1 text-[15px] font-semibold">Brief</span>

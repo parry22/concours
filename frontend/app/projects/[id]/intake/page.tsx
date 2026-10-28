@@ -154,7 +154,7 @@ export default function IntakePage() {
     <Card pad={false} className={cx("flex flex-col lg:col-span-7", tab !== "chat" && "hidden lg:flex")}>
       <header className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5 sm:pt-5">
         <div className="flex min-w-0 items-center gap-3">
-          <Logo className="h-8 w-8 shrink-0" />
+          <Logo className="h-6 w-[19px] shrink-0" />
           <div className="min-w-0">
             <h2 className="text-[15px] font-semibold">Assistant</h2>
             <p className="truncate text-[12px] text-muted">
@@ -191,7 +191,7 @@ export default function IntakePage() {
               </div>
             ) : (
               <div key={i} className="row-in flex items-end gap-2.5">
-                <Logo className="mb-0.5 h-6 w-6 shrink-0" />
+                <Logo className="mb-1.5 h-5 w-4 shrink-0" />
                 <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-border bg-card-2 px-3.5 py-2.5 text-[14px] leading-relaxed">
                   <div className="whitespace-pre-wrap">{m.content}</div>
                   {m.source && m.source !== "llm" ? <div className="mt-1.5 text-[11px] text-muted">replayed</div> : null}
@@ -202,7 +202,7 @@ export default function IntakePage() {
         )}
         {sending ? (
           <div className="flex items-end gap-2.5">
-            <Logo className="mb-0.5 h-6 w-6 shrink-0" />
+            <Logo className="mb-1.5 h-5 w-4 shrink-0" />
             <div className="flex h-10 items-center gap-1 rounded-2xl rounded-bl-md border border-border bg-card-2 px-4">
               {[0, 1, 2].map((d) => (
                 <span key={d} className="pulse-dot h-1.5 w-1.5 rounded-full bg-subtle" style={{ animationDelay: `${d * 180}ms` }} />

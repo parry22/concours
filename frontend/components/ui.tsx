@@ -313,13 +313,14 @@ export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: Re
 /**
  * Brief's mark: one cylinder of data cut in two. The lower body is the public data (a seam marks the thin leaderboard
  * band above the training rows); the floating slice with the glowing cap is the sealed private holdout, and light
- * leaks through the gap between them. No background. Same drawing as app/icon.svg.
+ * leaks through the gap between them. No background. Same drawing as app/icon.svg, but the viewBox is cropped to the
+ * artwork (22 x 28) so the mark sits flush beside text; size it by height with a width of about 0.79 of that.
  */
 export function Logo({ className }: { className?: string }) {
   // Ids per instance: a gradient defined inside a hidden copy (the desktop sidebar on phones) would not paint elsewhere.
   const id = useId().replace(/:/g, "");
   return (
-    <svg viewBox="0 0 32 32" fill="none" className={cx("h-8 w-8", className)} role="img" aria-label="Brief">
+    <svg viewBox="5 2 22 28" fill="none" className={cx("h-[22px] w-[17px] overflow-visible", className)} role="img" aria-label="Brief">
       <defs>
         <linearGradient id={`${id}fill`} gradientUnits="userSpaceOnUse" x1="0" y1="3" x2="0" y2="29.5">
           <stop offset="0" stopColor="#fbb39c" />
