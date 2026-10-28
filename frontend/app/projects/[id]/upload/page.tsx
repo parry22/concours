@@ -10,16 +10,17 @@ import { fmtCompact, fmtInt, fmtPct } from "@/lib/format";
 const MAX_MB = 200;
 
 const TYPE_COLOR: Record<string, string> = {
-  int: "var(--c-cyan)",
+  int: "var(--c-indigo)",
   float: "var(--c-violet)",
-  object: "var(--c-orange)",
-  bool: "var(--c-lime)",
+  object: "var(--c-peach)",
+  str: "var(--c-peach)",
+  bool: "var(--c-orchid)",
   datetime: "var(--c-pink)",
 };
 
 function typeColor(dtype: string): string {
   const key = Object.keys(TYPE_COLOR).find((k) => dtype.toLowerCase().includes(k));
-  return key ? TYPE_COLOR[key] : "var(--c-yellow)";
+  return key ? TYPE_COLOR[key] : "var(--c-orchid)";
 }
 
 export default function UploadPage() {
@@ -169,7 +170,7 @@ export default function UploadPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Meter value={filled} color={filled > 0.98 ? "var(--c-teal)" : filled > 0.8 ? "var(--c-yellow)" : "var(--c-orange)"} className="h-1.5 min-w-0 flex-1" />
+                      <Meter value={filled} color={filled > 0.98 ? "var(--brand-gradient-x)" : filled > 0.8 ? "var(--c-peach)" : "var(--danger)"} className="h-1.5 min-w-0 flex-1" />
                       <span className="num shrink-0 text-right text-[11px] whitespace-nowrap text-muted">
                         {fmtPct(filled, 0)} · {fmtCompact(c.n_unique)} distinct
                       </span>

@@ -70,8 +70,8 @@ flowchart LR
 | Fix for | Change |
 |---|---|
 | 1 | Templates land on **Data**: rows, columns, outcome rate as large figures, a 10-row preview, and per-column health bars. One button: "Describe the goal". |
-| 2 | Template switching lives only on Home, labelled "Start". The header shows the current project and a link back to all projects. |
-| 3, 9 | Progress is a 6-segment bar (done, current, locked) with "Step 3 of 6". Desktop: a left rail lists the steps with icons. Mobile: tap the bar to open a step sheet. Each step ends in a **sticky action bar** holding the single primary action, pinned above the home indicator on phones. |
+| 2 | Template switching lives only on Home, labelled "Start". On phones Home shows the start options as compact rows above the project list; project counts are small chips, not large tiles. |
+| 3, 9 | Progress is a 6-segment bar (done, current, locked) with "Step 3 of 6". Desktop: a labelled sidebar groups the steps by phase (Setup, Prove, Deliver) with done, current and locked states; it replaces the earlier icon rail, breadcrumb bar and progress strip. Mobile: one sticky header shows the project, the current step and a gradient progress line; tap the step chip to open a step sheet. Each step ends in a **sticky action bar** holding the single primary action, pinned above the home indicator on phones. |
 | 4 | Goal is chat-first. The right panel is a plain-language **scoring rule** that ticks off four parts as the chat fills them (outcome, how we score, split, economics). The raw form moves into "Fine-tune". On mobile, a Chat / Rule switch replaces the side-by-side layout. |
 | 5 | Numbered **suggested replies** under the chat (fraud and churn templates, and outcome-column guesses for a blank CSV). One tap sends. |
 | 6 | Protect **runs on arrival** when there is no report yet, showing the seven checks. "Run again" stays available. |
@@ -80,7 +80,7 @@ flowchart LR
 | 10 | Tables scroll inside their card with a sticky first column. Leaderboard and project lists become stacked cards under 640 px. |
 | 11 | Launch opens with a **readiness checklist**: package built, toolkit validation, handoff download. Building also validates, once. |
 | 12 | Home lists each project with its step progress and winner. |
-| 13 | Dark theme from the reference: near-black canvas, 16 px-radius cards with hairline borders, pill tags, dashed chart grids, gradient accents (coral, violet, teal). Type: Geist for UI, Geist Mono for every figure, tabular numerals throughout. |
+| 13 | Dark theme from the reference: near-black canvas, 16 px-radius cards with hairline borders, pill tags, dashed chart grids, one colour family taken from the gradient (peach, pink, orchid, violet, indigo); done and passing states use the gradient or violet, not green; red stays for danger only. Type: Geist for UI, Geist Mono for every figure, tabular numerals throughout. |
 
 ### Mobile rules applied
 

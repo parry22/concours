@@ -73,8 +73,7 @@ export default function LaunchPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="Launch on Apex">
-        Apex is a competition network on Bittensor where global solvers compete on your protected data. Nothing launches from here: you
-        download the handoff package and submit it.
+        Package the competition for Apex, the solver network on Bittensor. Nothing launches from here: you download the handoff and submit it.
       </PageHeader>
 
       {error ? <Alert>{error}</Alert> : null}
@@ -176,7 +175,7 @@ export default function LaunchPage() {
             onChange={(e) => setBounty(Number(e.target.value))}
             aria-label="Bounty"
             className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-card-3 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-foreground [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:shadow-[0_0_0_4px_rgb(255_255_255/0.08)]"
-            style={{ background: `linear-gradient(90deg, var(--c-coral), var(--c-pink) ${((bounty - 1000) / 49000) * 50}%, var(--c-violet) ${((bounty - 1000) / 49000) * 100}%, var(--card-3) ${((bounty - 1000) / 49000) * 100}%)` }}
+            style={{ background: `linear-gradient(90deg, var(--c-peach), var(--c-pink) ${((bounty - 1000) / 49000) * 50}%, var(--c-violet) ${((bounty - 1000) / 49000) * 100}%, var(--card-3) ${((bounty - 1000) / 49000) * 100}%)` }}
           />
           <div className="num mt-2 flex justify-between text-[11px] text-muted">
             <span>{fmtMoney(1000)}</span>
@@ -251,7 +250,7 @@ function Check3({ n, state, title, detail }: { n: number; state: "todo" | "busy"
       <span
         className={cx(
           "num mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px]",
-          state === "done" ? "bg-ok text-background" : state === "fail" ? "bg-danger text-background" : "border border-dashed border-[#4a4a50] text-muted",
+          state === "done" ? "bg-brand text-background" : state === "fail" ? "bg-danger text-background" : "border border-dashed border-[#4a4a50] text-muted",
         )}
       >
         {state === "done" ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : state === "fail" ? <X className="h-3.5 w-3.5" strokeWidth={3} /> : state === "busy" ? <Spinner className="h-3.5 w-3.5" /> : n}

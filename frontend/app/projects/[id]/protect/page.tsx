@@ -8,7 +8,7 @@ import { api, errorText, type Finding, type ProtectReport } from "@/lib/api";
 import { fmtCompact, fmtInt, fmtPct } from "@/lib/format";
 
 const PART: Record<string, { title: string; who: string; color: string }> = {
-  train: { title: "Public train", who: "Solvers get these rows with labels", color: "var(--c-teal)" },
+  train: { title: "Public train", who: "Solvers get these rows with labels", color: "var(--c-indigo)" },
   leaderboard: { title: "Public leaderboard", who: "Scored live. Labels stay with the referee", color: "var(--c-violet)" },
   holdout: { title: "Private holdout", who: "Decides the winner. Never leaves the referee", color: "var(--c-pink)" },
 };
@@ -92,8 +92,7 @@ export default function ProtectPage() {
           ) : null
         }
       >
-        Brief splits the data so solvers never see the answers they are judged on, then checks every column for anything that would
-        let a solver cheat or expose a person.
+        Split so solvers never see the answers they are judged on, then every column checked for leaks and personal data.
       </PageHeader>
 
       {!project.spec ? <Alert kind="warn">Confirm the scoring rule first.</Alert> : null}

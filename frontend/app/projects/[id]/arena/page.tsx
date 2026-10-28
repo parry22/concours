@@ -160,17 +160,11 @@ export default function ArenaPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-[-0.02em] sm:text-[26px]">Arena</h1>
-          <p className="mt-1.5 max-w-2xl text-[14px] leading-relaxed text-subtle">
-            Local solvers stand in for the global network. Public scores update live; private scores stay sealed until you finalize.
-          </p>
-        </div>
-        <span className={cx("inline-flex h-8 items-center gap-2 self-start rounded-full border border-border-strong bg-card-2 px-3 text-[12px] font-medium sm:self-auto", connected ? "text-ok" : "text-muted")}>
-          <span className={cx("h-1.5 w-1.5 rounded-full", connected ? "pulse-dot bg-ok" : "bg-muted")} />
-          {connected ? "Live" : "Reconnecting"}
-        </span>
+      <div>
+        <h1 className="text-[22px] font-semibold tracking-[-0.02em] sm:text-[26px]">Arena</h1>
+        <p className="mt-1.5 max-w-2xl text-[14px] leading-relaxed text-subtle">
+          Local solvers compete on the public split. Private scores stay sealed until you finalize.
+        </p>
       </div>
 
       {!project.protect ? <Alert kind="warn">Run data protection first.</Alert> : null}
@@ -213,14 +207,20 @@ export default function ArenaPage() {
               )}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-4 text-[12px] text-subtle">
-            <span className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full" style={{ background: "var(--brand-gradient)" }} />
-              Private holdout
+          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-subtle sm:flex-col sm:items-end">
+            <span className={cx("inline-flex h-7 items-center gap-2 rounded-full border border-border-strong bg-card-2 px-2.5 font-medium", connected ? "text-pink" : "text-muted")}>
+              <span className={cx("h-1.5 w-1.5 rounded-full", connected ? "pulse-dot bg-pink" : "bg-muted")} />
+              {connected ? "Live" : "Reconnecting"}
             </span>
-            <span className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-[#5a5a60]" />
-              Public leaderboard
+            <span className="flex items-center gap-4">
+              <span className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full" style={{ background: "var(--brand-gradient)" }} />
+                Private holdout
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-[#5a5a60]" />
+                Public leaderboard
+              </span>
             </span>
           </div>
         </div>
@@ -296,7 +296,7 @@ export default function ArenaPage() {
         </Card>
 
         <div className="min-w-0 space-y-4 lg:col-span-4">
-          <Card title="What it is worth" actions={<Sparkles className="h-4 w-4 text-coral" />}>
+          <Card title="What it is worth" actions={<Sparkles className="h-4 w-4 text-peach" />}>
             {board?.savings_line ? (
               <>
                 <SavingsFigure line={board.savings_line} />

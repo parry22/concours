@@ -33,6 +33,8 @@ export function solverLabel(name: string): string {
     agent_solver_2: "Agent solver, attempt 2",
     agent_solver_3: "Agent solver, attempt 3",
   };
+  const agent = name.match(/^agent_solver_(\d+)$/);
+  if (agent) return `Agent solver, attempt ${agent[1]}`;
   return map[name] || name.replace(/_/g, " ");
 }
 
@@ -80,5 +82,7 @@ export function solverShort(name: string): string {
     lgbm_tuned: "LightGBM tuned",
     agent_solver: "Agent",
   };
+  const agent = name.match(/^agent_solver_(\d+)$/);
+  if (agent) return `Agent ${agent[1]}`;
   return map[name] || name.replace(/_/g, " ");
 }

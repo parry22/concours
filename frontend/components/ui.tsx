@@ -117,9 +117,9 @@ export function Card({
 export function Alert({ kind = "error", children, className }: { kind?: "error" | "warn" | "info" | "ok"; children: ReactNode; className?: string }) {
   const styles = {
     error: "bg-danger-soft text-[#fca5a5] border-danger/20",
-    warn: "bg-warn-soft text-[#fcd34d] border-warn/20",
+    warn: "bg-warn-soft text-[#fbd7a5] border-warn/20",
     info: "bg-accent-soft text-[#c4b5fd] border-accent/20",
-    ok: "bg-ok-soft text-[#86efac] border-ok/20",
+    ok: "bg-ok-soft text-[#ddd6fe] border-ok/20",
   }[kind];
   const dot = { error: "bg-danger", warn: "bg-warn", info: "bg-accent", ok: "bg-ok" }[kind];
   return (
@@ -200,20 +200,31 @@ export function Meter({ value, color = "var(--c-violet)", className }: { value: 
   );
 }
 
-/** Segmented bar, as in the reference's payment score. */
+/**
+ * Segmented bar, as in the reference's payment score. Filled segments share one brand gradient across the whole bar;
+ * the current segment shows its slice of it, dimmed.
+ */
 export function Segments({ total, filled, current, className, size = "md" }: { total: number; filled: number; current?: number; className?: string; size?: "md" | "sm" }) {
   return (
     <div className={cx("flex w-full gap-[3px]", className)} aria-hidden>
-      {Array.from({ length: total }).map((_, i) => (
-        <span
-          key={i}
-          className={cx(
-            "flex-1 rounded-[3px] transition-colors duration-300",
-            size === "md" ? "h-5" : "h-1.5",
-            i === current ? "bg-foreground" : i < filled ? "bg-ok" : "bg-card-3",
-          )}
-        />
-      ))}
+      {Array.from({ length: total }).map((_, i) => {
+        const lit = i < filled || i === current;
+        return (
+          <span
+            key={i}
+            className={cx("flex-1 rounded-[3px] transition-opacity duration-300", size === "md" ? "h-5" : "h-1.5", !lit && "bg-card-3", i === current && i >= filled && "opacity-45")}
+            style={
+              lit
+                ? {
+                    backgroundImage: "var(--brand-gradient-x)",
+                    backgroundSize: `${total * 100}% 100%`,
+                    backgroundPosition: `${total > 1 ? (i / (total - 1)) * 100 : 0}% 0`,
+                  }
+                : undefined
+            }
+          />
+        );
+      })}
     </div>
   );
 }

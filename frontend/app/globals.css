@@ -11,26 +11,24 @@
   --card: #131315;
   --card-2: #1a1a1d;
   --card-3: #222226;
-  --accent: #a78bfa;
-  --accent-soft: rgb(167 139 250 / 0.14);
-  --accent-ink: #0a0a0b;
-  --danger: #f87171;
-  --danger-soft: rgb(248 113 113 / 0.12);
-  --warn: #fbbf24;
-  --warn-soft: rgb(251 191 36 / 0.12);
-  --ok: #4ade80;
-  --ok-soft: rgb(74 222 128 / 0.12);
-  --c-coral: #f9a58b;
+  /* One family: peach, pink, orchid, violet, indigo. Everything coloured comes from these stops. */
+  --c-peach: #fbb39c;
   --c-pink: #f472b6;
+  --c-orchid: #d68cf5;
   --c-violet: #a78bfa;
   --c-indigo: #818cf8;
-  --c-teal: #2dd4bf;
-  --c-cyan: #22d3ee;
-  --c-lime: #a3e635;
-  --c-orange: #fb923c;
-  --c-yellow: #fcd34d;
-  --brand-gradient: linear-gradient(180deg, #f9a58b 0%, #f472b6 30%, #a78bfa 62%, #2dd4bf 100%);
-  --brand-gradient-x: linear-gradient(90deg, #f9a58b 0%, #f472b6 30%, #a78bfa 62%, #2dd4bf 100%);
+  --accent: #b9a2fb;
+  --accent-soft: rgb(167 139 250 / 0.14);
+  --accent-ink: #0a0a0b;
+  /* Done and passing states use the brand violet, not green. */
+  --ok: #c4b5fd;
+  --ok-soft: rgb(167 139 250 / 0.14);
+  --warn: #f5b971;
+  --warn-soft: rgb(245 185 113 / 0.12);
+  --danger: #f87171;
+  --danger-soft: rgb(248 113 113 / 0.12);
+  --brand-gradient: linear-gradient(180deg, #fbb39c 0%, #f472b6 34%, #c084fc 66%, #818cf8 100%);
+  --brand-gradient-x: linear-gradient(90deg, #fbb39c 0%, #f472b6 34%, #c084fc 66%, #818cf8 100%);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
 }
@@ -54,15 +52,11 @@
   --color-warn-soft: var(--warn-soft);
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
-  --color-coral: var(--c-coral);
+  --color-peach: var(--c-peach);
   --color-pink: var(--c-pink);
+  --color-orchid: var(--c-orchid);
   --color-violet: var(--c-violet);
   --color-indigo: var(--c-indigo);
-  --color-teal: var(--c-teal);
-  --color-cyan: var(--c-cyan);
-  --color-lime: var(--c-lime);
-  --color-orange: var(--c-orange);
-  --color-yellow: var(--c-yellow);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 }
@@ -152,6 +146,10 @@ button,
   height: 1px;
 }
 
+.bg-brand {
+  background: var(--brand-gradient-x);
+}
+
 .text-gradient {
   background: var(--brand-gradient-x);
   -webkit-background-clip: text;
@@ -191,11 +189,11 @@ button,
 }
 .cyl-brand {
   background: var(--brand-gradient);
-  box-shadow: 0 -6px 22px -6px rgb(249 165 139 / 0.55), 0 10px 30px -12px rgb(45 212 191 / 0.35);
+  box-shadow: 0 -6px 22px -6px rgb(251 179 156 / 0.55), 0 10px 30px -12px rgb(129 140 248 / 0.45);
 }
 .cyl-brand::after {
-  background: radial-gradient(ellipse at center, #ffd9c9 0%, #f9a58b 75%);
-  box-shadow: 0 0 14px rgb(249 165 139 / 0.7);
+  background: radial-gradient(ellipse at center, #ffe1d6 0%, #fbb39c 75%);
+  box-shadow: 0 0 14px rgb(251 179 156 / 0.7);
 }
 .cyl-sealed {
   background: repeating-linear-gradient(135deg, rgb(255 255 255 / 0.03) 0 6px, transparent 6px 12px);

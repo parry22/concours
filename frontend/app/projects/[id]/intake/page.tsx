@@ -483,7 +483,7 @@ export default function IntakePage() {
         <div>
           <h1 className="text-[22px] font-semibold tracking-[-0.02em] sm:text-[26px]">Describe the goal</h1>
           <p className="mt-1.5 max-w-2xl text-[14px] leading-relaxed text-subtle">
-            Chat in plain words. Brief turns your answers into a scoring rule a non-ML person can trust.
+            Answer in plain words. Brief turns it into a scoring rule anyone can check.
           </p>
         </div>
         <div className="flex rounded-xl border border-border bg-card p-1 lg:hidden" role="tablist">
@@ -527,7 +527,7 @@ function RulePart({ done, label, children }: { done: boolean; label: string; chi
       <span
         className={cx(
           "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors duration-300",
-          done ? "bg-ok text-background" : "border border-dashed border-[#4a4a50]",
+          done ? "bg-brand text-background" : "border border-dashed border-[#4a4a50]",
         )}
       >
         {done ? <Check className="h-3 w-3" strokeWidth={3} /> : null}

@@ -1,4 +1,4 @@
-import { Database, MessageSquareText, Rocket, ShieldCheck, Trophy, Zap, type LucideIcon } from "lucide-react";
+import { CreditCard, Database, FileUp, MessageSquareText, Rocket, ShieldCheck, Trophy, UserMinus, Zap, type LucideIcon } from "lucide-react";
 import type { ProjectOut, Stage } from "./api";
 
 export const STAGES: Stage[] = ["upload", "intake", "protect", "arena", "serve", "launch"];
@@ -73,6 +73,10 @@ export const TEMPLATE_LABEL: Record<string, string> = {
 
 export const TEMPLATE_COLOR: Record<string, string> = {
   fraud: "var(--c-pink)",
-  churn: "var(--c-teal)",
-  custom: "var(--c-violet)",
+  churn: "var(--c-indigo)",
+  custom: "var(--c-peach)",
 };
+
+export const TEMPLATE_ICON: Record<string, LucideIcon> = { fraud: CreditCard, churn: UserMinus, custom: FileUp };
+
+export const PHASES: Phase[] = ["Setup", "Prove", "Deliver"];

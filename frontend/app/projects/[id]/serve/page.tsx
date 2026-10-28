@@ -71,7 +71,7 @@ export default function ServePage() {
           ) : null
         }
       >
-        Give the winning model new rows with the same columns. It scores every row and flags the ones to act on.
+        The winning model scores new rows and flags the ones to act on.
       </PageHeader>
 
       {!project.finalized ? <Alert kind="warn">Finalize the arena first so there is a winner to use.</Alert> : null}
