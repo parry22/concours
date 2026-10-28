@@ -101,7 +101,7 @@ export default function ProtectPage() {
       {running || (report === undefined && project.spec) ? (
         <Card>
           <div className="flex items-center gap-3">
-            <Spinner className="h-4 w-4 text-accent" />
+            <Spinner className="h-4 w-4 text-pink" />
             <span className="text-[14px] font-medium">{running ? "Splitting the data and running seven checks" : "Looking for an earlier report"}</span>
           </div>
           <ul className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -116,7 +116,7 @@ export default function ProtectPage() {
       ) : null}
 
       {report === null && !running && project.spec ? (
-        <Empty icon={<ShieldCheck className="h-6 w-6" />}>
+        <Empty icon={<ShieldCheck className="icon-brand h-6 w-6" />}>
           No protection report yet.
           <div className="mt-4">
             <Button onClick={() => void run()}>Run protection</Button>

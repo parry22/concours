@@ -107,7 +107,7 @@ export default function UploadPage() {
           )}
         >
           <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border-strong bg-card-2">
-            {busy ? <Spinner className="h-6 w-6" /> : <FileSpreadsheet className="h-6 w-6 text-subtle" />}
+            {busy ? <Spinner className="h-6 w-6" /> : <FileSpreadsheet className="icon-brand h-6 w-6" />}
           </span>
           <div>
             <p className="text-[15px] font-medium">{busy ? "Reading the file" : "Drop a CSV here"}</p>
@@ -157,20 +157,20 @@ export default function UploadPage() {
                       </span>
                       <span className="flex shrink-0 items-center gap-1.5">
                         {c.looks_like_time ? (
-                          <span title="Looks like a time" className="text-pink">
-                            <Clock className="h-3.5 w-3.5" />
+                          <span title="Looks like a time">
+                            <Clock className="icon-brand h-3.5 w-3.5" />
                           </span>
                         ) : null}
                         {c.pii_masked ? (
-                          <span title="Personal data, masked" className="text-warn">
-                            <EyeOff className="h-3.5 w-3.5" />
+                          <span title="Personal data, masked">
+                            <EyeOff className="icon-brand h-3.5 w-3.5" />
                           </span>
                         ) : null}
                         <span className="text-[12px] text-muted">{c.dtype}</span>
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Meter value={filled} color={filled > 0.98 ? "var(--brand-gradient-x)" : filled > 0.8 ? "var(--c-peach)" : "var(--danger)"} className="h-1.5 min-w-0 flex-1" />
+                      <Meter value={filled} color={filled > 0.98 ? "brand" : filled > 0.8 ? "var(--c-peach)" : "var(--danger)"} className="h-1.5 min-w-0 flex-1" />
                       <span className="num shrink-0 text-right text-[11px] whitespace-nowrap text-muted">
                         {fmtPct(filled, 0)} · {fmtCompact(c.n_unique)} distinct
                       </span>

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowRight, Check, ChevronDown, LayoutGrid, Lock, Plus, X } from "lucide-react";
 import { api, errorText, type ProjectOut, type Stage } from "@/lib/api";
-import { PHASES, STEPS, TEMPLATE_COLOR, TEMPLATE_ICON, TEMPLATE_LABEL, doneCount, isUnlocked, reachedIndex, stepHref } from "@/lib/stages";
+import { PHASES, STEPS, TEMPLATE_ICON, TEMPLATE_LABEL, doneCount, isUnlocked, reachedIndex, stepHref } from "@/lib/stages";
 import { fmtCompact } from "@/lib/format";
 import { Alert, Logo, Segments, Skeleton, cx } from "./ui";
 
@@ -132,7 +132,7 @@ function SideLink({ href, active, icon, children }: { href: string; active?: boo
         active ? "bg-card-2 text-foreground" : "text-subtle hover:bg-card hover:text-foreground",
       )}
     >
-      <span className={active ? "text-foreground" : "text-muted"}>{icon}</span>
+      <span className={active ? "[&>svg]:[stroke:url(#brand-stroke)]" : "text-muted"}>{icon}</span>
       {children}
     </Link>
   );
@@ -168,18 +168,11 @@ function ProjectSteps({ project }: { project: ProjectOut }) {
   const current = currentStage(pathname);
   const done = doneCount(project);
   const Icon = TEMPLATE_ICON[project.template];
-  const color = TEMPLATE_COLOR[project.template];
   return (
     <div className="mt-6 px-3">
       <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-2.5">
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-          style={{
-            color,
-            background: "color-mix(in srgb, currentColor 12%, var(--card-2))",
-          }}
-        >
-          {Icon ? <Icon className="h-4 w-4" /> : null}
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border-strong bg-card-2">
+          {Icon ? <Icon className="icon-brand h-4 w-4" /> : null}
         </span>
         <div className="min-w-0">
           <div className="truncate text-[13px] font-medium">{project.name}</div>
@@ -330,7 +323,7 @@ function MobileHeader({ project }: { project?: ProjectOut | null }) {
         {project ? (
           <div className="h-[2px] w-full bg-card-3" aria-hidden>
             <div
-              className="bg-brand h-full transition-[width] duration-500"
+              className="bg-brand-x h-full transition-[width] duration-500"
               style={{
                 width: `${(Math.max(done, idx + 0.5) / STEPS.length) * 100}%`,
               }}

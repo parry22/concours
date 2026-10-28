@@ -126,7 +126,7 @@ export default function LaunchPage() {
       {pkg === undefined ? (
         <Skeleton className="h-72 rounded-2xl" />
       ) : pkg === null ? (
-        <Empty icon={<Package className="h-6 w-6" />}>
+        <Empty icon={<Package className="icon-brand h-6 w-6" />}>
           {project.protect ? "Build the package to see every file that will be submitted." : "Run data protection first, then build the package."}
         </Empty>
       ) : (
@@ -195,8 +195,8 @@ export default function LaunchPage() {
           <ul className="space-y-3.5">
             {TERMS.map(([t, d]) => (
               <li key={t} className="flex gap-3">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
-                  <ShieldCheck className="h-3 w-3" />
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft">
+                  <ShieldCheck className="icon-brand h-3 w-3" />
                 </span>
                 <div className="text-[13px] leading-relaxed">
                   <div className="font-medium">{t}</div>
@@ -312,7 +312,7 @@ function TreeLevel({ nodes, depth, selected, onSelect }: { nodes: Node[]; depth:
               )}
               style={{ paddingLeft: 8 + depth * 14 }}
             >
-              <File className={cx("h-3.5 w-3.5 shrink-0", selected === n.path ? "text-accent" : "text-muted")} />
+              <File className={cx("h-3.5 w-3.5 shrink-0", selected === n.path ? "icon-brand" : "text-muted")} />
               <span className="num truncate">{n.name}</span>
             </button>
           )}

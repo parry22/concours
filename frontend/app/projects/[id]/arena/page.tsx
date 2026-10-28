@@ -209,12 +209,12 @@ export default function ArenaPage() {
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-subtle sm:flex-col sm:items-end">
             <span className={cx("inline-flex h-7 items-center gap-2 rounded-full border border-border-strong bg-card-2 px-2.5 font-medium", connected ? "text-pink" : "text-muted")}>
-              <span className={cx("h-1.5 w-1.5 rounded-full", connected ? "pulse-dot bg-pink" : "bg-muted")} />
+              <span className={cx("h-1.5 w-1.5 rounded-full", connected ? "pulse-dot bg-brand" : "bg-muted")} />
               {connected ? "Live" : "Reconnecting"}
             </span>
             <span className="flex items-center gap-4">
               <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full" style={{ background: "var(--brand-gradient)" }} />
+                <span className="bg-brand h-2 w-2 rounded-full" />
                 Private holdout
               </span>
               <span className="flex items-center gap-2">
@@ -253,9 +253,8 @@ export default function ArenaPage() {
                     <span
                       className={cx(
                         "num flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border text-[13px]",
-                        win ? "border-transparent text-background" : "border-border-strong bg-card-2 text-subtle",
+                        win ? "bg-brand border-transparent text-background" : "border-border-strong bg-card-2 text-subtle",
                       )}
-                      style={win ? { background: "var(--brand-gradient)" } : undefined}
                     >
                       {win ? <Trophy className="h-4 w-4" /> : (r.rank ?? "–")}
                     </span>
@@ -296,7 +295,7 @@ export default function ArenaPage() {
         </Card>
 
         <div className="min-w-0 space-y-4 lg:col-span-4">
-          <Card title="What it is worth" actions={<Sparkles className="h-4 w-4 text-peach" />}>
+          <Card title="What it is worth" actions={<Sparkles className="icon-brand h-4 w-4" />}>
             {board?.savings_line ? (
               <>
                 <SavingsFigure line={board.savings_line} />

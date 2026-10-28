@@ -146,8 +146,31 @@ button,
   height: 1px;
 }
 
+/*
+ * One texture for every gradient surface, taken from the chart cylinders: the brand gradient, darker side edges with a
+ * highlight left of centre, a soft light from above, and a warm-to-cool glow.
+ */
+:root {
+  --shade-y: linear-gradient(180deg, rgb(255 255 255 / 0.26) 0%, rgb(255 255 255 / 0) 48%, rgb(0 0 0 / 0.2) 100%);
+  --shade-x: linear-gradient(90deg, rgb(0 0 0 / 0.28) 0%, rgb(255 255 255 / 0.1) 38%, rgb(255 255 255 / 0.02) 62%, rgb(0 0 0 / 0.3) 100%);
+  --brand-glow: 0 -4px 14px -5px rgb(251 179 156 / 0.55), 0 6px 16px -8px rgb(129 140 248 / 0.55);
+}
+
+/* Upright shapes (dots, badges, check circles): a small cylinder seen from the front. */
 .bg-brand {
-  background: var(--brand-gradient-x);
+  background-image: var(--shade-y), var(--shade-x), var(--brand-gradient);
+  box-shadow: var(--brand-glow);
+}
+
+/* Horizontal bars (progress, meters): the gradient runs left to right, light falls from above. */
+.bg-brand-x {
+  background-image: var(--shade-y), var(--brand-gradient-x);
+  box-shadow: 0 0 10px -3px rgb(244 114 182 / 0.55);
+}
+
+/* Lucide icons drawn with the brand gradient (the gradient is defined once in the root layout). */
+.icon-brand {
+  stroke: url(#brand-stroke);
 }
 
 .text-gradient {
@@ -160,7 +183,9 @@ button,
 /* Cylinder bars. Width comes from the element; the cap is an ellipse on top. */
 .cyl {
   position: relative;
-  border-radius: 999px / 9px;
+  /* 50% keeps the horizontal radii from overflowing the width; a px value there makes the browser shrink both radii and the top goes square. */
+  border-radius: 50% / 7px;
+  min-height: 16px;
   transition: height 900ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .cyl::before {

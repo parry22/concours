@@ -7,7 +7,7 @@ import { ArrowRight, ChevronRight, FileUp, Trash2 } from "lucide-react";
 import { AppFrame } from "@/components/ProjectShell";
 import { Alert, Button, Card, Empty, Segments, Skeleton, Spinner, cx } from "@/components/ui";
 import { api, errorText, type ProjectOut, type TemplateId, type TemplateOut } from "@/lib/api";
-import { STEPS, TEMPLATE_COLOR, TEMPLATE_ICON, TEMPLATE_LABEL, doneCount, stageIndex, stepHref } from "@/lib/stages";
+import { STEPS, TEMPLATE_ICON, TEMPLATE_LABEL, doneCount, stageIndex, stepHref } from "@/lib/stages";
 import { fmtAgo, fmtCompact, solverShort } from "@/lib/format";
 
 const TEMPLATE_METRIC: Record<string, string> = {
@@ -135,7 +135,7 @@ export default function Home() {
                   <span
                     aria-hidden
                     className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full opacity-[0.10] blur-2xl transition-opacity duration-300 group-hover:opacity-20"
-                    style={{ background: TEMPLATE_COLOR[t.id] }}
+                    style={{ background: "var(--brand-gradient)" }}
                   />
                   <TemplateGlyph id={t.id} />
                   <h3 className="mt-3.5 text-[15px] font-semibold tracking-[-0.01em]">{t.name}</h3>
@@ -263,10 +263,9 @@ function TemplateGlyph({ id, small }: { id: string; small?: boolean }) {
   const Icon = TEMPLATE_ICON[id] ?? FileUp;
   return (
     <span
-      className={cx("flex shrink-0 items-center justify-center border border-border-strong", small ? "h-9 w-9 rounded-[10px]" : "h-10 w-10 rounded-xl")}
-      style={{ color: TEMPLATE_COLOR[id], background: "color-mix(in srgb, currentColor 10%, var(--card-2))" }}
+      className={cx("flex shrink-0 items-center justify-center border border-border-strong bg-card-2", small ? "h-9 w-9 rounded-[10px]" : "h-10 w-10 rounded-xl")}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="icon-brand h-4 w-4" />
     </span>
   );
 }

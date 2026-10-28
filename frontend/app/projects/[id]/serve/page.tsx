@@ -63,7 +63,7 @@ export default function ServePage() {
         actions={
           winner ? (
             <span className="inline-flex h-8 items-center gap-2 rounded-full border border-border-strong bg-card-2 pr-3 pl-1 text-[12px] font-medium">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full text-background" style={{ background: "var(--brand-gradient)" }}>
+              <span className="bg-brand flex h-6 w-6 items-center justify-center rounded-full text-background">
                 <Trophy className="h-3 w-3" />
               </span>
               {solverLabel(winner)}
@@ -99,7 +99,7 @@ export default function ServePage() {
           className="flex items-start gap-4 rounded-2xl border border-dashed border-border-strong bg-card p-4 text-left transition-colors hover:bg-[#161618] disabled:cursor-not-allowed disabled:opacity-60 sm:p-5"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border-strong bg-card-2">
-            {busy === "upload" ? <Spinner className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+            {busy === "upload" ? <Spinner className="h-4 w-4" /> : <Upload className="icon-brand h-4 w-4" />}
           </span>
           <span className="min-w-0">
             <span className="block text-[14px] font-medium">Upload a CSV to score</span>

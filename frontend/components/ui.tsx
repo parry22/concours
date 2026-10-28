@@ -121,7 +121,7 @@ export function Alert({ kind = "error", children, className }: { kind?: "error" 
     info: "bg-accent-soft text-[#c4b5fd] border-accent/20",
     ok: "bg-ok-soft text-[#ddd6fe] border-ok/20",
   }[kind];
-  const dot = { error: "bg-danger", warn: "bg-warn", info: "bg-accent", ok: "bg-ok" }[kind];
+  const dot = { error: "bg-danger", warn: "bg-warn", info: "bg-brand", ok: "bg-brand" }[kind];
   return (
     <div role={kind === "error" ? "alert" : "status"} className={cx("flex gap-3 rounded-xl border px-3.5 py-3 text-[13px] leading-relaxed", styles, className)}>
       <span className={cx("mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full", dot)} />
@@ -143,7 +143,7 @@ const toneStyles: Record<Tone, string> = {
 export function Badge({ tone = "neutral", children, className, dot }: { tone?: Tone; children: ReactNode; className?: string; dot?: boolean }) {
   return (
     <span className={cx("inline-flex h-[22px] items-center gap-1.5 rounded-md px-2 text-[12px] font-medium whitespace-nowrap", toneStyles[tone], className)}>
-      {dot ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
+      {dot ? <span className={cx("h-1.5 w-1.5 rounded-full", tone === "ok" || tone === "accent" ? "bg-brand" : "bg-current")} /> : null}
       {children}
     </span>
   );
@@ -190,12 +190,15 @@ export function Stat({ label, value, hint, className }: { label: ReactNode; valu
   );
 }
 
-/** Horizontal progress bar, as in the reference's spending list. `className` sets its size (default h-2 w-full). */
-export function Meter({ value, color = "var(--c-violet)", className }: { value: number; color?: string; className?: string }) {
+/** Horizontal progress bar, as in the reference's spending list. `className` sets its size (default h-2 w-full). `color="brand"` uses the textured gradient. */
+export function Meter({ value, color = "brand", className }: { value: number; color?: string; className?: string }) {
   const pct = Math.max(0, Math.min(1, value)) * 100;
   return (
     <div className={cx("shrink-0 overflow-hidden rounded-full bg-card-3", className || "h-2 w-full")}>
-      <div className="h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${pct}%`, background: color }} />
+      <div
+        className={cx("h-full rounded-full transition-[width] duration-700 ease-out", color === "brand" && "bg-brand-x")}
+        style={{ width: `${pct}%`, background: color === "brand" ? undefined : color }}
+      />
     </div>
   );
 }
@@ -212,13 +215,17 @@ export function Segments({ total, filled, current, className, size = "md" }: { t
         return (
           <span
             key={i}
-            className={cx("flex-1 rounded-[3px] transition-opacity duration-300", size === "md" ? "h-5" : "h-1.5", !lit && "bg-card-3", i === current && i >= filled && "opacity-45")}
+            className={cx(
+              "flex-1 rounded-[3px] transition-opacity duration-300",
+              size === "md" ? "h-5" : "h-1.5",
+              lit ? "bg-brand-x" : "bg-card-3",
+              i === current && i >= filled && "opacity-45",
+            )}
             style={
               lit
                 ? {
-                    backgroundImage: "var(--brand-gradient-x)",
-                    backgroundSize: `${total * 100}% 100%`,
-                    backgroundPosition: `${total > 1 ? (i / (total - 1)) * 100 : 0}% 0`,
+                    backgroundSize: `100% 100%, ${total * 100}% 100%`,
+                    backgroundPosition: `0 0, ${total > 1 ? (i / (total - 1)) * 100 : 0}% 0`,
                   }
                 : undefined
             }

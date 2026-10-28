@@ -71,11 +71,6 @@ export const TEMPLATE_LABEL: Record<string, string> = {
   custom: "Custom",
 };
 
-export const TEMPLATE_COLOR: Record<string, string> = {
-  fraud: "var(--c-pink)",
-  churn: "var(--c-indigo)",
-  custom: "var(--c-peach)",
-};
 
 export const TEMPLATE_ICON: Record<string, LucideIcon> = { fraud: CreditCard, churn: UserMinus, custom: FileUp };
 
