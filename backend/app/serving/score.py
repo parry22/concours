@@ -1,0 +1,86 @@
+"""Use the winner: re-fit the winning solver on train, apply transform.json to a new CSV, return score + flag."""
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+import pickle
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from app.arena.stage import data_hash, solver_hash
+from app.config import SOLVERS_DIR, project_dir
+from app.models import ProblemSpec
+from app.packager.transform import Transform
+from app.shared.metrics import threshold_at_fpr
+
+
+def _load_solver_class(solver: str):
+    if str(SOLVERS_DIR) not in sys.path:
+        sys.path.insert(0, str(SOLVERS_DIR))
+    name = f"brief_sub_{solver}"
+    if name in sys.modules:
+        return sys.modules[name].Solver
+    spec = importlib.util.spec_from_file_location(name, SOLVERS_DIR / solver / "submission.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod  # registered so fitted models can be pickled and unpickled
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod.Solver
+
+
+def fitted_model(project_id: str, solver: str, spec: ProblemSpec) -> tuple[object, float]:
+    """Return (solver instance, threshold). Cached on disk per (solver code, data)."""
+    protected = project_dir(project_id) / "protected"
+    cache_dir = project_dir(project_id) / "serving"
+    cache_dir.mkdir(exist_ok=True)
+    key = hashlib.sha256(f"{solver}:{solver_hash(solver)}:{data_hash(project_id)}".encode()).hexdigest()[:16]
+    cache = cache_dir / f"{solver}-{key}.pkl"
+    solver_cls = _load_solver_class(solver)
+    if cache.exists():
+        try:
+            with open(cache, "rb") as f:
+                return pickle.load(f)
+        except (EOFError, pickle.UnpicklingError, AttributeError, ImportError):
+            cache.unlink(missing_ok=True)
+    transform = Transform.load(protected / "transform.json")
+    train = pd.read_csv(protected / "train.csv")
+    model = solver_cls(transform.model_dump())
+    model.fit_frame(train)
+    lb = pd.read_csv(protected / "leaderboard.csv")
+    y_lb = pd.read_csv(protected / "leaderboard_labels.csv")["label"].to_numpy()
+    s_lb = model.score_frame(lb)
+    if spec.primary_metric == "recall_at_top_k":
+        k = float(spec.metric_params.get("top_k", 0.10))
+        thr = float(np.quantile(s_lb, 1 - k))
+    else:
+        thr = threshold_at_fpr(y_lb, s_lb, float(spec.metric_params.get("fpr", 0.001)))
+    tmp = cache.with_suffix(".tmp")
+    with open(tmp, "wb") as f:
+        pickle.dump((model, thr), f)
+    tmp.replace(cache)
+    return model, thr
+
+
+def score_csv(project_id: str, solver: str, spec: ProblemSpec, src: Path, dst: Path) -> dict:
+    transform = Transform.load(project_dir(project_id) / "protected" / "transform.json")
+    df = pd.read_csv(src, low_memory=False)
+    feats = transform.apply(df)  # raises ValueError with the missing columns
+    if transform.target_column in feats.columns:
+        feats = feats.drop(columns=[transform.target_column])
+    model, thr = fitted_model(project_id, solver, spec)
+    scores = model.score_frame(feats)
+    out = df.copy()
+    out["score"] = np.round(scores, 6)
+    out["flag"] = (scores >= thr).astype(int)
+    out.to_csv(dst, index=False)
+    preview = out.head(10).to_dict(orient="records")
+    return {
+        "rows": int(len(out)),
+        "flagged": int(out["flag"].sum()),
+        "threshold": float(thr),
+        "solver": solver,
+        "preview": [{k: (None if (isinstance(v, float) and np.isnan(v)) else v) for k, v in r.items()} for r in preview],
+        "columns": list(out.columns),
+    }

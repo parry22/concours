@@ -1,0 +1,23 @@
+# Optional: run the backend in a container. The arena still needs the host Docker socket to run solvers.
+# Most of the time `scripts/dev.sh` (host processes) is simpler on a laptop.
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile_inline: |
+        FROM python:3.11-slim
+        RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 git && rm -rf /var/lib/apt/lists/*
+        COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+        WORKDIR /app/backend
+        COPY pyproject.toml uv.lock ./
+        RUN uv sync --frozen --no-dev
+        COPY . .
+        CMD ["/app/backend/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["8000:8000"]
+    environment:
+      BRIEF_WORKSPACE: /app/workspace
+    volumes:
+      - ./workspace:/app/workspace
+      - ./data:/app/data
+      - ./vendor:/app/vendor
+      - /var/run/docker.sock:/var/run/docker.sock

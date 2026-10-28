@@ -1,0 +1,59 @@
+<!-- Prefilled body for the toolkit's issue template `.github/ISSUE_TEMPLATE/competition-onboarding.yml`
+     on macrocosm-os/apex-competitions-builder. Brief does not open this issue; the owner does, after the
+     first tagged release has pinned real digests. -->
+
+Title: [onboarding] {{ competition_id }} v{{ version }}
+
+### What is the competition?
+
+{{ task_description }} Solvers submit a Python `submission.py` that trains on the public split and scores hidden rows. `raw_score` is {{ metric_name }} ({{ metric_params }}) on the private holdout, higher is better.
+
+Success statement: {{ success_statement }}
+
+### HANDOFF.md
+
+See `HANDOFF.md` in the repo at the released tag.
+
+### Evaluation time budget vs. timeouts
+
+Worst case: startup and training (measured {{ eval_seconds }} s locally) + {{ n_batches }} batches × 60 s deadline + scoring ≈ {{ worst_case_s }} s.
+`referee.timeout_s` = {{ referee_timeout_s }}, `evaluate.timeout_s` = {{ evaluate_timeout_s }}. Fits: {{ fits }}.
+
+### Competition id
+
+{{ competition_id }}
+
+### Spec version
+
+{{ version }}
+
+### Competition repo URL
+
+TODO
+
+### Released git tag
+
+v{{ version }}
+
+### Image ref (no tag)
+
+{{ image_ref }}
+
+### Image digest
+
+TODO (written by release.yml on the first tagged release)
+
+### Referee image digest
+
+TODO (written by release.yml on the first tagged release)
+
+### spec.yaml
+
+See `spec.yaml` at the released tag.
+
+### Pre-submission checks
+
+- [x] `apex-dev preflight --spec ./spec.yaml --input fixtures/input.json` passes ({{ preflight_status }})
+- [{{ local_run_x }}] local referee-driven run produced a valid result.json ({{ local_run_status }}; `apex-dev run` is not implemented upstream, Brief's harness follows the same contract)
+- [ ] The image is cosign keyless-signed by the repo's release workflow on the released tag
+- [ ] The image is pushed and pullable by digest

@@ -1,0 +1,16 @@
+{
+  "name": "Customer churn",
+  "description": "Find the customers most likely to leave so we can reach them first.",
+  "dataset": "dataset.csv",
+  "target_column": "Churn",
+  "positive_label": 1,
+  "time_column": null,
+  "id_columns_hint": [],
+  "primary_metric": "recall_at_top_k",
+  "metric_params": {"top_k": 0.10},
+  "secondary_metric": "roc_auc",
+  "business_template": "churn",
+  "intake_goal": "We want to know which customers are about to leave so we can call them first.",
+  "economics_defaults": {"monthly_volume": 3000, "cost_fn": 60.0, "cost_fp": 3.0},
+  "scoring_sample": "scoring_sample.csv"
+}

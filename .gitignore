@@ -1,0 +1,13 @@
+workspace/
+data/templates/*/dataset.csv
+data/templates/*/*.pkl
+backend/.venv/
+backend/.env
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+frontend/node_modules/
+frontend/.next/
+.DS_Store
+.cache/
