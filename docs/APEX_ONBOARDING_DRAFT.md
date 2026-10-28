@@ -150,7 +150,7 @@ One scoring question: `defaults.baseline_raw_score` is set to the customer's cur
 because a constant submission already reaches 94% of it under this metric. Does that value set the takeover
 bar for a raw-scale, spec-driven competition? If not, how would you like the bar seeded?
 
-Issue: <link once filed>
+Issue: https://github.com/macrocosm-os/apex-competitions-builder/issues/47
 
 Thanks,
 <your name>
