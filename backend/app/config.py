@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -23,7 +24,11 @@ ARENA_CACHE_DIR = Path(os.environ.get("BRIEF_ARENA_CACHE", REPO_DIR / ".cache" /
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 INTAKE_MODEL = os.environ.get("BRIEF_INTAKE_MODEL", "claude-sonnet-5-5")
-OFFLINE = os.environ.get("BRIEF_OFFLINE", "0") == "1" or not ANTHROPIC_API_KEY
+# BRIEF_OFFLINE=1 forces cached/default replies. Without it, Brief uses the API key if set, else the Claude Code CLI
+# (the user's subscription), else cached/default replies.
+OFFLINE_FORCED = os.environ.get("BRIEF_OFFLINE", "0") == "1"
+_HAS_CLI = bool(shutil.which("claude") or os.path.exists(os.path.expanduser("~/.local/bin/claude")))
+OFFLINE = OFFLINE_FORCED or not (ANTHROPIC_API_KEY or _HAS_CLI)
 
 # Arena limits (mirror Apex stage ceiling; fit the demo laptop)
 SOLVER_CPUS = float(os.environ.get("BRIEF_SOLVER_CPUS", "2"))

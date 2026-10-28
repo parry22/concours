@@ -60,13 +60,14 @@ def image_id(project_id: str, side: str) -> str | None:
         return None
 
 
-def run_submission(project_id: str, submission_id: str, solver: str, config: dict, *, seed: int = 0, timeout_s: int = SOLVER_TIMEOUT_S) -> RunResult:
+def run_submission(project_id: str, submission_id: str, solver: str, config: dict, *, seed: int = 0, timeout_s: int = SOLVER_TIMEOUT_S,
+                   submission_path: Path | None = None) -> RunResult:
     cli = client()
     logs_dir = project_dir(project_id) / "arena" / submission_id
     out_dir = logs_dir / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_dir.chmod(0o777)
-    sub_path = SOLVERS_DIR / solver / "submission.py"
+    sub_path = submission_path or (SOLVERS_DIR / solver / "submission.py")
     net_name = f"brief-net-{project_id}-{submission_id}"
     player_name = f"brief-player-{project_id}-{submission_id}"
     t0 = time.monotonic()

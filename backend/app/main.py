@@ -209,7 +209,9 @@ class ArenaRunRequest(BaseModel):
 
 @app.get("/arena/solvers")
 def list_solvers() -> list[dict]:
-    return [{"name": n, "label": n.replace("_", " "), "local": True} for n in runner.SOLVERS]
+    out = [{"name": n, "label": n.replace("_", " "), "local": True} for n in runner.SOLVERS]
+    out += [{"name": f"agent_solver_{i}", "label": f"Agent solver, attempt {i}", "local": True, "agent": True} for i in (1, 2, 3)]
+    return out
 
 
 @app.get("/arena/docker")
@@ -280,7 +282,9 @@ def arena_finalize(project_id: str, s: Session = Depends(get_session)) -> Leader
 
 @app.get("/projects/{project_id}/arena/status")
 def arena_status(project_id: str) -> dict:
-    return {"running": arena.is_running(project_id)}
+    from app.arena import agent_solver as _ag  # noqa: PLC0415
+
+    return {"running": arena.is_running(project_id) or _ag.is_running(project_id)}
 
 
 # ---------- package, handoff, serving ----------
@@ -446,7 +450,39 @@ def intake_reset(project_id: str, s: Session = Depends(get_session)) -> dict:
 
 
 @app.get("/intake/status")
-def intake_status() -> dict:
-    from app import config  # noqa: PLC0415
+async def intake_status() -> dict:
+    from app import config, llm  # noqa: PLC0415
 
-    return {"offline": config.OFFLINE, "model": config.INTAKE_MODEL, "has_key": bool(config.ANTHROPIC_API_KEY)}
+    prov = llm.provider()
+    logged_in = await llm.cli_logged_in() if prov == "cli" else None
+    return {"offline": config.OFFLINE or (prov == "cli" and not logged_in), "model": config.INTAKE_MODEL,
+            "has_key": bool(config.ANTHROPIC_API_KEY), "provider": prov, "cli_logged_in": logged_in,
+            "hint": None if prov != "cli" or logged_in else "Run `claude auth login` in a terminal once to use your Claude subscription."}
+
+
+# ---------- agent solver (stretch) ----------
+
+from app.arena import agent_solver  # noqa: E402
+
+
+@app.post("/projects/{project_id}/arena/agent")
+def arena_agent(project_id: str, replay: bool = True, s: Session = Depends(get_session)) -> dict:
+    row = get_project(project_id, s)
+    if not row.protect():
+        raise HTTPException(409, "run protection first")
+    if arena.is_running(project_id):
+        raise HTTPException(409, "wait for the local solver run to finish")
+    from app import llm  # noqa: PLC0415
+
+    if llm.provider() == "none":
+        raise HTTPException(409, "no model available: set ANTHROPIC_API_KEY or run `claude auth login`")
+    try:
+        agent_solver.start(project_id, replay=replay)
+    except RuntimeError as e:
+        raise HTTPException(409, str(e)) from e
+    return {"started": True, "max_attempts": agent_solver.MAX_ATTEMPTS}
+
+
+@app.get("/projects/{project_id}/arena/agent/status")
+def arena_agent_status(project_id: str) -> dict:
+    return {"running": agent_solver.is_running(project_id)}

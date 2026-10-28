@@ -11,8 +11,9 @@ Scope: tabular data, one target column, one metric. Templates: card fraud (hero)
 
 ## Run it
 
-Requirements: Docker Desktop, Python 3.11 with `uv`, Node 22 with `pnpm`. Optional: `ANTHROPIC_API_KEY`
-in `backend/.env` for the live intake agent (without it, intake replays cached or default replies).
+Requirements: Docker Desktop, Python 3.11 with `uv`, Node 22 with `pnpm`. The intake agent and the
+agent solver use, in order: `ANTHROPIC_API_KEY` from `backend/.env` if set, else the Claude Code CLI on your
+Claude subscription (`claude auth login` once), else cached or default replies.
 
 ```bash
 ./scripts/demo.sh      # reset workspace, fetch data, build images, seed both templates (about 2 minutes when images are cached)

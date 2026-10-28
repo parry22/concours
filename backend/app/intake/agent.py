@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app import config
+from app import config, llm
 from app.intake.cache import IntakeCache, cache_key, fallback_reply
 from app.intake.metric_policy import decide_metric, spec_is_complete
 from app.intake.prompts import MAX_QUESTIONS, RESPONSE_SCHEMA, build_system_prompt
@@ -124,6 +124,12 @@ class IntakeAgent:
             self._client = AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
         return self._client
 
+    @property
+    def provider(self) -> str:
+        if self._client is not None:
+            return "api"
+        return llm.provider()
+
     async def turn(
         self,
         *,
@@ -146,7 +152,7 @@ class IntakeAgent:
         source: str = "defaults"
 
         client = self.client
-        if not self.offline and client is not None:
+        if not self.offline and (client is not None or self.provider == "cli"):
             try:
                 message, raw_patch, done_flag = await self._call_llm(
                     client, template=template, profile=profile, defaults=defaults, spec=spec, history=history, user_message=user_message, turn_index=turn_index
@@ -195,16 +201,8 @@ class IntakeAgent:
         system = build_system_prompt(template=template, profile=profile, defaults=defaults, spec=spec, questions_asked=turn_index)
         messages = [{"role": m.role, "content": m.content} for m in history]
         messages.append({"role": "user", "content": user_message})
-        response = await client.messages.create(
-            model=self.model,
-            max_tokens=2048,
-            system=system,
-            messages=messages,
-            output_config={"format": {"type": "json_schema", "schema": RESPONSE_SCHEMA}, "effort": "low"},
-        )
-        if getattr(response, "stop_reason", None) == "refusal":
-            raise RuntimeError("model declined the request")
-        text = "".join(getattr(b, "text", "") for b in response.content if getattr(b, "type", None) == "text")
-        if not text.strip():
-            raise RuntimeError("empty reply")
+        if client is not None:
+            text = await llm.complete_api(client, system, messages, model=self.model, schema=RESPONSE_SCHEMA)
+        else:
+            text = await llm.complete_cli(system, messages, model=self.model)
         return parse_reply(text)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -46,6 +47,11 @@ def seed(template: str) -> str:
     call("POST", f"/projects/{pid}/arena/run", {})
     while call("GET", f"/projects/{pid}/arena/status")["running"]:
         time.sleep(3)
+    if os.environ.get("BRIEF_SEED_AGENT") == "1":
+        call("POST", f"/projects/{pid}/arena/agent", {})
+        while call("GET", f"/projects/{pid}/arena/agent/status")["running"]:
+            time.sleep(5)
+        print(f"[seed:{template}] agent solver attempts done")
     b = call("POST", f"/projects/{pid}/arena/finalize")
     print(f"[seed:{template}] {b['business_card']}")
     pk = call("POST", f"/projects/{pid}/package")
