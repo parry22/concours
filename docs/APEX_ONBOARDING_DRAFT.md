@@ -39,6 +39,10 @@ release run 40692555248 passed, `dab9c38` pinned both digests, and both GHCR pac
 repo, and carry a cosign `.sig`. Not done: `cosign verify` against the identity (cosign is not installed here),
 steps 8 to 10.
 
+Update: step 9 done (issue https://github.com/macrocosm-os/apex-competitions-builder/issues/47, the
+`competition-onboarding` label needs a maintainer) and step 10 done (email sent by the owner). Step 8 waits on the
+GitHub account Macrocosmos names.
+
 Steps 2 to 5 are already done locally for the sample project with `parry22/concours-fraud` and the contact left
 as TODO: the export is committed on `main` in `/Users/parry/concours-fraud-repo` (not pushed). From there, after
 step 1: `gh repo create parry22/concours-fraud --private --source . --push`, then step 6. Redo steps 2 to 5 if
