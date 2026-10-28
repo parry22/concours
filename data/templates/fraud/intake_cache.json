@@ -1,0 +1,34 @@
+{
+  "6420f704558487a2ea01bae13ea0d4f779060b17bd06e7a3f4d3c9b53c8ea153": {
+    "done": true,
+    "message": "Thanks, that is everything I need. I have noted 300,000 transactions a month, 120 for a missed fraud and 4 for a blocked good customer. With about 1 false alarm per 1,000 good transactions, the app will now work out what that means in money terms. Your setup is ready to review.",
+    "spec_patch": {
+      "economics": {
+        "cost_fn": 120,
+        "cost_fp": 4,
+        "monthly_volume": 300000
+      }
+    },
+    "user_text": "A missed fraud costs us about 120 dollars, a blocked good customer about 4 dollars. We see 300000 transactions a month."
+  },
+  "ae0b919bc206317322e6d2454390dd8b490f9e07409de7b9582a1bcd116e8d8f": {
+    "done": false,
+    "message": "Good, we will keep false alarms at about 1 per 1,000 good transactions. One optional question. It lets me show results in money terms. Roughly how many card transactions do you handle each month, and what does one missed fraud cost you versus one false alarm? If you are not sure, I can start with typical estimates of 300,000 transactions a month, 120 for a missed fraud, and 4 for a false alarm. You can change them later.",
+    "spec_patch": {},
+    "user_text": "About 1 in 1000 false alarms is fine."
+  },
+  "be3e11e0d24cd48eabe65396c31883c76edae82d333315a58cd7613b2d20fdf8": {
+    "done": false,
+    "message": "Thanks. For card fraud, here is what I would start with. We flag the fraud column as the outcome, treat 1 as fraud, and order transactions by date. For good customers, I would allow about 1 false alarm per 1,000 good transactions. Does that level of false alarms work for you, or should it be stricter or looser? One more note: the fraud scenario column looks like a label that is only known after the fact, so I will keep it out of the model as a possible leak.",
+    "spec_patch": {
+      "metric_params": {
+        "fpr": 0.001
+      },
+      "positive_label": 1,
+      "primary_metric": "recall_at_fpr",
+      "target_column": "TX_FRAUD",
+      "time_column": "TX_DATETIME"
+    },
+    "user_text": "We want to catch more card fraud without annoying good customers."
+  }
+}

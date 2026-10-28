@@ -1,0 +1,38 @@
+{
+  "2c0d1a694c08267b10bd793aba0279b9c74464839161b588ae1ab7910e62958d": {
+    "done": false,
+    "message": "Good, 10 percent fits the plan. Last question. Is there a date column that shows when each customer was observed, so we can test on recent customers only? I do not see an obvious one in the data. If there is none, we will treat the data as a single snapshot. Also, if you know roughly what a missed leaver costs you and what a wasted call costs, share it and I will add it.",
+    "spec_patch": {
+      "metric_params": {
+        "top_k": 0.1
+      }
+    },
+    "user_text": "We can call about 10 percent of customers each month."
+  },
+  "c1a0a84a695c895f9f7245e490afcce40f7b698dba5f251ec1279aed562ba3cb": {
+    "done": true,
+    "message": "Thanks. I have added 3,000 customers a month, 60 dollars for a missed leaver and 3 dollars for a wasted call. There is no date column, so we will treat the data as a single snapshot and test on a random split. That is everything I need. Before we go on, please check one thing with your data team: if Complains or Status is filled in after a customer cancels, we should drop it, since it would make the results look better than they will be in real use.",
+    "spec_patch": {
+      "economics": {
+        "cost_fn": 60.0,
+        "cost_fp": 3.0,
+        "monthly_volume": 3000
+      },
+      "time_column": null
+    },
+    "user_text": "A lost customer is worth about 60 dollars a month, a wasted call costs 3 dollars. We have 3000 customers."
+  },
+  "d5dd8ccd093db602e80c97e5a8667b3a204fb652ddc643b9c24dde65a89a6cd8": {
+    "done": false,
+    "message": "Churn is already set as the outcome, with 1 meaning the customer left. I suggest we aim to find the riskiest group of customers each month and call them first. The default is the top 10% of customers by risk. Is that a workable number of calls for your team, or should it be higher or lower? One thing to watch: Complains may be recorded close to the time a customer leaves, so it could be a possible leak. Status could be the same, if it changes when a customer cancels.",
+    "spec_patch": {
+      "metric_params": {
+        "top_k": 0.1
+      },
+      "positive_label": 1,
+      "primary_metric": "recall_at_top_k",
+      "target_column": "Churn"
+    },
+    "user_text": "We want to know which customers are about to leave so we can call them first."
+  }
+}

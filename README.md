@@ -48,9 +48,9 @@ Nothing is launched on a live network. Pricing on the launch screen is illustrat
 
 ```
 backend/   FastAPI app: intake, packager (checks), apex_builder, arena (Docker), serving, handoff; solvers; player; referee
-frontend/  Next.js stepper: New problem, Describe the goal, Protect the data, Arena, Use the winner, Launch on Apex
+frontend/  Next.js app: Projects home, then Your data, Describe the goal, Protect the data, Arena, Use the winner, Launch on Apex
 data/      template datasets (fetched by scripts/fetch_data.py) and intake defaults
-docs/      APEX_CONTRACT.md, DEMO_SCRIPT.md
+docs/      APEX_CONTRACT.md, DEMO_SCRIPT.md, UX_FLOW.md (current vs optimised journey)
 vendor/    gym_v1 vendored from the toolkit (do_POST patched)
 workspace/ per-project artifacts (gitignored)
 ```

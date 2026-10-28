@@ -19,7 +19,7 @@ export type Stage = ProjectOut["stage"];
 export type TemplateId = S["ProjectCreate"]["template"];
 
 export type TemplateOut = { id: TemplateId; name: string; description: string; has_dataset: boolean };
-export type SolverOut = { name: string; label: string; local: boolean };
+export type SolverOut = { name: string; label: string; local: boolean; agent?: boolean };
 export type DockerStatus = { available: boolean; info: string };
 export type IntakeStatus = { offline: boolean; model: string; has_key: boolean };
 export type ScoreOut = {
@@ -111,6 +111,7 @@ export const api = {
   arenaRun: (id: string, body: { solvers?: string[]; replay?: boolean; rebuild?: boolean } = {}) =>
     request<{ submission_ids: string[] }>(`/projects/${id}/arena/run`, json("POST", body)),
   arenaStatus: (id: string) => request<{ running: boolean }>(`/projects/${id}/arena/status`),
+  arenaAgent: (id: string) => request<{ started: boolean; max_attempts: number }>(`/projects/${id}/arena/agent`, { method: "POST" }),
   leaderboard: (id: string) => request<LeaderboardOut>(`/projects/${id}/arena/leaderboard`),
   finalize: (id: string) => request<LeaderboardOut>(`/projects/${id}/arena/finalize`, { method: "POST" }),
   streamUrl: (id: string) => `${API_URL}/projects/${id}/arena/stream`,

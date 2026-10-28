@@ -66,7 +66,7 @@ async def complete_cli(system: str, messages: list[dict[str, str]], *, model: st
     if not exe:
         raise RuntimeError("claude CLI not found")
     args = [exe, "-p", _render_transcript(messages), "--output-format", "json", "--model", model,
-            "--system-prompt", system, "--tools", "", "--bare", "--no-session-persistence"]
+            "--system-prompt", system, "--tools", "", "--no-session-persistence"]
     proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=_cli_env(), cwd=str(config.WORKSPACE_DIR))
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)

@@ -29,6 +29,9 @@ export function solverLabel(name: string): string {
     lgbm_default: "LightGBM, default settings",
     lgbm_tuned: "LightGBM, tuned",
     agent_solver: "Agent solver",
+    agent_solver_1: "Agent solver, attempt 1",
+    agent_solver_2: "Agent solver, attempt 2",
+    agent_solver_3: "Agent solver, attempt 3",
   };
   return map[name] || name.replace(/_/g, " ");
 }
@@ -51,4 +54,31 @@ export function rawMetricLabel(metric: string, params: Record<string, unknown> |
   if (metric === "recall_at_fpr") return `recall at FPR ${params?.fpr ?? 0.001}`;
   if (metric === "recall_at_top_k") return `recall in top ${params?.top_k ?? 0.1}`;
   return metric;
+}
+
+export function fmtAgo(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  if (s < 86400 * 7) return `${Math.floor(s / 86400)} d ago`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+export function fmtCompact(n: number | null | undefined): string {
+  if (n === null || n === undefined || Number.isNaN(n)) return "";
+  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+}
+
+/** Short solver name for tight spaces. */
+export function solverShort(name: string): string {
+  const map: Record<string, string> = {
+    baseline_logreg: "Baseline",
+    lgbm_default: "LightGBM",
+    lgbm_tuned: "LightGBM tuned",
+    agent_solver: "Agent",
+  };
+  return map[name] || name.replace(/_/g, " ");
 }
