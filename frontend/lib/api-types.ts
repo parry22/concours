@@ -210,6 +210,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/value": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Value Report
+         * @description Money per month for the leader (or `solver`): operating points, range, curve, sensitivity.
+         */
+        get: operations["value_report_projects__project_id__value_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/value/params": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Value Params
+         * @description Set or clear user overrides for the value parameters. Stored on the spec as `economics`.
+         */
+        put: operations["value_params_projects__project_id__value_params_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/arena/stream": {
         parameters: {
             query?: never;
@@ -403,6 +443,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/arena/agent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Arena Agent */
+        post: operations["arena_agent_projects__project_id__arena_agent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/arena/agent/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Arena Agent Status */
+        get: operations["arena_agent_status_projects__project_id__arena_agent_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -458,6 +532,17 @@ export interface components {
              * @default false
              */
             pii_masked: boolean;
+        };
+        /** CurvePoint */
+        CurvePoint: {
+            /** Flagged Share */
+            flagged_share: number;
+            /** Recall */
+            recall: number;
+            /** Fpr */
+            fpr: number;
+            /** Net */
+            net: number;
         };
         /** DataProfile */
         DataProfile: {
@@ -586,7 +671,7 @@ export interface components {
              * @default custom
              * @enum {string}
              */
-            template: "fraud" | "churn" | "custom";
+            template: "fraud" | "churn" | "leads" | "custom";
             /**
              * Task Type
              * @default binary
@@ -639,7 +724,7 @@ export interface components {
              * @default custom
              * @enum {string}
              */
-            template: "fraud" | "churn" | "custom";
+            template: "fraud" | "churn" | "leads" | "custom";
         };
         /** ProjectOut */
         ProjectOut: {
@@ -651,7 +736,7 @@ export interface components {
              * Template
              * @enum {string}
              */
-            template: "fraud" | "churn" | "custom";
+            template: "fraud" | "churn" | "leads" | "custom";
             /**
              * Stage
              * @enum {string}
@@ -712,13 +797,28 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /** Sensitivity */
+        Sensitivity: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Low Value */
+            low_value: number;
+            /** Low Net */
+            low_net: number;
+            /** High Value */
+            high_value: number;
+            /** High Net */
+            high_net: number;
+        };
         /**
          * SpecPatch
          * @description Partial ProblemSpec: every field optional. Applied by the intake agent.
          */
         SpecPatch: {
             /** Template */
-            template?: ("fraud" | "churn" | "custom") | null;
+            template?: ("fraud" | "churn" | "leads" | "custom") | null;
             /** Task Type */
             task_type?: ("binary" | "regression") | null;
             /** Target Column */
@@ -828,6 +928,130 @@ export interface components {
              * @default
              */
             log: string;
+        };
+        /** ValueParam */
+        ValueParam: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "data" | "user" | "default";
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "money" | "rate" | "count";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /**
+         * ValueParamsIn
+         * @description User overrides. Null clears the override and the value falls back to data or the default.
+         */
+        ValueParamsIn: {
+            /** Rows Per Month */
+            rows_per_month?: number | null;
+            /** Value Per Positive */
+            value_per_positive?: number | null;
+            /** Action Success Rate */
+            action_success_rate?: number | null;
+            /** Cost Per Action */
+            cost_per_action?: number | null;
+            /** Cost Per False Positive */
+            cost_per_false_positive?: number | null;
+        };
+        /**
+         * ValuePoint
+         * @description One operating point priced per month. Counts are scaled to rows_per_month.
+         */
+        ValuePoint: {
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "contract" | "optimal" | "baseline";
+            /** Threshold */
+            threshold: number;
+            /** Flagged Share */
+            flagged_share: number;
+            /** Fpr */
+            fpr: number;
+            /** Recall */
+            recall: number;
+            /** Precision */
+            precision: number;
+            /** Tp */
+            tp: number;
+            /** Fp */
+            fp: number;
+            /** Fn */
+            fn: number;
+            /** Tn */
+            tn: number;
+            /** Gross */
+            gross: number;
+            /** Costs */
+            costs: number;
+            /** Net */
+            net: number;
+            /** Net Low */
+            net_low?: number | null;
+            /** Net High */
+            net_high?: number | null;
+            /** Recall Low */
+            recall_low?: number | null;
+            /** Recall High */
+            recall_high?: number | null;
+        };
+        /** ValueReport */
+        ValueReport: {
+            /** Project Id */
+            project_id: string;
+            /** Solver */
+            solver: string;
+            /** Baseline Solver */
+            baseline_solver?: string | null;
+            /**
+             * Eval Split
+             * @enum {string}
+             */
+            eval_split: "leaderboard" | "holdout";
+            /** Rows Eval */
+            rows_eval: number;
+            /** Params */
+            params: components["schemas"]["ValueParam"][];
+            contract: components["schemas"]["ValuePoint"];
+            optimal: components["schemas"]["ValuePoint"];
+            baseline?: components["schemas"]["ValuePoint"] | null;
+            /** Exposure Per Month */
+            exposure_per_month: number;
+            /** Uplift Net */
+            uplift_net?: number | null;
+            /** Annual Net */
+            annual_net: number;
+            /** Curve */
+            curve: components["schemas"]["CurvePoint"][];
+            /** Sensitivity */
+            sensitivity: components["schemas"]["Sensitivity"][];
+            /** Breakeven */
+            breakeven?: {
+                [key: string]: number | null;
+            };
+            /** Assumptions */
+            assumptions?: string[];
+            /** Headline */
+            headline: string;
+            /** Formula */
+            formula: string;
         };
     };
     responses: never;
@@ -1239,6 +1463,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeaderboardOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    value_report_projects__project_id__value_get: {
+        parameters: {
+            query?: {
+                solver?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValueReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    value_params_projects__project_id__value_params_put: {
+        parameters: {
+            query?: {
+                solver?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValueParamsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValueReport"];
                 };
             };
             /** @description Validation Error */
@@ -1695,6 +1989,74 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    arena_agent_projects__project_id__arena_agent_post: {
+        parameters: {
+            query?: {
+                replay?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    arena_agent_status_projects__project_id__arena_agent_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

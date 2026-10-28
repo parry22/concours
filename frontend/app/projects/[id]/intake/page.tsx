@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowUp, Check, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { ActionBar, useProject } from "@/components/ProjectShell";
 import { Alert, Badge, Button, Card, Field, Logo, Segments, Skeleton, cx, inputClass } from "@/components/ui";
-import { api, errorText, type IntakeMessage, type IntakeStatus, type ProblemSpec } from "@/lib/api";
-import { TEMPLATE_GOAL, TEMPLATE_REPLIES, specConfirmed, stepHref } from "@/lib/stages";
+import { api, errorText, type IntakeMessage, type IntakeStatus, type ProblemSpec, type TemplateOut } from "@/lib/api";
+import { specConfirmed, stepHref } from "@/lib/stages";
 import { fmtInt, fmtMoney, metricLabel, rawMetricLabel } from "@/lib/format";
 
 type ChatMessage = IntakeMessage & { source?: "llm" | "cache" | "defaults" };
@@ -18,11 +18,11 @@ function emptySpec(template: ProblemSpec["template"]): ProblemSpec {
     target_column: "",
     positive_label: null,
     time_column: null,
-    primary_metric: template === "churn" ? "recall_at_top_k" : "recall_at_fpr",
-    metric_params: template === "churn" ? { top_k: 0.1 } : { fpr: 0.001 },
+    primary_metric: template === "fraud" || template === "custom" ? "recall_at_fpr" : "recall_at_top_k",
+    metric_params: template === "fraud" || template === "custom" ? { fpr: 0.001 } : { top_k: 0.1 },
     secondary_metric: null,
     metric_rationale: "",
-    business_template: template === "custom" ? "fraud" : template,
+    business_template: template === "fraud" || template === "custom" ? "fraud" : "churn",
     constraints: { max_ms_per_row: 5, allowed_libs: ["scikit-learn", "lightgbm", "xgboost", "pandas", "numpy"] },
     economics: null,
   };
@@ -36,6 +36,7 @@ export default function IntakePage() {
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [status, setStatus] = useState<IntakeStatus | null>(null);
+  const [template, setTemplate] = useState<TemplateOut | null>(null);
   const [spec, setSpec] = useState<ProblemSpec>(project.spec ?? emptySpec(project.template));
   const [confirming, setConfirming] = useState(false);
   const [specError, setSpecError] = useState<string | null>(null);
@@ -56,6 +57,10 @@ export default function IntakePage() {
         setChatError(errorText(e));
       });
     api.intakeStatus().then(setStatus).catch(() => setStatus(null));
+    api
+      .templates()
+      .then((ts) => setTemplate(ts.find((t) => t.id === project.template) ?? null))
+      .catch(() => setTemplate(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
@@ -126,6 +131,7 @@ export default function IntakePage() {
   const params = (spec.metric_params ?? {}) as Record<string, unknown>;
   const constraints = (spec.constraints ?? {}) as Record<string, unknown>;
   const econ = (spec.economics ?? {}) as Record<string, unknown>;
+  const isChurn = spec.business_template === "churn";
   const userTurns = history?.filter((m) => m.role === "user").length ?? 0;
   const confirmed = specConfirmed(project);
   const offline = status ? status.offline || !status.has_key : null;
@@ -134,13 +140,13 @@ export default function IntakePage() {
     outcome: Boolean(spec.target_column),
     score: Boolean(spec.target_column) && (userTurns >= 2 || done || confirmed),
     split: Boolean(spec.target_column),
-    econ: econ.cost_fn != null && econ.cost_fp != null,
+    econ: econ.value_per_positive != null || econ.cost_per_action != null || econ.cost_per_false_positive != null || econ.rows_per_month != null,
   };
   const agreed = Object.values(parts).filter(Boolean).length;
 
   const suggestions: string[] = (() => {
     if (!history || done || sending) return [];
-    const script = TEMPLATE_REPLIES[project.template];
+    const script = template?.replies;
     if (script) return script[userTurns] ? [script[userTurns]] : [];
     if (userTurns === 0) return ["I want to predict which rows end in a positive outcome."];
     return (project.profile?.target_candidates ?? []).slice(0, 3).map((c) => `The outcome is ${c}.`);
@@ -248,7 +254,7 @@ export default function IntakePage() {
             className="h-9 min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={history?.length ? "Reply" : TEMPLATE_GOAL[project.template] ? "Describe the goal, or tap the suggestion" : "Describe the goal"}
+            placeholder={history?.length ? "Reply" : template?.goal ? "Describe the goal, or tap the suggestion" : "Describe the goal"}
             disabled={sending || !project.has_data}
             enterKeyHint="send"
             aria-label="Message"
@@ -304,11 +310,17 @@ export default function IntakePage() {
           <RulePart done={parts.econ} label="What it is worth">
             {parts.econ ? (
               <span className="num text-[13px]">
-                {fmtMoney(Number(econ.cost_fn))} per miss · {fmtMoney(Number(econ.cost_fp))} per false alarm
-                {econ.monthly_volume != null ? ` · ${fmtInt(Number(econ.monthly_volume))}/mo` : ""}
+                {[
+                  econ.value_per_positive != null ? `${fmtMoney(Number(econ.value_per_positive))} ${isChurn ? "kept per saved customer" : "per case"}` : null,
+                  econ.cost_per_action != null ? `${fmtMoney(Number(econ.cost_per_action))} ${isChurn ? "per contact" : "to handle a flag"}` : null,
+                  econ.cost_per_false_positive != null ? `${fmtMoney(Number(econ.cost_per_false_positive))} per wrong flag` : null,
+                  econ.rows_per_month != null ? `${fmtInt(Number(econ.rows_per_month))}/mo` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             ) : (
-              <span className="text-muted">Optional, used for the savings estimate</span>
+              <span className="text-muted">Optional. Anything you leave out is measured from the data or shown as a placeholder.</span>
             )}
           </RulePart>
         </ul>
@@ -410,37 +422,26 @@ export default function IntakePage() {
               ))}
             </select>
           </Field>
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Rows / month">
-              <input
-                className={inputClass}
-                type="number"
-                inputMode="numeric"
-                min="0"
-                value={econ.monthly_volume == null ? "" : Number(econ.monthly_volume)}
-                onChange={(e) => patch({ economics: { ...econ, monthly_volume: e.target.value === "" ? null : Number(e.target.value) } })}
-              />
-            </Field>
-            <Field label="Miss ($)">
-              <input
-                className={inputClass}
-                type="number"
-                inputMode="decimal"
-                min="0"
-                value={econ.cost_fn == null ? "" : Number(econ.cost_fn)}
-                onChange={(e) => patch({ economics: { ...econ, cost_fn: e.target.value === "" ? null : Number(e.target.value) } })}
-              />
-            </Field>
-            <Field label="False alarm ($)">
-              <input
-                className={inputClass}
-                type="number"
-                inputMode="decimal"
-                min="0"
-                value={econ.cost_fp == null ? "" : Number(econ.cost_fp)}
-                onChange={(e) => patch({ economics: { ...econ, cost_fp: e.target.value === "" ? null : Number(e.target.value) } })}
-              />
-            </Field>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(
+              [
+                ["rows_per_month", isChurn ? "Customers / month" : "Rows / month", "numeric"],
+                ["value_per_positive", isChurn ? "Kept per saved customer ($)" : "Amount per case ($)", "decimal"],
+                ["cost_per_action", isChurn ? "Per contact ($)" : "To handle a flag ($)", "decimal"],
+                ["cost_per_false_positive", "Per wrong flag ($)", "decimal"],
+              ] as const
+            ).map(([key, label, mode]) => (
+              <Field key={key} label={label}>
+                <input
+                  className={inputClass}
+                  type="number"
+                  inputMode={mode}
+                  min="0"
+                  value={econ[key] == null ? "" : Number(econ[key])}
+                  onChange={(e) => patch({ economics: { ...econ, [key]: e.target.value === "" ? null : Number(e.target.value) } })}
+                />
+              </Field>
+            ))}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Max ms per row">

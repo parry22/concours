@@ -6,6 +6,7 @@ import { ActionBar, NextLink, useProject } from "@/components/ProjectShell";
 import { Alert, Badge, Button, Card, Spinner, cx } from "@/components/ui";
 import { api, errorText, type DockerStatus, type LeaderboardOut, type SolverOut, type SubmissionOut } from "@/lib/api";
 import { openArenaStream } from "@/lib/sse";
+import { ValuePanel } from "@/components/ValuePanel";
 import { fmtPct, fmtScore, metricLabel, solverLabel, solverShort } from "@/lib/format";
 
 type Row = SubmissionOut & { placeholder?: boolean };
@@ -13,6 +14,7 @@ type Row = SubmissionOut & { placeholder?: boolean };
 export default function ArenaPage() {
   const { project, refresh } = useProject();
   const [board, setBoard] = useState<LeaderboardOut | null>(null);
+  const [boardVersion, setBoardVersion] = useState(0);
   const [pending, setPending] = useState<Row[]>([]);
   const [solvers, setSolvers] = useState<SolverOut[] | null>(null);
   const [docker, setDocker] = useState<DockerStatus | null>(null);
@@ -77,11 +79,13 @@ export default function ArenaPage() {
           setPending([]);
           void loadBoard();
           void refresh();
+          setBoardVersion((v) => v + 1);
           break;
         case "finalized":
           setBoard(ev.board);
           setRunning(false);
           void refresh();
+          setBoardVersion((v) => v + 1);
           break;
         default:
           break;
@@ -113,6 +117,7 @@ export default function ArenaPage() {
     try {
       const b = await api.finalize(project.id);
       setBoard(b);
+      setBoardVersion((v) => v + 1);
       await refresh();
     } catch (e) {
       setError(errorText(e));
@@ -311,7 +316,7 @@ export default function ArenaPage() {
               </>
             ) : (
               <p className="text-[13px] leading-relaxed text-muted">
-                {hasScores ? "Add costs in the scoring rule to see an estimate." : "Appears once solvers are scored, using the costs from the scoring rule."}
+                {hasScores ? "Pricing the leader. The full breakdown is below the leaderboard." : "Appears once solvers are scored. The full breakdown is below the leaderboard."}
               </p>
             )}
             {board?.raw_metric_line ? <p className="mt-3 border-t border-border pt-3 text-[11px] leading-relaxed text-muted">{board.raw_metric_line}</p> : null}
@@ -342,6 +347,12 @@ export default function ArenaPage() {
           </Card>
         </div>
       </div>
+
+      {hasScores ? (
+        <Card title="Money per month" subtitle="Every figure comes from the solver's scores on held-out rows and the inputs below.">
+          <ValuePanel projectId={project.id} version={boardVersion} finalized={finalized} onChange={() => void loadBoard()} />
+        </Card>
+      ) : null}
 
       <ActionBar
         hint={hint}

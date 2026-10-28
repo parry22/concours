@@ -24,7 +24,7 @@ p = call("POST", "/projects", {"template": template})
 pid = p["id"]
 print(f"project {pid} stage={p['stage']} rows={p['profile']['n_rows']} spec_target={p['spec']['target_column']}")
 spec = p["spec"]
-spec["economics"] = {"monthly_volume": 300000, "cost_fn": 120, "cost_fp": 4, "positive_rate": p["profile"]["positive_rate"]}
+spec["economics"] = {"cost_per_false_positive": 4}  # everything else is measured from the data or a labeled placeholder
 p = call("PUT", f"/projects/{pid}/spec", spec)
 rep = call("POST", f"/projects/{pid}/protect")
 print(f"protect: strategy={rep['strategy']} parts={[(x['name'], x['rows'], x['positives']) for x in rep['parts']]} removed={rep['rows_removed']}")

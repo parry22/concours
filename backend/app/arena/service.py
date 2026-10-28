@@ -85,7 +85,7 @@ def _emit_board(project_id: str, spec: ProblemSpec) -> None:
     with session() as s:
         row = s.get(ProjectRow, project_id)
         subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at)).all()
-        board = leaderboard.build(project_id, subs, spec, row.finalized)
+        board = leaderboard.build(project_id, subs, spec, row.finalized, profile=row.profile(), protect=row.protect())
     events.publish(project_id, "leaderboard_updated", board.model_dump())
 
 

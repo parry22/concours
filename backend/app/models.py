@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Field as SQLField
 from sqlmodel import SQLModel
 
-Template = Literal["fraud", "churn", "custom"]
+Template = Literal["fraud", "churn", "leads", "custom"]
 Stage = Literal["upload", "intake", "protect", "arena", "serve", "launch"]
 Validation = Literal["pass", "fail", "not_run"]
 
@@ -78,6 +78,7 @@ class DataProfile(BaseModel):
     preview_rows: list[dict[str, Any]]  # 10 rows for the upload screen, PII masked
     target_candidates: list[str] = Field(default_factory=list)
     positive_rate: float | None = None
+    positive_rate_column: str | None = None  # the column positive_rate was measured on
 
 
 # ---------- Protection ----------
@@ -143,6 +144,89 @@ class LeaderboardOut(BaseModel):
     savings_line: str | None = None
     savings_formula: str | None = None
     takeover_margin: float = 0.01
+
+
+# ---------- Value model ----------
+
+ParamSource = Literal["data", "user", "default"]
+
+
+class ValueParam(BaseModel):
+    key: str
+    label: str
+    value: float
+    source: ParamSource
+    unit: Literal["money", "rate", "count"]
+    note: str = ""
+
+
+class ValuePoint(BaseModel):
+    """One operating point priced per month. Counts are scaled to rows_per_month."""
+
+    name: Literal["contract", "optimal", "baseline"]
+    threshold: float
+    flagged_share: float
+    fpr: float
+    recall: float
+    precision: float
+    tp: float
+    fp: float
+    fn: float
+    tn: float
+    gross: float
+    costs: float
+    net: float
+    net_low: float | None = None
+    net_high: float | None = None
+    recall_low: float | None = None
+    recall_high: float | None = None
+
+
+class CurvePoint(BaseModel):
+    flagged_share: float
+    recall: float
+    fpr: float
+    net: float
+
+
+class Sensitivity(BaseModel):
+    key: str
+    label: str
+    low_value: float
+    low_net: float
+    high_value: float
+    high_net: float
+
+
+class ValueReport(BaseModel):
+    project_id: str
+    solver: str
+    baseline_solver: str | None = None
+    eval_split: Literal["leaderboard", "holdout"]
+    rows_eval: int
+    params: list[ValueParam]
+    contract: ValuePoint
+    optimal: ValuePoint
+    baseline: ValuePoint | None = None
+    exposure_per_month: float
+    uplift_net: float | None = None
+    annual_net: float
+    curve: list[CurvePoint]
+    sensitivity: list[Sensitivity]
+    breakeven: dict[str, float | None] = Field(default_factory=dict)
+    assumptions: list[str] = Field(default_factory=list)
+    headline: str
+    formula: str
+
+
+class ValueParamsIn(BaseModel):
+    """User overrides. Null clears the override and the value falls back to data or the default."""
+
+    rows_per_month: float | None = None
+    value_per_positive: float | None = None
+    action_success_rate: float | None = None
+    cost_per_action: float | None = None
+    cost_per_false_positive: float | None = None
 
 
 # ---------- Intake ----------

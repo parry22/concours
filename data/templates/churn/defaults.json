@@ -1,16 +1,42 @@
 {
   "name": "Customer churn",
   "description": "Find the customers most likely to leave so we can reach them first.",
+  "label": "Churn",
+  "icon": "user-minus",
   "dataset": "dataset.csv",
   "target_column": "Churn",
   "positive_label": 1,
   "time_column": null,
   "id_columns_hint": [],
   "primary_metric": "recall_at_top_k",
-  "metric_params": {"top_k": 0.10},
+  "metric_params": {
+    "top_k": 0.1
+  },
   "secondary_metric": "roc_auc",
   "business_template": "churn",
+  "metric_line": "Leavers reached in the riskiest 10%",
+  "rate_hint": 0.15,
+  "words": {
+    "positive": "customers who leave",
+    "negative": "customers",
+    "short": "leavers",
+    "past": "customers who left",
+    "future": "customers will leave",
+    "event": "the customer left",
+    "team": "retention team",
+    "about_to": "about to leave"
+  },
+  "known_leaks": {},
   "intake_goal": "We want to know which customers are about to leave so we can call them first.",
-  "economics_defaults": {"monthly_volume": 3000, "cost_fn": 60.0, "cost_fp": 3.0},
+  "replies": [
+    "We want to know which customers are about to leave so we can call them first.",
+    "We can call the riskiest 10% each month.",
+    "A lost customer costs about 60 dollars, a call about 3. 3,000 customers a month."
+  ],
+  "economics_defaults": {
+    "action_success_rate": 0.25,
+    "cost_per_action": 3.0,
+    "cost_per_false_positive": 0.0
+  },
   "scoring_sample": "scoring_sample.csv"
 }

@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from app.config import TAKEOVER_MARGIN
-from app.models import LeaderboardOut, ProblemSpec, SubmissionOut, SubmissionRow
-from app.shared.translate import business_card, raw_metric_line, savings
+from app.models import DataProfile, LeaderboardOut, ProblemSpec, ProtectReport, SubmissionOut, SubmissionRow
+from app.shared.translate import business_card, raw_metric_line
 
 
 def to_out(r: SubmissionRow, finalized: bool) -> SubmissionOut:
@@ -40,7 +40,17 @@ def rank(subs: list[SubmissionRow], finalized: bool, margin: float = TAKEOVER_MA
     return out
 
 
-def build(project_id: str, subs: list[SubmissionRow], spec: ProblemSpec, finalized: bool) -> LeaderboardOut:
+def build(
+    project_id: str,
+    subs: list[SubmissionRow],
+    spec: ProblemSpec,
+    finalized: bool,
+    *,
+    profile: DataProfile | None = None,
+    protect: ProtectReport | None = None,
+) -> LeaderboardOut:
+    from app.value import service as value  # noqa: PLC0415 - value imports rank() from here
+
     rows = rank(subs, finalized)
     leader = next((o for o in rows if o.is_leader), None)
     baseline = next((o for o in rows if o.solver == "baseline_logreg" and o.status == "scored"), None)
@@ -51,7 +61,8 @@ def build(project_id: str, subs: list[SubmissionRow], spec: ProblemSpec, finaliz
         if b is not None and best is not None:
             card = business_card(spec, b, best)
             raw = raw_metric_line(spec, b, best, finalized)
-            sav, formula = savings(spec, b, best)
+            rep = value.report_for(project_id, spec, subs, None, finalized=finalized, profile=profile, protect=protect, allow_refit=False)
+            sav, formula = value.summary_lines(rep)
             for o in rows:
                 sc = o.private_score if finalized else o.public_score
                 if sc is not None:

@@ -13,12 +13,12 @@ from app import config, llm
 from app.intake.cache import IntakeCache, cache_key, fallback_reply
 from app.intake.metric_policy import decide_metric, spec_is_complete
 from app.intake.prompts import MAX_QUESTIONS, RESPONSE_SCHEMA, build_system_prompt
+from app.value.params import normalize_economics
 from app.models import DataProfile, IntakeMessage, IntakeResponse, ProblemSpec, SpecPatch
 from app.templates import load_defaults, spec_from_defaults
 
 log = logging.getLogger(__name__)
 
-ECON_KEYS = ("monthly_volume", "cost_fn", "cost_fp")
 _JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
 
 
@@ -71,16 +71,12 @@ def validate_patch(raw: dict[str, Any]) -> SpecPatch:
 
 
 def merge_economics(existing: dict[str, Any] | None, patch: dict[str, Any] | None, defaults: dict[str, Any] | None) -> dict[str, Any] | None:
-    if not patch and not existing:
-        return existing
-    econ_defaults = (defaults or {}).get("economics_defaults") or {}
-    merged: dict[str, Any] = {}
-    for k in ECON_KEYS:
-        v = (patch or {}).get(k)
-        if v is None:
-            v = (existing or {}).get(k, econ_defaults.get(k))
-        merged[k] = v
-    return merged
+    """User-given numbers only. Defaults are not copied in: the value model fills gaps from the data or labeled
+    placeholders, so a number the user never gave is never shown as theirs."""
+    template = (defaults or {}).get("business_template", "custom")
+    merged = normalize_economics(existing, template)
+    merged.update(normalize_economics(patch, template))
+    return merged or None
 
 
 def apply_patch(spec: ProblemSpec | None, patch: SpecPatch, *, template: str, defaults: dict[str, Any] | None) -> ProblemSpec | None:

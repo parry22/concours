@@ -17,8 +17,12 @@ from app.models import (
     ProjectOut,
     ProjectRow,
     ProtectReport,
+    ValueParamsIn,
+    ValueReport,
 )
 from app.packager.profile import profile_dataframe, read_csv
+from app.value import params as value_params_mod
+from app.value import service as value_service
 from app.packager.protect import protect
 from app.templates import dataset_path, list_templates, load_defaults, spec_from_defaults
 
@@ -98,7 +102,8 @@ def _ingest_csv(row: ProjectRow, src: Path) -> DataProfile:
     if src != dst:
         shutil.copyfile(src, dst)
     df = read_csv(dst)
-    prof = profile_dataframe(df)
+    cfg = load_defaults(row.template) if row.template != "custom" else None
+    prof = profile_dataframe(df, target=cfg.get("target_column") if cfg else None, positive=cfg.get("positive_label") if cfg else None)
     row.profile_json = prof.model_dump_json()
     if row.spec_json is None and row.template != "custom":
         row.set_spec(spec_from_defaults(row.template))
@@ -247,7 +252,43 @@ def arena_leaderboard(project_id: str, s: Session = Depends(get_session)) -> Lea
     if not spec:
         raise HTTPException(409, "confirm the problem spec first")
     subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at)).all()
-    return leaderboard.build(project_id, subs, spec, row.finalized)
+    return leaderboard.build(project_id, subs, spec, row.finalized, profile=row.profile(), protect=row.protect())
+
+
+# ---------- value model ----------
+
+
+@app.get("/projects/{project_id}/value", response_model=ValueReport)
+def value_report(project_id: str, solver: str | None = None, s: Session = Depends(get_session)) -> ValueReport:
+    """Money per month for the leader (or `solver`): operating points, range, curve, sensitivity."""
+    row = get_project(project_id, s)
+    spec = row.spec()
+    if not spec:
+        raise HTTPException(409, "confirm the problem spec first")
+    subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at)).all()
+    rep = value_service.report_for(project_id, spec, subs, solver, finalized=row.finalized, profile=row.profile(), protect=row.protect(), allow_refit=True)
+    if rep is None:
+        raise HTTPException(409, "no scored submission to price yet")
+    return rep
+
+
+@app.put("/projects/{project_id}/value/params", response_model=ValueReport)
+def value_params(project_id: str, body: ValueParamsIn, solver: str | None = None, s: Session = Depends(get_session)) -> ValueReport:
+    """Set or clear user overrides for the value parameters. Stored on the spec as `economics`."""
+    row = get_project(project_id, s)
+    spec = row.spec()
+    if not spec:
+        raise HTTPException(409, "confirm the problem spec first")
+    econ = value_params_mod.normalize_economics(spec.economics, spec.business_template)
+    for k, v in body.model_dump().items():
+        if v is None:
+            econ.pop(k, None)
+        else:
+            econ[k] = float(v)
+    row.set_spec(spec.model_copy(update={"economics": econ or None}))
+    s.add(row)
+    s.commit()
+    return value_report(project_id, solver, s)
 
 
 @app.get("/projects/{project_id}/arena/stream")

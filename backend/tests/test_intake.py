@@ -100,7 +100,7 @@ def test_offline_fallback_completes_fraud_spec_in_three_turns(tmp_path):
     assert spec.primary_metric == "recall_at_fpr"
     assert spec.metric_params == {"fpr": 0.001}
     assert spec.secondary_metric == "pr_auc"
-    assert spec.economics == {"monthly_volume": 300000, "cost_fn": 120.0, "cost_fp": 4.0}
+    assert spec.economics == {"value_per_positive": 120.0, "cost_per_false_positive": 4.0}  # only what the user typed
     assert spec.metric_rationale
     assert len(last.history) == 6
     for r in responses:
@@ -112,7 +112,7 @@ def test_offline_fallback_uses_user_false_alarm_rate(tmp_path):
     responses = run(drive(agent, "fraud", fraud_profile(), ["go", "2 per 1,000", "skip"]))
     assert responses[-1].spec.metric_params == {"fpr": 0.002}
     assert "2 false alarms per 1,000" in responses[-1].spec.metric_rationale
-    assert responses[-1].spec.economics == {"monthly_volume": 300000, "cost_fn": 120.0, "cost_fp": 4.0}
+    assert responses[-1].spec.economics is None
 
 
 def test_offline_replays_cache_when_present(tmp_path):
@@ -163,10 +163,10 @@ def test_validate_patch_drops_bad_fields():
     assert p.economics is None
 
 
-def test_apply_patch_merges_economics_with_defaults():
-    spec = ProblemSpec(template="fraud", target_column="TX_FRAUD", positive_label=1)
-    out = apply_patch(spec, SpecPatch(economics={"cost_fn": 50, "cost_fp": 2}), template="fraud", defaults={"economics_defaults": {"monthly_volume": 300000, "cost_fn": 120.0, "cost_fp": 4.0}})
-    assert out.economics == {"monthly_volume": 300000, "cost_fn": 50, "cost_fp": 2}
+def test_apply_patch_keeps_user_economics_only_and_resolves_old_keys():
+    spec = ProblemSpec(template="fraud", target_column="TX_FRAUD", positive_label=1, economics={"rows_per_month": 500})
+    out = apply_patch(spec, SpecPatch(economics={"cost_fn": 50, "cost_fp": 2}), template="fraud", defaults={"economics_defaults": {"cost_per_action": 0.0}})
+    assert out.economics == {"rows_per_month": 500, "value_per_positive": 50, "cost_per_false_positive": 2}
 
 
 def test_prompt_only_contains_sample_rows():
@@ -217,7 +217,7 @@ def test_mocked_client_good_json_is_cached_and_policy_overrides(tmp_path):
     assert r.source == "llm" and r.done
     assert r.spec.primary_metric == "recall_at_fpr"
     assert r.spec.metric_params == {"fpr": 0.002}
-    assert r.spec.economics == {"monthly_volume": 1000, "cost_fn": 10, "cost_fp": 1}
+    assert r.spec.economics == {"rows_per_month": 1000, "value_per_positive": 10, "cost_per_false_positive": 1}
     cached = IntakeCache("fraud", tmp_path).get(cache_key("fraud", 0, "all good"))
     assert cached["message"] == "Fine. Done."
     # offline replay of the same text yields the same result from cache

@@ -1,16 +1,44 @@
 {
   "name": "Card fraud",
   "description": "Catch more card fraud without annoying good customers.",
+  "label": "Fraud",
+  "icon": "credit-card",
   "dataset": "dataset.csv",
   "target_column": "TX_FRAUD",
   "positive_label": 1,
   "time_column": "TX_DATETIME",
-  "id_columns_hint": ["TRANSACTION_ID"],
+  "id_columns_hint": [
+    "TRANSACTION_ID"
+  ],
   "primary_metric": "recall_at_fpr",
-  "metric_params": {"fpr": 0.001},
+  "metric_params": {
+    "fpr": 0.001
+  },
   "secondary_metric": "pr_auc",
   "business_template": "fraud",
+  "metric_line": "Fraud caught at 1 false alarm per 1,000",
+  "rate_hint": 0.01,
+  "words": {
+    "positive": "fraud",
+    "negative": "good transactions",
+    "short": "fraud",
+    "past": "fraud",
+    "future": "rows will be fraud",
+    "event": "a confirmed case",
+    "team": "fraud team",
+    "about_to": "fraud"
+  },
+  "known_leaks": {},
   "intake_goal": "We want to catch more card fraud without annoying good customers.",
-  "economics_defaults": {"monthly_volume": 300000, "cost_fn": 120.0, "cost_fp": 4.0},
+  "replies": [
+    "We want to catch more card fraud without annoying good customers.",
+    "About 1 in 1000 false alarms is fine.",
+    "A missed fraud costs about 120 dollars, a blocked customer about 4. 300,000 transactions a month."
+  ],
+  "economics_defaults": {
+    "action_success_rate": 1.0,
+    "cost_per_action": 0.0,
+    "cost_per_false_positive": 4.0
+  },
   "scoring_sample": "scoring_sample.csv"
 }

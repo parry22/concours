@@ -17,27 +17,34 @@ from app.packager.transform import Transform
 from app.shared.metrics import threshold_at_fpr
 
 
-def _load_solver_class(solver: str):
+def _load_solver_class(solver: str, submission_path: Path | None = None):
     if str(SOLVERS_DIR) not in sys.path:
         sys.path.insert(0, str(SOLVERS_DIR))
-    name = f"brief_sub_{solver}"
+    path = submission_path or (SOLVERS_DIR / solver / "submission.py")
+    name = f"brief_sub_{solver}" + (f"_{_file_hash(path)}" if submission_path else "")
     if name in sys.modules:
         return sys.modules[name].Solver
-    spec = importlib.util.spec_from_file_location(name, SOLVERS_DIR / solver / "submission.py")
+    spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod  # registered so fitted models can be pickled and unpickled
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod.Solver
 
 
-def fitted_model(project_id: str, solver: str, spec: ProblemSpec) -> tuple[object, float]:
-    """Return (solver instance, threshold). Cached on disk per (solver code, data)."""
+def _file_hash(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+
+
+def fitted_model(project_id: str, solver: str, spec: ProblemSpec, submission_path: Path | None = None) -> tuple[object, float]:
+    """Return (solver instance, threshold). Cached on disk per (solver code, data).
+    `submission_path` points at code outside solvers/ (an agent-written attempt)."""
     protected = project_dir(project_id) / "protected"
     cache_dir = project_dir(project_id) / "serving"
     cache_dir.mkdir(exist_ok=True)
-    key = hashlib.sha256(f"{solver}:{solver_hash(solver)}:{data_hash(project_id)}".encode()).hexdigest()[:16]
+    code_hash = _file_hash(submission_path) if submission_path else solver_hash(solver)
+    key = hashlib.sha256(f"{solver}:{code_hash}:{data_hash(project_id)}".encode()).hexdigest()[:16]
     cache = cache_dir / f"{solver}-{key}.pkl"
-    solver_cls = _load_solver_class(solver)
+    solver_cls = _load_solver_class(solver, submission_path)
     if cache.exists():
         try:
             with open(cache, "rb") as f:

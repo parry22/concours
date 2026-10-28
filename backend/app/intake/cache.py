@@ -9,6 +9,7 @@ from typing import Any
 
 from app.config import TEMPLATES_DIR
 from app.models import DataProfile, ProblemSpec
+from app.templates import DEFAULT_WORDS
 
 _PUNCT = re.compile(r"[^\w\s]", re.UNICODE)
 _WS = re.compile(r"\s+")
@@ -140,8 +141,8 @@ def _fallback_with_defaults(turn_index: int, defaults: dict[str, Any], user_mess
     time_col = defaults.get("time_column")
     metric = defaults.get("primary_metric", "recall_at_fpr")
     params = dict(defaults.get("metric_params") or {})
-    econ = defaults.get("economics_defaults") or {}
     rare = metric == "recall_at_fpr"
+    w = {**DEFAULT_WORDS, **(defaults.get("words") or {})}
 
     if turn_index == 0:
         patch: dict[str, Any] = {
@@ -153,13 +154,13 @@ def _fallback_with_defaults(turn_index: int, defaults: dict[str, Any], user_mess
         }
         if rare:
             msg = (
-                f"Thanks. I will use the {target} column as the outcome, where {label} means a confirmed case. "
-                "How many false alarms are acceptable? For example, 1 in 1,000 good transactions."
+                f"Thanks. I will use the {target} column as the outcome, where {label} means {w['event']}. "
+                f"How many false alarms are acceptable? For example, 1 in 1,000 {w['negative']}."
             )
         else:
             msg = (
-                f"Thanks. I will use the {target} column as the outcome, where {label} means the customer left. "
-                "What share of customers can your team contact each month? For example, the riskiest 10%."
+                f"Thanks. I will use the {target} column as the outcome, where {label} means {w['event']}. "
+                f"What share of {w['negative']} can your team contact each month? For example, the riskiest 10%."
             )
         return msg, patch, False
 
@@ -174,15 +175,15 @@ def _fallback_with_defaults(turn_index: int, defaults: dict[str, Any], user_mess
             fpr = parse_fpr(user_message)
             if fpr is not None:
                 patch["metric_params"] = {"top_k": fpr}
-            msg = "Got it. Roughly, what does a lost customer cost you, and what does one contact cost? Two numbers are enough."
+            msg = f"Got it. Roughly, what is one of your {w['short']} worth to you, and what does one contact cost? Two numbers are enough."
         return msg, patch, False
 
     patch = {}
     costs = parse_costs(user_message)
     if costs:
-        patch["economics"] = {"monthly_volume": econ.get("monthly_volume"), "cost_fn": costs[0], "cost_fp": costs[1]}
-    elif econ:
-        patch["economics"] = dict(econ)
+        # rare outcomes: "a missed case and a false alarm"; common ones: "a lost customer and one contact"
+        second = "cost_per_false_positive" if rare else "cost_per_action"
+        patch["economics"] = {"value_per_positive": costs[0], second: costs[1]}
     msg = "Thanks. The problem is set up. You can review and change any detail before protecting the data."
     return msg, patch, True
 

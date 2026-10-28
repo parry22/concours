@@ -15,10 +15,24 @@ export type LeaderboardOut = S["LeaderboardOut"];
 export type SubmissionOut = S["SubmissionOut"];
 export type PackageOut = S["PackageOut"];
 export type ValidationStep = S["ValidationStep"];
+export type ValueReport = S["ValueReport"];
+export type ValueParam = S["ValueParam"];
+export type ValuePoint = S["ValuePoint"];
+export type ValueParamsIn = S["ValueParamsIn"];
 export type Stage = ProjectOut["stage"];
 export type TemplateId = S["ProjectCreate"]["template"];
 
-export type TemplateOut = { id: TemplateId; name: string; description: string; has_dataset: boolean };
+export type TemplateOut = {
+  id: TemplateId;
+  name: string;
+  description: string;
+  label: string;
+  icon: string;
+  metric_line: string;
+  goal: string;
+  replies: string[];
+  has_dataset: boolean;
+};
 export type SolverOut = { name: string; label: string; local: boolean; agent?: boolean };
 export type DockerStatus = { available: boolean; info: string };
 export type IntakeStatus = { offline: boolean; model: string; has_key: boolean };
@@ -114,6 +128,9 @@ export const api = {
   arenaAgent: (id: string) => request<{ started: boolean; max_attempts: number }>(`/projects/${id}/arena/agent`, { method: "POST" }),
   leaderboard: (id: string) => request<LeaderboardOut>(`/projects/${id}/arena/leaderboard`),
   finalize: (id: string) => request<LeaderboardOut>(`/projects/${id}/arena/finalize`, { method: "POST" }),
+  value: (id: string, solver?: string) => request<ValueReport>(`/projects/${id}/value${solver ? `?solver=${encodeURIComponent(solver)}` : ""}`),
+  putValueParams: (id: string, body: ValueParamsIn, solver?: string) =>
+    request<ValueReport>(`/projects/${id}/value/params${solver ? `?solver=${encodeURIComponent(solver)}` : ""}`, json("PUT", body)),
   streamUrl: (id: string) => `${API_URL}/projects/${id}/arena/stream`,
 
   packageBuild: (id: string) => request<PackageOut>(`/projects/${id}/package`, { method: "POST" }),

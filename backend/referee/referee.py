@@ -4,6 +4,8 @@ Writes /data/result.json as GameResult:
   raw_scores[0]  = private (holdout) primary metric, the number Apex reads
   metadata       = {public_score, private_score, primary_metric, metric_params, secondary: {...},
                     breakdown: {...}, eval_time_in_seconds, rows: {...}}
+Also writes /data/scores_<split>.csv (one score per row, split order) so Brief's value model can price the
+operating point without re-fitting. Those files stay with the arena logs and never enter the handoff.
 Player failures (PlayerError or malformed responses) score 0 with terminal_reason "player_error".
 """
 from __future__ import annotations
@@ -20,6 +22,7 @@ from gym_v1.client import PlayerClient, PlayerError
 from gym_v1.referee import GameResult, Referee, RefereeContext
 
 DATA_DIR = Path(os.environ.get("REFEREE_DATA_DIR", "/app/data"))
+OUT_DIR = Path(os.environ.get("REFEREE_OUT_DIR", "/data"))  # the same volume result.json lands in
 CHUNK = 5000
 DEADLINE_MS = 60_000
 
@@ -76,6 +79,16 @@ class BriefReferee(Referee):
                 self.trace({"split": name, "chunk": i, "fault": str(e)[:200]})
         return scores, y, {"rows": len(rows), "faulted_chunks": faults}
 
+    def _dump_scores(self, split: str, scores: list[float]) -> None:
+        try:
+            OUT_DIR.mkdir(parents=True, exist_ok=True)
+            with (OUT_DIR / f"scores_{split}.csv").open("w", newline="") as f:
+                w = csv.writer(f)
+                w.writerow(["score"])
+                w.writerows([[f"{v:.6g}"] for v in scores])
+        except OSError as e:  # scoring must not fail because the side file could not be written
+            self.trace({"split": split, "scores_file_error": str(e)[:200]})
+
     def play_game(self, ctx: RefereeContext, players: list[PlayerClient]) -> GameResult:
         start = time.monotonic()
         cfg = ctx.config or {}
@@ -94,6 +107,7 @@ class BriefReferee(Referee):
         for split in ("leaderboard", "holdout"):
             s, y, info = self.score_split(player, split)
             total_faults += info["faulted_chunks"]
+            self._dump_scores(split, s)
             results[split] = {
                 "primary": metrics.compute(primary, y, s, params),
                 "secondary": metrics.compute(secondary, y, s) if secondary else None,

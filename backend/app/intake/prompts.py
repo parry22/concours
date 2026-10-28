@@ -16,7 +16,7 @@ If a column looks like it records something that happens after the outcome (refu
 Rules for spec_patch:
 - Only include fields you are confident about. Leave the rest null.
 - metric_params uses {"fpr": <fraction>} for rare outcomes or {"top_k": <fraction>} for common ones. A false alarm rate of 1 per 1,000 is {"fpr": 0.001}.
-- economics uses {"monthly_volume": <number>, "cost_fn": <cost of a missed positive>, "cost_fp": <cost of a false alarm>}. Only fill it from numbers the user gave.
+- economics uses {"rows_per_month": <rows scored per month>, "value_per_positive": <money at stake per positive, e.g. the fraud amount or the revenue a saved customer keeps>, "action_success_rate": <share of flagged positives where acting works, 0 to 1>, "cost_per_action": <cost to act on one flagged row>, "cost_per_false_positive": <extra cost of a wrong flag>}. Only fill it from numbers the user gave; the app measures the rest from the data.
 - When template defaults are shown, confirm them in your first message instead of asking from scratch.
 - Never write numbers about the data into the message. The app computes and shows every number.
 - Set done to true once the checklist below is complete. Short sentences. No em dashes. No exclamation marks."""
@@ -46,11 +46,13 @@ RESPONSE_SCHEMA: dict[str, Any] = {
                 "economics": {
                     "type": ["object", "null"],
                     "properties": {
-                        "monthly_volume": {"type": ["number", "null"]},
-                        "cost_fn": {"type": ["number", "null"]},
-                        "cost_fp": {"type": ["number", "null"]},
+                        "rows_per_month": {"type": ["number", "null"]},
+                        "value_per_positive": {"type": ["number", "null"]},
+                        "action_success_rate": {"type": ["number", "null"]},
+                        "cost_per_action": {"type": ["number", "null"]},
+                        "cost_per_false_positive": {"type": ["number", "null"]},
                     },
-                    "required": ["monthly_volume", "cost_fn", "cost_fp"],
+                    "required": ["rows_per_month", "value_per_positive", "action_success_rate", "cost_per_action", "cost_per_false_positive"],
                     "additionalProperties": False,
                 },
             },
@@ -114,7 +116,7 @@ def render_checklist(spec: ProblemSpec | None) -> str:
         (mark(bool(s and (s.task_type == "regression" or s.positive_label is not None))), "positive label"),
         (mark(bool(s and s.metric_params)), "acceptable false alarms (fpr) or share to contact (top_k)"),
         (mark(bool(s and s.time_column is not None)), "time column, or confirmed none"),
-        (mark(bool(s and s.economics)), "optional: monthly volume and cost per error"),
+        (mark(bool(s and s.economics)), "optional: money at stake per case and cost per action"),
     ]
     return "\n".join(f"{m} {label}" for m, label in items)
 
