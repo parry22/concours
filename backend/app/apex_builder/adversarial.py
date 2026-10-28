@@ -44,10 +44,6 @@ SUBMISSIONS = {
 }
 
 
-# a degenerate submission is "clearly below" the first model when it scores more than this much less
-CLEAR_MARGIN = 0.10
-
-
 def source(name: str) -> str:
     doc, body = SUBMISSIONS[name]
     return _HEAD.format(doc=doc, name=name, body=body)
@@ -62,17 +58,19 @@ def load(project_id: str) -> dict | None:
     return json.loads(p.read_text()) if p.exists() else None
 
 
-def verdicts(results: dict, baseline: float | None) -> list[dict]:
-    """One line per submission for HANDOFF.md: score, share of the first model's score, and whether it is clearly below."""
+def verdicts(results: dict, bar: float | None) -> list[dict]:
+    """One line per submission for HANDOFF.md: score, share of the starting bar (spec `baseline_raw_score`), and whether
+    it stays below that bar, so it can never take the lead."""
     out = []
     for r in results.get("submissions", []):
         score = r["raw_score"] if r["ok"] else 0.0
-        share = score / baseline if baseline else None
-        below = share is not None and share < 1 - CLEAR_MARGIN
+        share = score / bar if bar else None
+        below = bar is not None and score < bar
         note = ""
-        if not below and r["name"] == "constant" and results.get("primary_metric") == "fraud_amount_per_day":
+        if r["name"] == "constant" and results.get("primary_metric") == "fraud_amount_per_day":
             note = ("Under fraud_amount_per_day a constant score ranks each day's payments by amount alone, so this "
-                    "submission is the rule 'review the largest payments'. Reported, not tuned: the metric is unchanged.")
+                    "submission is the rule 'review the largest payments'. The metric is unchanged; the starting bar is "
+                    "today's model, which this rule does not reach.")
         out.append({**r, "score": score, "share": share, "below": below, "note": note})
     return out
 

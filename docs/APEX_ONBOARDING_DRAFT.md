@@ -5,24 +5,39 @@ Macrocosmos. Nothing here has been sent, pushed or opened. The repo name `parry2
 if you pick another, set `CONCOURS_GITHUB_REPO` to it and rebuild the package so `spec.yaml`, `HANDOFF.md` and
 `ONBOARDING_ISSUE.md` agree.
 
-## 0. Decide before filing: the constant submission ties the first model
+## 0. Decided: the starting bar is today's model
 
 The adversarial set (HANDOFF.md §5 item 9, run through the local referee on 2026-10-28) scored:
 
-| Submission | Private holdout | Share of v1 ($3,714/day) |
-|---|---|---|
-| constant (0.5 for every payment) | $3,724/day | 100.3% |
-| random (uniform, seed 0) | $2,751/day | 74.1% |
-| all zeros | $130/day | 3.5% |
+| Submission | Private holdout | Share of v1 ($3,714/day) | Share of v2, the bar ($3,961/day) |
+|---|---|---|---|
+| constant (0.5 for every payment) | $3,724/day | 100.3% | 94.0% |
+| random (uniform, seed 0) | $2,751/day | 74.1% | 69.5% |
+| all zeros | $130/day | 3.5% | 3.3% |
 
 Under `fraud_amount_per_day` a constant score ranks each day's payments by amount alone, so "review the 200
-largest payments" already matches v1 (logistic regression). It stays below the active v2 ($3,961/day, 94%), but
-`spec.yaml` sets `defaults.baseline_raw_score: 0`, so in an empty round a constant submission would take the lead.
-Nothing was tuned. Options to weigh before filing: raise `baseline_raw_score` to at least the amount-only score,
-or say in the issue that the bar for a real result is v2. The HANDOFF.md checkbox for the adversarial set stays
-unchecked until you decide.
+largest payments" already matches v1 (logistic regression). With `baseline_raw_score: 0` it would have led an
+empty round.
+
+Decision: `spec.yaml` now sets `defaults.baseline_raw_score` to the active model's private holdout score
+(v2, lgbm_tuned, 3960.6343). The customer gains nothing from a result below the model it already runs, and this
+matches Concours's own promotion rule. All three degenerate submissions sit below that bar, and taking the lead
+needs the bar plus 1%. The metric itself is unchanged, so Concours's versions and gates still compare like for
+like. `baseline_score` stays 0 because `apex-dev screen` treats it as a normalized score and flags 1.0 or more.
+
+Rejected alternatives: scoring lift over the amount-only rule (changes the metric and breaks comparison with
+v1/v2), and a bar at v1 (the constant clears it).
+
+Still open, for Macrocosmos: their scoring service is not public, so the issue and email ask them to confirm that
+`baseline_raw_score` sets the takeover bar for a raw-scale, spec-driven competition. If it does not, the fallback
+is to seed the round with today's model as the first submission.
 
 ## 1. Checklist
+
+Steps 2 to 5 are already done locally for the sample project with `parry22/concours-fraud` and the contact left
+as TODO: the export is committed on `main` in `/Users/parry/concours-fraud-repo` (not pushed). From there, after
+step 1: `gh repo create parry22/concours-fraud --private --source . --push`, then step 6. Redo steps 2 to 5 if
+you change the repo name or want your name and email in HANDOFF.md.
 
 1. `gh auth login` (the stored token for `parry22` is invalid), then `gh auth status`.
 2. Set the owner settings in `backend/.env` and rebuild the package on the Launch tab (or `concours package`):
@@ -59,6 +74,8 @@ Title: [onboarding] concours_fraud_6974713c0ea7 v0.1.0
 Score each payment's chance of fraud (target `is_fraud`). Every day the 200 payments with the highest expected loss (score x amount) go to the fraud team; the more fraud money inside those cases, the better. Solvers submit a Python `submission.py` that trains on the public split and scores hidden rows. `raw_score` is Fraud amount caught per day within review capacity (capacity=200, fee=0.0, review_cost=10.0) on the private holdout, higher is better.
 
 Success statement: A daily review queue that holds more fraud money than today's model, day after day, including after fraudsters change tactics, without dropping any amount band or new customers.
+
+Starting bar: `defaults.baseline_raw_score` is 3960.6343, the model the customer runs today (v2 (lgbm_tuned), $3,961/day). A constant score already reaches 94.0% of it under this metric (it amounts to reviewing the largest payments), so the bar must hold from round one. Please confirm `baseline_raw_score` sets the takeover bar for a raw-scale, spec-driven competition; if it does not, how should the bar be seeded?
 
 ### HANDOFF.md
 
@@ -123,6 +140,10 @@ run produces a valid `result.json`.
 I'm demoing it at a buildathon and would like to run it end to end. Could you activate it on stage, or on Apex
 testnet (netuid 61 on Bittensor testnet), for the demo? The repo and both GHCR packages are private because the
 referee image holds the hidden holdout. Which GitHub account should I give read access to?
+
+One scoring question: `defaults.baseline_raw_score` is set to the customer's current model (3960.6343),
+because a constant submission already reaches 94% of it under this metric. Does that value set the takeover
+bar for a raw-scale, spec-driven competition? If not, how would you like the bar seeded?
 
 Issue: <link once filed>
 

@@ -138,9 +138,13 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
     kept = [c for c in report.kept_columns]
     own = owner(cid)
     adv = adversarial.load(project_id)
-    adv_base = v1.private_score if v1 and v1.private_score is not None else (base.private_score if base else None)
-    adv_rows = adversarial.verdicts(adv, adv_base) if adv else []
+    # The starting bar (spec `baseline_raw_score`): the model the customer runs today. A contest pays only for beating
+    # it, and a degenerate submission (a constant score is "review the largest payments") must not lead an empty round.
+    bar_v = active or v1
+    bar = bar_v.private_score if bar_v and bar_v.private_score is not None else None
+    adv_rows = adversarial.verdicts(adv, bar) if adv else []
     money = spec.primary_metric == "fraud_amount_per_day"
+    bar_text = (f"${bar:,.0f}/day" if money else f"{bar:.4f}") if bar is not None else "0"
     ctx = {
         "competition_id": cid,
         "version": "0.1.0",
@@ -198,9 +202,11 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
         "adversarial": [{**r, "score_text": f"${r['score']:,.0f}/day" if money else f"{r['score']:.4f}",
                          "share_text": f"{r['share']:.1%}" if r["share"] is not None else "n/a"} for r in adv_rows],
         "adversarial_date": adv["date"] if adv else None,
-        "adversarial_baseline": (f"${adv_base:,.0f}/day" if money else f"{adv_base:.4f}") if adv_base is not None else "not run",
         "adversarial_ok": bool(adv_rows) and all(r["below"] for r in adv_rows),
-        "adversarial_margin": f"{adversarial.CLEAR_MARGIN:.0%}",
+        "baseline_raw_score": round(bar, 4) if bar is not None else 0.0,
+        "bar_text": bar_text,
+        "constant_share": next((f"{r['share']:.1%}" for r in adv_rows if r["name"] == "constant" and r["share"] is not None), "most"),
+        "bar_line": f"v{bar_v.version} ({bar_v.solver_name}), {bar_text}" if bar is not None else "none yet (0)",
         "money_metric": money,
         "checksums": report.checksums,
         "preflight_status": validation.get("preflight", "not run"),

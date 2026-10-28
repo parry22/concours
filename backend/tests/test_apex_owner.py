@@ -17,7 +17,7 @@ def _set(monkeypatch, repo="", name="", email=""):
 def _render(own: dict) -> dict:
     ctx = {"competition_id": CID, "version": "0.1.0", "display_name": "x", "cpu_limit": 2, "mem_limit": "2Gi",
            "player_digest": generator.ZERO, "referee_digest": generator.ZERO, "reveal_days": 7,
-           "evaluate_timeout_s": 900, "referee_timeout_s": 900, "hidden_checksums": {}, "checksums": {}, "adversarial": [], **own}
+           "evaluate_timeout_s": 900, "referee_timeout_s": 900, "hidden_checksums": {}, "checksums": {}, "adversarial": [], "baseline_raw_score": 3960.6343, **own}
     return {t: generator.env.get_template(f"{t}.j2").render(ctx) for t in ("spec.yaml", "HANDOFF.md", "ONBOARDING_ISSUE.md")}
 
 
@@ -35,6 +35,7 @@ def test_owner_settings_fill_package(monkeypatch):
     assert "Contact: Pat Owner <pat@example.com>." in out["HANDOFF.md"]
     assert "https://github.com/Parry22/concours-fraud @" in out["HANDOFF.md"]
     assert "your-org" not in "".join(out.values()) and "TODO owner" not in out["HANDOFF.md"]
+    assert spec["defaults"]["baseline_raw_score"] == 3960.6343 and spec["defaults"]["baseline_score"] == 0.0
 
 
 def test_owner_unset_keeps_placeholders(monkeypatch):
@@ -53,14 +54,17 @@ def test_owner_repo_must_be_owner_slash_name(monkeypatch):
         generator.owner(CID)
 
 
-def test_adversarial_verdicts_flag_scores_near_baseline():
+def test_adversarial_verdicts_against_the_starting_bar():
     res = {"primary_metric": "fraud_amount_per_day", "submissions": [
         {"name": "constant", "ok": True, "raw_score": 3724.0},
         {"name": "random", "ok": True, "raw_score": 2751.0},
         {"name": "all_zeros", "ok": False, "raw_score": None},
     ]}
-    v = {r["name"]: r for r in adversarial.verdicts(res, 3714.0)}
-    assert not v["constant"]["below"] and "largest payments" in v["constant"]["note"]
-    assert v["random"]["below"] and v["all_zeros"]["below"] and v["all_zeros"]["score"] == 0.0
+    v = {r["name"]: r for r in adversarial.verdicts(res, 3961.0)}
+    assert all(r["below"] for r in v.values()) and "largest payments" in v["constant"]["note"]
+    assert v["all_zeros"]["score"] == 0.0
+    # a bar at the weaker first model lets the constant through: that is what the HANDOFF must flag
+    assert not {r["name"]: r for r in adversarial.verdicts(res, 3714.0)}["constant"]["below"]
+    assert not any(r["below"] for r in adversarial.verdicts(res, None))
     for name in adversarial.SUBMISSIONS:
         compile(adversarial.source(name), name, "exec")
