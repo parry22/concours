@@ -34,6 +34,11 @@ is to seed the round with today's model as the first submission.
 
 ## 1. Checklist
 
+**Status 2026-10-28:** steps 1 to 7 are done. `parry22/concours-fraud` is private on `main`, `v0.1.0` is tagged,
+release run 40692555248 passed, `dab9c38` pinned both digests, and both GHCR packages are private, linked to the
+repo, and carry a cosign `.sig`. Not done: `cosign verify` against the identity (cosign is not installed here),
+steps 8 to 10.
+
 Steps 2 to 5 are already done locally for the sample project with `parry22/concours-fraud` and the contact left
 as TODO: the export is committed on `main` in `/Users/parry/concours-fraud-repo` (not pushed). From there, after
 step 1: `gh repo create parry22/concours-fraud --private --source . --push`, then step 6. Redo steps 2 to 5 if
@@ -108,22 +113,22 @@ ghcr.io/parry22/concours-fraud-player
 
 ### Image digest
 
-TODO from step 7 (`spec.yaml` `image.digest` on `main` after the pin commit)
+sha256:cc491c83abbb715b9c476d4c7d31001ca55bb1d32f0e7d3978e5f8edbcbecd4c
 
 ### Referee image digest
 
-TODO from step 7 (`spec.yaml` `referee.image.digest` on `main` after the pin commit)
+sha256:06ea0c3288487ca4bd191d8ef617118e6ece96e6e14a6d6df39be1dae1f83822
 
 ### spec.yaml
 
-See `spec.yaml` on `main` after the "Pin image digests for v0.1.0" commit.
+See `spec.yaml` on `main` at `dab9c38` ("Pin image digests for v0.1.0", written by the release workflow).
 
 ### Pre-submission checks
 
 - [x] `apex-dev preflight --spec ./spec.yaml --input fixtures/input.json` passes (pass)
 - [x] local referee-driven run produced a valid result.json (pass; `apex-dev run` is not implemented upstream, Concours's harness follows the same contract)
-- [ ] The image is cosign keyless-signed by the repo's release workflow on the released tag
-- [ ] The image is pushed and pullable by digest
+- [x] The image is cosign keyless-signed by the repo's release workflow on the released tag (run 40692555248)
+- [x] The image is pushed and pullable by digest (private GHCR packages; read access granted to the account you name)
 
 ## 3. Email to hello@macrocosmos.ai
 
