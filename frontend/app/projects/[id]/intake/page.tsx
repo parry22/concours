@@ -8,6 +8,7 @@ import { Alert, Badge, Button, Card, Field, Logo, Segments, Skeleton, cx, inputC
 import { api, errorText, type IntakeMessage, type IntakeStatus, type ProblemSpec, type TemplateOut } from "@/lib/api";
 import { specConfirmed, stepHref } from "@/lib/stages";
 import { fmtInt, fmtMoney, metricLabel, rawMetricLabel } from "@/lib/format";
+import { intake as copy } from "@/lib/copy";
 
 type ChatMessage = IntakeMessage & { source?: "llm" | "cache" | "defaults" };
 
@@ -23,7 +24,7 @@ function emptySpec(template: ProblemSpec["template"]): ProblemSpec {
     secondary_metric: null,
     metric_rationale: "",
     business_template: template === "fraud" || template === "custom" ? "fraud" : "churn",
-    constraints: { max_ms_per_row: 5, allowed_libs: ["scikit-learn", "lightgbm", "xgboost", "pandas", "numpy"] },
+    constraints: { max_ms_per_row: 5 },
     economics: null,
   };
 }
@@ -162,16 +163,14 @@ export default function IntakePage() {
         <div className="flex min-w-0 items-center gap-3">
           <Logo className="h-6 w-[19px] shrink-0" />
           <div className="min-w-0">
-            <h2 className="text-[15px] font-semibold">Assistant</h2>
-            <p className="truncate text-[12px] text-muted">
-              {offline === null ? "Intake analyst" : offline ? "Offline: replies come from the saved script" : `Live model ${status?.model}. Sees column stats, never the data.`}
-            </p>
+            <h2 className="text-[15px] font-semibold">{copy.assistant}</h2>
+            <p className="truncate text-[12px] text-muted">{offline === null ? copy.analyst : offline ? copy.offline : copy.live(status?.model ?? "")}</p>
           </div>
         </div>
         {history && history.length > 0 ? (
           <Button size="sm" variant="ghost" onClick={() => void reset()} disabled={sending}>
             <RotateCcw className="h-3.5 w-3.5" />
-            Start over
+            {copy.startOver}
           </Button>
         ) : null}
       </header>
@@ -184,10 +183,8 @@ export default function IntakePage() {
           </div>
         ) : history.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 py-4 text-center sm:py-8">
-            <p className="text-[18px] font-semibold tracking-[-0.01em]">What do you want to predict?</p>
-            <p className="max-w-sm text-[13px] leading-relaxed text-muted">
-              Say it the way you would to a colleague. Brief asks at most three questions and writes the scoring rule for you.
-            </p>
+            <p className="text-[18px] font-semibold tracking-[-0.01em]">{copy.whatPredict}</p>
+            <p className="max-w-sm text-[13px] leading-relaxed text-muted">{copy.sayIt}</p>
           </div>
         ) : (
           history.map((m, i) =>
@@ -200,7 +197,7 @@ export default function IntakePage() {
                 <Logo className="mb-1.5 h-5 w-4 shrink-0" />
                 <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-border bg-card-2 px-3.5 py-2.5 text-[14px] leading-relaxed">
                   <div className="whitespace-pre-wrap">{m.content}</div>
-                  {m.source && m.source !== "llm" ? <div className="mt-1.5 text-[11px] text-muted">replayed</div> : null}
+                  {m.source && m.source !== "llm" ? <div className="mt-1.5 text-[11px] text-muted">{copy.replayed}</div> : null}
                 </div>
               </div>
             ),
@@ -240,7 +237,7 @@ export default function IntakePage() {
         {chatError ? <Alert className="mb-3">{chatError}</Alert> : null}
         {done ? (
           <Alert kind="ok" className="mb-3">
-            The scoring rule is complete. Review it, then confirm.
+            {copy.ruleDone}
           </Alert>
         ) : null}
         <form
@@ -254,21 +251,21 @@ export default function IntakePage() {
             className="h-9 min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={history?.length ? "Reply" : template?.goal ? "Describe the goal, or tap the suggestion" : "Describe the goal"}
+            placeholder={history?.length ? copy.reply : template?.goal ? copy.describeOrTap : copy.describe}
             disabled={sending || !project.has_data}
             enterKeyHint="send"
-            aria-label="Message"
+            aria-label={copy.reply}
           />
           <button
             type="submit"
             disabled={!draft.trim() || sending || !project.has_data}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-foreground text-background transition-[opacity,transform] active:scale-95 disabled:opacity-30"
-            aria-label="Send"
+            aria-label={copy.send}
           >
             <ArrowUp className="h-4 w-4" />
           </button>
         </form>
-        {!project.has_data ? <p className="mt-2 text-[12px] text-muted">Upload a CSV first so the analyst can see the columns.</p> : null}
+        {!project.has_data ? <p className="mt-2 text-[12px] text-muted">{copy.uploadFirst}</p> : null}
       </div>
     </Card>
   );
@@ -276,38 +273,38 @@ export default function IntakePage() {
   const rule = (
     <div className={cx("min-w-0 space-y-3 lg:col-span-5", tab !== "rule" && "hidden lg:block")}>
       <Card
-        title="Scoring rule"
-        subtitle="Fills in as you chat. This is what solvers compete on."
-        actions={confirmed ? <Badge tone="ok" dot>Saved</Badge> : null}
+        title={copy.rule}
+        subtitle={copy.ruleSub}
+        actions={confirmed ? <Badge tone="ok" dot>{copy.saved}</Badge> : null}
       >
         <div className="mb-4 flex items-center gap-3">
           <Segments total={4} filled={agreed} size="sm" className="flex-1" />
-          <span className="num shrink-0 text-[12px] text-muted">{agreed}/4 agreed</span>
+          <span className="num shrink-0 text-[12px] text-muted">{copy.agreed(agreed, 4)}</span>
         </div>
         <ul className="space-y-2">
-          <RulePart done={parts.outcome} label="What we predict">
+          <RulePart done={parts.outcome} label={copy.whatWePredict}>
             {spec.target_column ? (
               <span className="num text-[14px]">
                 {spec.target_column} <span className="text-muted">=</span> {spec.positive_label == null ? "?" : String(spec.positive_label)}
               </span>
             ) : (
-              <span className="text-muted">Waiting for the goal</span>
+              <span className="text-muted">{copy.waiting}</span>
             )}
           </RulePart>
-          <RulePart done={parts.score} label="How we score">
+          <RulePart done={parts.score} label={copy.howWeScore}>
             <span className={cx(!parts.score && "text-muted")}>{spec.metric_rationale || metricLabel(spec.primary_metric, params)}</span>
             <span className="num mt-1 block text-[11px] text-muted">{rawMetricLabel(spec.primary_metric, params)}</span>
           </RulePart>
-          <RulePart done={parts.split} label="How we split">
+          <RulePart done={parts.split} label={copy.howWeSplit}>
             {spec.time_column ? (
               <span>
-                By time on <span className="num">{spec.time_column}</span>, so solvers never see the future
+                {copy.byTime} <span className="num">{spec.time_column}</span>, {copy.neverFuture}
               </span>
             ) : (
-              <span className={cx(!parts.split && "text-muted")}>Random, same outcome share in every part</span>
+              <span className={cx(!parts.split && "text-muted")}>{copy.random}</span>
             )}
           </RulePart>
-          <RulePart done={parts.econ} label="What it is worth">
+          <RulePart done={parts.econ} label={copy.worth}>
             {parts.econ ? (
               <span className="num text-[13px]">
                 {[
@@ -320,7 +317,7 @@ export default function IntakePage() {
                   .join(" · ")}
               </span>
             ) : (
-              <span className="text-muted">Optional. Anything you leave out is measured from the data or shown as a placeholder.</span>
+              <span className="text-muted">{copy.worthOptional}</span>
             )}
           </RulePart>
         </ul>
@@ -330,15 +327,15 @@ export default function IntakePage() {
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 sm:px-5 [&::-webkit-details-marker]:hidden">
           <span className="flex items-center gap-2.5 text-[14px] font-medium">
             <SlidersHorizontal className="h-4 w-4 text-muted" />
-            Fine-tune details
+            {copy.fineTune}
           </span>
-          <span className="text-[12px] text-muted group-open:hidden">Every field is editable</span>
-          <span className="hidden text-[12px] text-muted group-open:inline">Hide</span>
+          <span className="text-[12px] text-muted group-open:hidden">{copy.editable}</span>
+          <span className="hidden text-[12px] text-muted group-open:inline">{copy.hide}</span>
         </summary>
         <div className="space-y-4 border-t border-border px-4 py-4 sm:px-5">
-          <Field label="Outcome column">
+          <Field label={copy.fields.outcome}>
             <select className={inputClass} value={spec.target_column} onChange={(e) => patch({ target_column: e.target.value })}>
-              <option value="">Choose a column</option>
+              <option value="">{copy.fields.choose}</option>
               {columns.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -347,7 +344,7 @@ export default function IntakePage() {
             </select>
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Value that means yes">
+            <Field label={copy.fields.yesValue}>
               <input
                 className={inputClass}
                 value={spec.positive_label == null ? "" : String(spec.positive_label)}
@@ -358,15 +355,15 @@ export default function IntakePage() {
                 placeholder="1"
               />
             </Field>
-            <Field label="Task">
+            <Field label={copy.fields.task}>
               <select className={inputClass} value={spec.task_type} onChange={(e) => patch({ task_type: e.target.value as ProblemSpec["task_type"] })}>
-                <option value="binary">Yes or no</option>
-                <option value="regression">A number</option>
+                <option value="binary">{copy.fields.yesNo}</option>
+                <option value="regression">{copy.fields.number}</option>
               </select>
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Metric">
+            <Field label={copy.fields.metric}>
               <select
                 className={inputClass}
                 value={spec.primary_metric}
@@ -378,13 +375,13 @@ export default function IntakePage() {
                   });
                 }}
               >
-                <option value="recall_at_fpr">Caught at a false-alarm rate</option>
-                <option value="recall_at_top_k">Found in the riskiest share</option>
-                <option value="wape">Error as a share of total</option>
+                <option value="recall_at_fpr">{copy.fields.caughtAt}</option>
+                <option value="recall_at_top_k">{copy.fields.foundIn}</option>
+                <option value="wape">{copy.fields.error}</option>
               </select>
             </Field>
             {spec.primary_metric === "recall_at_fpr" ? (
-              <Field label="False alarms per 1,000">
+              <Field label={copy.fields.falseAlarms}>
                 <input
                   className={inputClass}
                   type="number"
@@ -396,7 +393,7 @@ export default function IntakePage() {
                 />
               </Field>
             ) : spec.primary_metric === "recall_at_top_k" ? (
-              <Field label="Riskiest share (%)">
+              <Field label={copy.fields.riskiestShare}>
                 <input
                   className={inputClass}
                   type="number"
@@ -412,9 +409,9 @@ export default function IntakePage() {
               <div />
             )}
           </div>
-          <Field label="Time column" hint="Used to split by time. Leave empty for a random split.">
+          <Field label={copy.fields.timeColumn} hint={copy.fields.timeHint}>
             <select className={inputClass} value={spec.time_column ?? ""} onChange={(e) => patch({ time_column: e.target.value || null })}>
-              <option value="">None</option>
+              <option value="">{copy.fields.none}</option>
               {columns.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -444,7 +441,7 @@ export default function IntakePage() {
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Max ms per row">
+            <Field label={copy.fields.maxMs}>
               <input
                 className={inputClass}
                 type="number"
@@ -452,23 +449,6 @@ export default function IntakePage() {
                 min="1"
                 value={Number(constraints.max_ms_per_row ?? 5)}
                 onChange={(e) => patch({ constraints: { ...constraints, max_ms_per_row: Number(e.target.value) } })}
-              />
-            </Field>
-            <Field label="Allowed libraries">
-              <input
-                className={inputClass}
-                value={Array.isArray(constraints.allowed_libs) ? (constraints.allowed_libs as string[]).join(", ") : ""}
-                onChange={(e) =>
-                  patch({
-                    constraints: {
-                      ...constraints,
-                      allowed_libs: e.target.value
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    },
-                  })
-                }
               />
             </Field>
           </div>
@@ -482,16 +462,14 @@ export default function IntakePage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-[22px] font-semibold tracking-[-0.02em] sm:text-[26px]">Describe the goal</h1>
-          <p className="mt-1.5 max-w-2xl text-[14px] leading-relaxed text-subtle">
-            Answer in plain words. Brief turns it into a scoring rule anyone can check.
-          </p>
+          <h1 className="text-[22px] font-semibold tracking-[-0.02em] sm:text-[26px]">{copy.title}</h1>
+          <p className="mt-1.5 max-w-2xl text-[14px] leading-relaxed text-subtle">{copy.sub}</p>
         </div>
         <div className="flex rounded-xl border border-border bg-card p-1 lg:hidden" role="tablist">
           {(
             [
-              ["chat", "Chat"],
-              ["rule", `Scoring rule ${agreed}/4`],
+              ["chat", copy.chat],
+              ["rule", copy.ruleTab(agreed)],
             ] as const
           ).map(([k, label]) => (
             <button
@@ -512,9 +490,9 @@ export default function IntakePage() {
         {rule}
       </div>
 
-      <ActionBar hint={spec.target_column ? "Confirming saves the rule and starts protecting the data." : "Answer the assistant, or pick the outcome column in Fine-tune."}>
+      <ActionBar hint={spec.target_column ? copy.hintConfirm : copy.hintAnswer}>
         <Button size="lg" busy={confirming} disabled={!spec.target_column || confirming} onClick={() => void confirm()}>
-          Confirm and protect
+          {copy.confirm}
           <Check className="h-4 w-4" />
         </Button>
       </ActionBar>

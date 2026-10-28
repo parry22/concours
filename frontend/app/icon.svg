@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <!-- Brief: one cylinder of data split in two; the floating slice is the sealed holdout. Same drawing as Logo in components/ui.tsx. -->
+  <!-- Concours: one cylinder of data split in two; the floating slice is the sealed holdout. Same drawing as Logo in components/ui.tsx. -->
   <defs>
     <linearGradient id="bf-fill" gradientUnits="userSpaceOnUse" x1="0" y1="3" x2="0" y2="29.5">
       <stop offset="0" stop-color="#fbb39c" />

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Brief tabular competition round input",
+  "title": "Concours tabular competition round input",
   "type": "object",
   "required": ["tasks", "primary_metric", "metric_params"],
   "properties": {

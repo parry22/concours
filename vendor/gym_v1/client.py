@@ -1,4 +1,4 @@
-# VENDORED from macrocosm-os/apex-competitions-builder @ 49eb05e (src/apex_sdk/gym_v1). Imports rewritten; player.py do_POST patched by Brief.
+# VENDORED from macrocosm-os/apex-competitions-builder @ 49eb05e (src/apex_sdk/gym_v1). Imports rewritten; player.py do_POST patched by Concours.
 """Referee-side HTTP client for talking to a gym_v1 player sandbox.
 
 The referee constructs one PlayerClient per URL in PLAYER_URLS and drives the match

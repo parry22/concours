@@ -67,6 +67,7 @@ def _rows(df: pd.DataFrame, pii: set[str]) -> list[dict[str, Any]]:
 def target_candidates(df: pd.DataFrame) -> list[str]:
     """Binary-looking columns, most likely targets first (name hints, then low cardinality)."""
     hints = ("fraud", "churn", "label", "target", "default", "is_", "flag", "outcome", "y")
+    exact = ("y", "target", "label", "outcome", "churn", "fraud", "converted")
     cands = []
     for c in df.columns:
         s = df[c].dropna()
@@ -74,13 +75,18 @@ def target_candidates(df: pd.DataFrame) -> list[str]:
             continue
         nun = s.nunique()
         if nun == 2:
-            score = 2 if any(h in c.lower() for h in hints) else 1
+            l = c.lower()
+            score = 3 if l in exact else 2 if any(h in l for h in hints) else 1
             cands.append((score, c))
     cands.sort(key=lambda t: -t[0])
     return [c for _, c in cands]
 
 
-def profile_dataframe(df: pd.DataFrame, *, sample_n: int = 20, preview_n: int = 10, seed: int = 42) -> DataProfile:
+def profile_dataframe(
+    df: pd.DataFrame, *, target: str | None = None, positive=None, sample_n: int = 20, preview_n: int = 10, seed: int = 42
+) -> DataProfile:
+    """`target` and `positive` (a template's known outcome column and label) make positive_rate exact; otherwise the
+    rate is the rarer value of the most likely target candidate and is only a hint."""
     n = len(df)
     pii = set(detect_pii_columns(df))
     cols: list[ColumnProfile] = []
@@ -102,10 +108,18 @@ def profile_dataframe(df: pd.DataFrame, *, sample_n: int = 20, preview_n: int = 
             )
         )
     cands = target_candidates(df)
-    pos_rate = None
-    if cands:
+    pos_rate, rate_col = None, None
+    if target and target in df.columns:
+        t = df[target].dropna()
+        rate_col = target
+        if positive is not None:
+            pos_rate = float((t.astype(str) == str(positive)).mean()) if len(t) else None
+        else:
+            counts = t.value_counts()
+            pos_rate = float(counts.min() / counts.sum()) if len(counts) == 2 else None
+    elif cands:
         t = df[cands[0]].dropna()
-        vals = sorted(t.unique(), key=lambda v: str(v))
+        rate_col = cands[0]
         # positive = the rarer value for a binary column
         counts = t.value_counts()
         pos_rate = float(counts.min() / counts.sum()) if len(counts) == 2 else None
@@ -118,6 +132,7 @@ def profile_dataframe(df: pd.DataFrame, *, sample_n: int = 20, preview_n: int = 
         preview_rows=_rows(df.head(preview_n), pii),
         target_candidates=cands,
         positive_rate=pos_rate,
+        positive_rate_column=rate_col,
     )
 
 

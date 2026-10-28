@@ -76,3 +76,17 @@ def test_temporal_resplits_when_shuffled():
     assert findings and findings[0].action == "resplit"
     assert pd.to_datetime(s2.train["t"]).max() <= pd.to_datetime(s2.holdout["t"]).min()
     assert not temporal.run(s2, "t", [])  is None
+
+
+def test_arena_cache_requires_same_scoring_rule():
+    import json
+
+    from app.arena.service import _same_rule
+    from app.models import ProblemSpec, SubmissionRow
+
+    meta = {"primary_metric": "recall_at_fpr", "metric_params": {"fpr": 0.001}, "secondary_metric": "pr_auc"}
+    sub = SubmissionRow(project_id="p", solver="lgbm_default", result_json=json.dumps({"raw_scores": [0.1], "metadata": meta}))
+    fraud = ProblemSpec(target_column="t", primary_metric="recall_at_fpr", metric_params={"fpr": 0.001}, secondary_metric="pr_auc")
+    leads = ProblemSpec(target_column="t", primary_metric="recall_at_top_k", metric_params={"top_k": 0.1}, secondary_metric="roc_auc")
+    assert _same_rule(sub, fraud) and not _same_rule(sub, leads)
+    assert not _same_rule(SubmissionRow(project_id="p", solver="x", result_json=None), fraud)

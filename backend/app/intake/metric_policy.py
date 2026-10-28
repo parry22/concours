@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.models import ColumnProfile, DataProfile, ProblemSpec
+from app.templates import rate_hint, words
 
 RARE_THRESHOLD = 0.05
 FPR_DEFAULT = 0.001
@@ -16,15 +17,8 @@ FPR_MIN, FPR_MAX = 0.0001, 0.05
 TOP_K_DEFAULT = 0.10
 TOP_K_MIN, TOP_K_MAX = 0.01, 0.5
 
-# Plain words per business template: (what a positive is, what a negative row is called)
-_WORDS: dict[str, tuple[str, str, str]] = {
-    "fraud": ("fraud", "good transactions", "fraud"),
-    "churn": ("customers who leave", "customers", "leavers"),
-}
-_DEFAULT_WORDS = ("positive cases", "other rows", "positive cases")
-
-# Rough positive rate per template when neither the profile nor the caller gives one.
-_TEMPLATE_RATE_HINT: dict[str, float] = {"fraud": 0.01, "churn": 0.15}
+# Plain words (what a positive is, what a negative row is called) and the rough positive rate used when neither
+# the profile nor the caller gives one come from data/templates/<template>/defaults.json, see app.templates.
 
 
 def clamp(value: float, lo: float, hi: float) -> float:
@@ -46,8 +40,9 @@ def target_profile(profile: DataProfile, spec: ProblemSpec) -> ColumnProfile | N
 
 
 def estimate_positive_rate(profile: DataProfile, spec: ProblemSpec) -> float | None:
-    """profile.positive_rate if set, else a rough estimate from the masked sample rows, else None."""
-    if profile.positive_rate is not None:
+    """profile.positive_rate when it was measured on the spec's target (or on an unrecorded column, older profiles),
+    else a rough estimate from the masked sample rows, else None."""
+    if profile.positive_rate is not None and profile.positive_rate_column in (None, spec.target_column):
         return float(profile.positive_rate)
     if not spec.target_column or spec.positive_label is None or not profile.sample_rows:
         return None
@@ -80,8 +75,9 @@ def _fmt_count(x: float) -> str:
     return f"{x:,.0f}" if abs(x - round(x)) < 1e-9 else f"{x:,.2g}"
 
 
-def rationale_fraud(rate: float | None, fpr: float, template: str) -> str:
-    pos, neg, _ = _WORDS.get(template, _DEFAULT_WORDS)
+def rationale_fraud(rate: float | None, fpr: float, template: str, business: str = "fraud") -> str:
+    w = words(template, business)
+    pos, neg = w["positive"], w["negative"]
     per_1000 = fpr * 1000
     alarms = "1 false alarm" if abs(per_1000 - 1) < 1e-9 else f"{_fmt_count(per_1000)} false alarms"
     if rate is None:
@@ -93,8 +89,9 @@ def rationale_fraud(rate: float | None, fpr: float, template: str) -> str:
     return f"{lead}, so we measure how much {pos} is caught at {alarms} per 1,000 {neg}."
 
 
-def rationale_churn(rate: float | None, top_k: float, template: str) -> str:
-    pos, neg, short = _WORDS.get(template, _DEFAULT_WORDS)
+def rationale_churn(rate: float | None, top_k: float, template: str, business: str = "churn") -> str:
+    w = words(template, business)
+    pos, neg, short = w["positive"], w["negative"], w["short"]
     pct_k = _fmt_count(top_k * 100)
     if rate is None:
         lead = f"A fair share of rows are {pos}"
@@ -131,7 +128,7 @@ def decide_metric(
 
     rate = positive_rate if positive_rate is not None else estimate_positive_rate(profile, spec)
     if rate is None:
-        rate = _TEMPLATE_RATE_HINT.get(spec.template)
+        rate = rate_hint(spec.template)
 
     rare = rate is None or rate < RARE_THRESHOLD
     if rare:
@@ -145,7 +142,7 @@ def decide_metric(
                 "metric_params": {"fpr": fpr},
                 "secondary_metric": "pr_auc",
                 "business_template": business,
-                "metric_rationale": rationale_fraud(rate, fpr, business),
+                "metric_rationale": rationale_fraud(rate, fpr, spec.template, business),
             }
         )
 
@@ -159,7 +156,7 @@ def decide_metric(
             "metric_params": {"top_k": top_k},
             "secondary_metric": "roc_auc",
             "business_template": business,
-            "metric_rationale": rationale_churn(rate, top_k, business),
+            "metric_rationale": rationale_churn(rate, top_k, spec.template, business),
         }
     )
 

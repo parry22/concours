@@ -134,7 +134,9 @@ class IntakeAgent:
         spec: ProblemSpec | None,
         history: list[IntakeMessage],
         user_message: str,
+        prefer_cache: bool = False,
     ) -> IntakeResponse:
+        """One turn. `prefer_cache` replays a saved reply when one exists (the demo seed), else the LLM is asked."""
         defaults = load_defaults(template)
         if spec is None and defaults:
             spec = spec_from_defaults(template)
@@ -148,7 +150,9 @@ class IntakeAgent:
         source: str = "defaults"
 
         client = self.client
-        if not self.offline and (client is not None or self.provider == "cli"):
+        if prefer_cache and cache.get(key):
+            pass  # replay below
+        elif not self.offline and (client is not None or self.provider == "cli"):
             try:
                 message, raw_patch, done_flag = await self._call_llm(
                     client, template=template, profile=profile, defaults=defaults, spec=spec, history=history, user_message=user_message, turn_index=turn_index

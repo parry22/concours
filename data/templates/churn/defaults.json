@@ -1,6 +1,6 @@
 {
   "name": "Customer churn",
-  "description": "Find the customers most likely to leave so we can reach them first.",
+  "description": "Reach customers before they leave.",
   "label": "Churn",
   "icon": "user-minus",
   "dataset": "dataset.csv",
@@ -14,7 +14,7 @@
   },
   "secondary_metric": "roc_auc",
   "business_template": "churn",
-  "metric_line": "Leavers reached in the riskiest 10%",
+  "metric_line": "Leavers reached in your top 10%",
   "rate_hint": 0.15,
   "words": {
     "positive": "customers who leave",
@@ -38,5 +38,11 @@
     "cost_per_action": 3.0,
     "cost_per_false_positive": 0.0
   },
-  "scoring_sample": "scoring_sample.csv"
+  "scoring_sample": "scoring_sample.csv",
+  "list": {
+    "name": "Churn call list",
+    "top_n": 300,
+    "row_label": "customer",
+    "action_label": "Call"
+  }
 }

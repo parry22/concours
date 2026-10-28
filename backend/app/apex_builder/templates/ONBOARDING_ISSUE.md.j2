@@ -1,5 +1,5 @@
 <!-- Prefilled body for the toolkit's issue template `.github/ISSUE_TEMPLATE/competition-onboarding.yml`
-     on macrocosm-os/apex-competitions-builder. Brief does not open this issue; the owner does, after the
+     on macrocosm-os/apex-competitions-builder. Concours does not open this issue; the owner does, after the
      first tagged release has pinned real digests. -->
 
 Title: [onboarding] {{ competition_id }} v{{ version }}
@@ -54,6 +54,6 @@ See `spec.yaml` at the released tag.
 ### Pre-submission checks
 
 - [x] `apex-dev preflight --spec ./spec.yaml --input fixtures/input.json` passes ({{ preflight_status }})
-- [{{ local_run_x }}] local referee-driven run produced a valid result.json ({{ local_run_status }}; `apex-dev run` is not implemented upstream, Brief's harness follows the same contract)
+- [{{ local_run_x }}] local referee-driven run produced a valid result.json ({{ local_run_status }}; `apex-dev run` is not implemented upstream, Concours's harness follows the same contract)
 - [ ] The image is cosign keyless-signed by the repo's release workflow on the released tag
 - [ ] The image is pushed and pullable by digest

@@ -9,6 +9,16 @@
     },
     "user_text": "We can call about 10 percent of customers each month."
   },
+  "37bc4b5b026a658d63e3c241350b7c41571e350691c92186ff9ac62a9fbd780b": {
+    "done": false,
+    "message": "Good, we will use the riskiest 10% each month. I still need one thing. Is each row a single snapshot of a customer, with no date for when it was recorded? I see no date column, so I will treat it that way unless you tell me otherwise. Also, do you know when Complains and Status are filled in? If they come after a customer decides to leave, I will leave them out.",
+    "spec_patch": {
+      "metric_params": {
+        "top_k": 0.1
+      }
+    },
+    "user_text": "We can call the riskiest 10% each month."
+  },
   "c1a0a84a695c895f9f7245e490afcce40f7b698dba5f251ec1279aed562ba3cb": {
     "done": true,
     "message": "Thanks. I have added 3,000 customers a month, 60 dollars for a missed leaver and 3 dollars for a wasted call. There is no date column, so we will treat the data as a single snapshot and test on a random split. That is everything I need. Before we go on, please check one thing with your data team: if Complains or Status is filled in after a customer cancels, we should drop it, since it would make the results look better than they will be in real use.",
@@ -22,9 +32,24 @@
     },
     "user_text": "A lost customer is worth about 60 dollars a month, a wasted call costs 3 dollars. We have 3000 customers."
   },
+  "d39acd962a38509d7c4dcecf310610006e7ed4435da155cb4aac8c7fa870c52c": {
+    "done": true,
+    "message": "Thanks. I have 3,000 customers a month, 60 dollars lost per customer who leaves, and 3 dollars per call. I will assume about 1 in 4 calls keeps the customer, and that a wasted call costs only the 3 dollar call itself. Tell me if either is wrong. I see no date column, so I will treat each row as a single snapshot with no time column. I could not confirm when Complains and Status are filled in. Both may be recorded after a customer decides to leave, which would make the model look better than it is. Please check this with whoever owns the data before you rely on the results.",
+    "spec_patch": {
+      "economics": {
+        "action_success_rate": 0.25,
+        "cost_per_action": 3,
+        "cost_per_false_positive": 0,
+        "rows_per_month": 3000,
+        "value_per_positive": 60
+      },
+      "time_column": null
+    },
+    "user_text": "A lost customer costs about 60 dollars, a call about 3. 3,000 customers a month."
+  },
   "d5dd8ccd093db602e80c97e5a8667b3a204fb652ddc643b9c24dde65a89a6cd8": {
     "done": false,
-    "message": "Churn is already set as the outcome, with 1 meaning the customer left. I suggest we aim to find the riskiest group of customers each month and call them first. The default is the top 10% of customers by risk. Is that a workable number of calls for your team, or should it be higher or lower? One thing to watch: Complains may be recorded close to the time a customer leaves, so it could be a possible leak. Status could be the same, if it changes when a customer cancels.",
+    "message": "Here is my starting plan. We will predict which customers leave, using the Churn column, where 1 means the customer left. You would call the top 10% of customers the model ranks as most likely to leave. If that is about right for your call team, say so. Tell me if you want a different share. One thing to check: Complains and Status may be recorded after a customer decides to leave. If so, they would make the model look better than it really is. Do you know when those two are filled in? One more question. Is each row a single snapshot of a customer, with no date for when it was recorded?",
     "spec_patch": {
       "metric_params": {
         "top_k": 0.1

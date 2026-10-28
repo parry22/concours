@@ -11,15 +11,29 @@
     },
     "user_text": "A missed fraud costs us about 120 dollars, a blocked good customer about 4 dollars. We see 300000 transactions a month."
   },
+  "a1f7371586dbb8aeb60e4cc6ef6644ec3b8ae20cc365ca790e10edef4e7503c5": {
+    "done": true,
+    "message": "Thanks. I have noted 120 dollars lost per missed fraud, 4 dollars per wrongly blocked customer, and 300,000 transactions a month. I will assume that blocking a fraud always works, since you did not say otherwise. That completes what I need. The app will now measure how much fraud we can catch at 1 false alarm in 1,000 and show the monthly money impact.",
+    "spec_patch": {
+      "economics": {
+        "action_success_rate": 1.0,
+        "cost_per_action": 0.0,
+        "cost_per_false_positive": 4.0,
+        "rows_per_month": 300000,
+        "value_per_positive": 120
+      }
+    },
+    "user_text": "A missed fraud costs about 120 dollars, a blocked customer about 4. 300,000 transactions a month."
+  },
   "ae0b919bc206317322e6d2454390dd8b490f9e07409de7b9582a1bcd116e8d8f": {
     "done": false,
-    "message": "Good, we will keep false alarms at about 1 per 1,000 good transactions. One optional question. It lets me show results in money terms. Roughly how many card transactions do you handle each month, and what does one missed fraud cost you versus one false alarm? If you are not sure, I can start with typical estimates of 300,000 transactions a month, 120 for a missed fraud, and 4 for a false alarm. You can change them later.",
+    "message": "Good, 1 in 1,000 it is. One last thing, if you can share it. Roughly how much money do you lose on a typical fraud case that gets through? Your usual cost of wrongly flagging a good customer will be assumed unless you tell me otherwise. A rough figure is fine, or say skip.",
     "spec_patch": {},
     "user_text": "About 1 in 1000 false alarms is fine."
   },
   "be3e11e0d24cd48eabe65396c31883c76edae82d333315a58cd7613b2d20fdf8": {
     "done": false,
-    "message": "Thanks. For card fraud, here is what I would start with. We flag the fraud column as the outcome, treat 1 as fraud, and order transactions by date. For good customers, I would allow about 1 false alarm per 1,000 good transactions. Does that level of false alarms work for you, or should it be stricter or looser? One more note: the fraud scenario column looks like a label that is only known after the fact, so I will keep it out of the model as a possible leak.",
+    "message": "Good. For card fraud I suggest we aim to catch as many fraud cases as possible while wrongly flagging no more than 1 good transaction in 1,000. That keeps good customers mostly undisturbed. Does 1 in 1,000 work, or can your team handle more false alarms? One more note: the column TX_FRAUD_SCENARIO looks like it records how the fraud was set up, which may only be known after the fact. I will leave it out as a possible leak.",
     "spec_patch": {
       "metric_params": {
         "fpr": 0.001

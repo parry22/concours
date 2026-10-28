@@ -1,4 +1,5 @@
-"""Use the winner: re-fit the winning solver on train, apply transform.json to a new CSV, return score + flag."""
+"""Fit a version's solver on the public train split (cached on disk) and score new rows. Lists and the performance
+watch go through `fitted_model`; the module keeps the `brief_sub_` module prefix because cached pickles reference it."""
 from __future__ import annotations
 
 import hashlib

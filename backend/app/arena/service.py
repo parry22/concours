@@ -1,4 +1,7 @@
-"""Arena orchestration: queue solvers, run them one at a time in a worker thread, cache, publish SSE events."""
+"""Arena orchestration: queue solvers, run them one at a time in a worker thread, cache, publish SSE events.
+
+A run has a purpose: "baseline" builds version 1 right after Protect; "contest" is an improvement round whose
+scored attempts are considered for promotion as they arrive (see models_registry.promotion)."""
 from __future__ import annotations
 
 import json
@@ -13,6 +16,8 @@ from app.arena import events, leaderboard, runner
 from app.arena.stage import data_hash, round_config, solver_hash, stage
 import shutil
 
+from app.models_registry import promotion
+
 from app.config import ARENA_CACHE_DIR
 from app.db import session
 from app.models import ProblemSpec, ProjectRow, SubmissionRow
@@ -25,7 +30,7 @@ def _log(project_id: str, line: str) -> None:
     events.publish(project_id, "log", {"line": line})
 
 
-def start_run(project_id: str, solvers: list[str], *, replay: bool = True, rebuild: bool = False) -> list[str]:
+def start_run(project_id: str, solvers: list[str], *, replay: bool = True, rebuild: bool = False, purpose: str = "contest") -> list[str]:
     """Create queued submissions and start the worker. Returns submission ids."""
     if (t := _running.get(project_id)) and t.is_alive():
         raise RuntimeError("a run is already in progress")
@@ -43,28 +48,42 @@ def start_run(project_id: str, solvers: list[str], *, replay: bool = True, rebui
         row.finalized = False
         s.add(row)
         s.commit()
-    t = threading.Thread(target=_worker, args=(project_id, ids, spec, replay, rebuild), daemon=True)
+    t = threading.Thread(target=_worker, args=(project_id, ids, spec, replay, rebuild, purpose), daemon=True)
     _running[project_id] = t
     t.start()
     return ids
 
 
-def _cached(s, project_id: str, sub: SubmissionRow) -> SubmissionRow | None:
-    """A scored submission with identical protected data and solver code: same project first, then any project,
-    then the on-disk cache that survives `make demo` wiping workspace/."""
+def _same_rule(sub: SubmissionRow, spec: ProblemSpec) -> bool:
+    """The cached numbers embed the scoring rule they were computed under; a result scored under another rule
+    (the same data, a different metric) is not a hit."""
+    try:
+        meta = json.loads(sub.result_json or "{}").get("metadata") or {}
+    except json.JSONDecodeError:
+        return False
+    return (
+        meta.get("primary_metric") == spec.primary_metric
+        and (meta.get("metric_params") or {}) == (spec.metric_params or {})
+        and meta.get("secondary_metric") == spec.secondary_metric
+    )
+
+
+def _cached(s, project_id: str, sub: SubmissionRow, spec: ProblemSpec) -> SubmissionRow | None:
+    """A scored submission with identical protected data, solver code and scoring rule: same project first, then
+    any project, then the on-disk cache that survives `make demo` wiping workspace/."""
     q = select(SubmissionRow).where(SubmissionRow.solver == sub.solver, SubmissionRow.status == "scored",
                                     SubmissionRow.data_hash == sub.data_hash, SubmissionRow.id != sub.id)
-    hit = s.exec(q.where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at.desc())).first()
-    if hit:
-        return hit
-    hit = s.exec(q.order_by(SubmissionRow.created_at.desc())).first()
-    if hit:
-        return hit
+    for scoped in (q.where(SubmissionRow.project_id == project_id), q):
+        for hit in s.exec(scoped.order_by(SubmissionRow.created_at.desc())).all():
+            if _same_rule(hit, spec):
+                return hit
     f = ARENA_CACHE_DIR / f"{sub.data_hash.replace(':', '-')}.json"
     if f.exists():
         d = json.loads(f.read_text())
-        return SubmissionRow(project_id="cache", solver=sub.solver, status="scored", data_hash=sub.data_hash, **{k: d.get(k) for k in
-                             ("public_score", "private_score", "secondary_public", "secondary_private", "eval_seconds", "logs_path", "result_json")})
+        hit = SubmissionRow(project_id="cache", solver=sub.solver, status="scored", data_hash=sub.data_hash, **{k: d.get(k) for k in
+                            ("public_score", "private_score", "secondary_public", "secondary_private", "eval_seconds", "logs_path", "result_json")})
+        if _same_rule(hit, spec):
+            return hit
     return None
 
 
@@ -81,19 +100,47 @@ def _store_cache(sub: SubmissionRow) -> None:
         "eval_seconds": sub.eval_seconds, "logs_path": str(logs_dst), "result_json": sub.result_json}))
 
 
+def build_board(s, project_id: str, spec: ProblemSpec, row: ProjectRow):
+    """The leaderboard with version 1 as the reference row."""
+    subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at)).all()
+    v1 = next((v for v in promotion.versions_for(s, project_id) if v.version == 1), None)
+    return leaderboard.build(project_id, subs, spec, row.finalized, profile=row.profile(), protect=row.protect(),
+                             v1_submission_id=v1.submission_id if v1 else None, v1_solver=v1.solver_name if v1 else None)
+
+
 def _emit_board(project_id: str, spec: ProblemSpec) -> None:
     with session() as s:
         row = s.get(ProjectRow, project_id)
-        subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at)).all()
-        board = leaderboard.build(project_id, subs, spec, row.finalized, profile=row.profile(), protect=row.protect())
+        board = build_board(s, project_id, spec, row)
     events.publish(project_id, "leaderboard_updated", board.model_dump())
 
 
-def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, rebuild: bool) -> None:
+def _emit_versions(project_id: str, made: list, spec: ProblemSpec) -> None:
+    """One event per new version so the UI can show the promotion moment."""
+    with session() as s:
+        versions = promotion.versions_for(s, project_id)
+        v1 = next((v for v in versions if v.version == 1), None)
+        for v in made:
+            fresh = s.get(type(v), v.id)
+            payload = promotion.version_payload(fresh, spec, v1)
+            events.publish(project_id, "model_version" if fresh.version == 1 else "model_promoted", payload)
+
+
+def promote_after_score(project_id: str, sub_id: str, spec: ProblemSpec, *, source: str = "local_contest") -> None:
+    """Consider one scored submission for promotion (contest runs and agent attempts)."""
+    with session() as s:
+        sub = s.get(SubmissionRow, sub_id)
+        made = [v for v in [promotion.consider(s, project_id, sub, source=source)] if v]
+    if made:
+        _log(project_id, f"new model v{made[0].version} promoted ({made[0].business_value})")
+        _emit_versions(project_id, made, spec)
+
+
+def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, rebuild: bool, purpose: str = "contest") -> None:
     log = lambda line: _log(project_id, line)  # noqa: E731
     try:
         with session() as s:
-            need_build = rebuild or any(_cached(s, project_id, s.get(SubmissionRow, i)) is None for i in ids)
+            need_build = rebuild or any(_cached(s, project_id, s.get(SubmissionRow, i), spec) is None for i in ids)
         if need_build and (rebuild or runner.image_id(project_id, "player") is None or runner.image_id(project_id, "referee") is None or rebuild):
             log("staging competition folder and building player and referee images")
             stage(project_id, spec)
@@ -106,7 +153,7 @@ def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, re
                 s.add(sub)
                 s.commit()
                 solver = sub.solver
-                cached = _cached(s, project_id, sub) if replay else None
+                cached = _cached(s, project_id, sub, spec) if replay else None
                 cached_vals = (cached.public_score, cached.private_score, cached.secondary_public, cached.secondary_private, cached.eval_seconds, cached.logs_path, cached.result_json) if cached else None
             events.publish(project_id, "submission_started", {"id": sid, "solver": solver, "cached": cached_vals is not None})
             if cached_vals:
@@ -150,8 +197,24 @@ def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, re
                         _store_cache(sub)
                 log(f"{solver}: {out.status} in {res.seconds:.0f}s" + (f" ({out.error})" if out.error else ""))
             events.publish(project_id, "submission_scored", out.model_dump())
+            if purpose == "contest":
+                promote_after_score(project_id, sid, spec)
             _emit_board(project_id, spec)
-        events.publish(project_id, "run_complete", {"ids": ids})
+        with session() as s:
+            made = promotion.after_run(s, project_id, ids)
+            row = s.get(ProjectRow, project_id)
+            row.finalized = True  # every attempt in this run has its private holdout score
+            if purpose == "contest" and row.stage == "model":
+                row.stage = "improve"
+            row.updated_at = datetime.now(timezone.utc)
+            s.add(row)
+            s.commit()
+        if made:
+            for v in made:
+                log(f"model v{v.version} {'ready' if v.version == 1 else 'promoted'}: {v.business_value}")
+            _emit_versions(project_id, made, spec)
+        _emit_board(project_id, spec)
+        events.publish(project_id, "run_complete", {"ids": ids, "purpose": purpose})
     except Exception as e:  # noqa: BLE001
         log(f"arena error: {e}")
         with session() as s:
@@ -162,23 +225,25 @@ def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, re
                     sub.error = str(e)[:500]
                     s.add(sub)
             s.commit()
-        events.publish(project_id, "run_complete", {"ids": ids, "error": str(e)})
+        events.publish(project_id, "run_complete", {"ids": ids, "error": str(e), "purpose": purpose})
 
 
 def finalize(project_id: str) -> None:
+    """Kept for older clients: marks the round closed and makes sure the versions reflect every scored attempt."""
     if (t := _running.get(project_id)) and t.is_alive():
         raise RuntimeError("wait for the run to finish")
     with session() as s:
         row = s.get(ProjectRow, project_id)
         spec = row.spec()
-        subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id)).all()
+        subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at)).all()
+        made = promotion.after_run(s, project_id, [x.id for x in subs])
         row.finalized = True
-        board = leaderboard.build(project_id, subs, spec, True)
-        row.winner_solver = board.leader.solver if board.leader else None
-        if row.stage == "arena":
-            row.stage = "serve"
+        row.updated_at = datetime.now(timezone.utc)
         s.add(row)
         s.commit()
+        board = build_board(s, project_id, spec, row)
+    if made:
+        _emit_versions(project_id, made, spec)
     events.publish(project_id, "finalized", board.model_dump())
 
 

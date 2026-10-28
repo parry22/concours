@@ -1,10 +1,10 @@
-"""Brief gym_v1 REFEREE. Holds the hidden leaderboard and holdout data, drives the player, scores with shared metrics.
+"""Concours gym_v1 REFEREE. Holds the hidden leaderboard and holdout data, drives the player, scores with shared metrics.
 
 Writes /data/result.json as GameResult:
   raw_scores[0]  = private (holdout) primary metric, the number Apex reads
   metadata       = {public_score, private_score, primary_metric, metric_params, secondary: {...},
                     breakdown: {...}, eval_time_in_seconds, rows: {...}}
-Also writes /data/scores_<split>.csv (one score per row, split order) so Brief's value model can price the
+Also writes /data/scores_<split>.csv (one score per row, split order) so Concours's value model can price the
 operating point without re-fitting. Those files stay with the arena logs and never enter the handoff.
 Player failures (PlayerError or malformed responses) score 0 with terminal_reason "player_error".
 """

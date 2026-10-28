@@ -57,6 +57,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Settings
+         * @description Refresh preference (stored only, no scheduler yet), promotion margin and drift threshold.
+         */
+        put: operations["put_settings_projects__project_id__settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/data": {
         parameters: {
             query?: never;
@@ -210,6 +230,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Versions */
+        get: operations["versions_projects__project_id__versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/value": {
         parameters: {
             query?: never;
@@ -353,7 +390,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/projects/{project_id}/score": {
+    "/projects/{project_id}/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Lists */
+        get: operations["get_lists_projects__project_id__lists_get"];
+        put?: never;
+        /**
+         * Create List
+         * @description Upload new rows (or `sample=true` for fresh holdout rows), score them with the active model, return the ranked list.
+         */
+        post: operations["create_list_projects__project_id__lists_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/lists/{list_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get List */
+        get: operations["get_list_projects__project_id__lists__list_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/lists/{list_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download List */
+        get: operations["download_list_projects__project_id__lists__list_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/health": {
         parameters: {
             query?: never;
             header?: never;
@@ -362,23 +454,29 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Score */
-        post: operations["score_projects__project_id__score_post"];
+        /**
+         * Check Health
+         * @description Score fresh labeled rows with the active model and compare with its holdout score. Sets project.health.
+         */
+        post: operations["check_health_projects__project_id__health_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/projects/{project_id}/score/download": {
+    "/projects/{project_id}/plan": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Score Download */
-        get: operations["score_download_projects__project_id__score_download_get"];
+        /**
+         * Improvement Plan
+         * @description Illustrative subscription plus success fee on the measured improvement over v1. No payment is taken.
+         */
+        get: operations["improvement_plan_projects__project_id__plan_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -396,7 +494,7 @@ export interface paths {
         };
         /**
          * Sample Csv
-         * @description A fresh CSV for the demo: the newest rows of the holdout, without labels.
+         * @description A fresh CSV for the demo: the newest holdout rows. `labeled=true` adds the outcome column (for the performance watch).
          */
         get: operations["sample_csv_projects__project_id__sample_csv_get"];
         put?: never;
@@ -496,10 +594,15 @@ export interface components {
              */
             rebuild: boolean;
         };
-        /** Body_score_projects__project_id__score_post */
-        Body_score_projects__project_id__score_post: {
+        /** Body_check_health_projects__project_id__health_post */
+        Body_check_health_projects__project_id__health_post: {
             /** File */
-            file: string;
+            file?: string | null;
+        };
+        /** Body_create_list_projects__project_id__lists_post */
+        Body_create_list_projects__project_id__lists_post: {
+            /** File */
+            file?: string | null;
         };
         /** Body_upload_data_projects__project_id__data_post */
         Body_upload_data_projects__project_id__data_post: {
@@ -564,6 +667,8 @@ export interface components {
             target_candidates?: string[];
             /** Positive Rate */
             positive_rate?: number | null;
+            /** Positive Rate Column */
+            positive_rate_column?: string | null;
         };
         /** Finding */
         Finding: {
@@ -592,6 +697,37 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HealthOut */
+        HealthOut: {
+            /**
+             * Health
+             * @enum {string}
+             */
+            health: "unknown" | "healthy" | "slipping";
+            /** Model Version */
+            model_version: number;
+            /** Rows */
+            rows: number;
+            /** Positives */
+            positives: number;
+            /** Score */
+            score: number;
+            /** Holdout Score */
+            holdout_score: number;
+            /** Drop */
+            drop: number;
+            /** Threshold */
+            threshold: number;
+            /** Metric Name */
+            metric_name: string;
+            /** Line */
+            line: string;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
         };
         /** IntakeMessage */
         IntakeMessage: {
@@ -648,6 +784,80 @@ export interface components {
              */
             takeover_margin: number;
         };
+        /** ListOut */
+        ListOut: {
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: string;
+            /** Name */
+            name: string;
+            /** Model Version */
+            model_version: number;
+            /** Model Version Id */
+            model_version_id: string;
+            /** Solver Name */
+            solver_name: string;
+            /** Rows Scored */
+            rows_scored: number;
+            /** Top N */
+            top_n: number;
+            /** Row Label */
+            row_label: string;
+            /** Action Label */
+            action_label: string;
+            /** Columns */
+            columns: string[];
+            /** Preview */
+            preview?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Download */
+            download: string;
+        };
+        /** ModelVersionOut */
+        ModelVersionOut: {
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: string;
+            /** Version */
+            version: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "baseline" | "local_contest" | "apex_contest";
+            /** Solver Name */
+            solver_name: string;
+            /** Submission Id */
+            submission_id?: string | null;
+            /** Private Score */
+            private_score: number;
+            /** Public Score */
+            public_score?: number | null;
+            /** Metric Name */
+            metric_name: string;
+            /** Business Value */
+            business_value: string;
+            /** Improvement Line */
+            improvement_line?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "retired";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** PackageOut */
         PackageOut: {
             /** Competition Dir */
@@ -663,6 +873,29 @@ export interface components {
             steps: components["schemas"]["ValidationStep"][];
             /** Files */
             files: string[];
+        };
+        /**
+         * PlanOut
+         * @description Illustrative improvement plan shown on the Launch screen. The contest reward is for HANDOFF.md only.
+         */
+        PlanOut: {
+            /** Subscription Per Month */
+            subscription_per_month: number;
+            /** Success Fee Share */
+            success_fee_share: number;
+            /** Improvement Rel */
+            improvement_rel?: number | null;
+            /** Value Uplift Per Month */
+            value_uplift_per_month?: number | null;
+            /** Success Fee Per Month */
+            success_fee_per_month?: number | null;
+            /**
+             * Illustrative
+             * @default true
+             */
+            illustrative: boolean;
+            /** Lines */
+            lines?: string[];
         };
         /** ProblemSpec */
         ProblemSpec: {
@@ -741,7 +974,7 @@ export interface components {
              * Stage
              * @enum {string}
              */
-            stage: "upload" | "intake" | "protect" | "arena" | "serve" | "launch";
+            stage: "upload" | "intake" | "protect" | "model" | "improve" | "launch";
             spec: components["schemas"]["ProblemSpec"] | null;
             /**
              * Apex Validation
@@ -764,6 +997,59 @@ export interface components {
             finalized: boolean;
             /** Winner Solver */
             winner_solver?: string | null;
+            active_model?: components["schemas"]["ModelVersionOut"] | null;
+            /** Versions */
+            versions?: components["schemas"]["ModelVersionOut"][];
+            /** Current Result */
+            current_result?: string | null;
+            /** Improvement Line */
+            improvement_line?: string | null;
+            /** Result Short */
+            result_short?: string | null;
+            /**
+             * Health
+             * @default unknown
+             * @enum {string}
+             */
+            health: "unknown" | "healthy" | "slipping";
+            health_check?: components["schemas"]["HealthOut"] | null;
+            /**
+             * Model Status
+             * @default none
+             * @enum {string}
+             */
+            model_status: "improving" | "healthy" | "slipping" | "none";
+            /**
+             * Refresh Daily
+             * @default false
+             */
+            refresh_daily: boolean;
+            /**
+             * Min Improvement
+             * @default 0.01
+             */
+            min_improvement: number;
+            /**
+             * Drift Threshold
+             * @default 0.1
+             */
+            drift_threshold: number;
+            /**
+             * List Name
+             * @default Action list
+             */
+            list_name: string;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /** ProjectSettingsIn */
+        ProjectSettingsIn: {
+            /** Refresh Daily */
+            refresh_daily?: boolean | null;
+            /** Min Improvement */
+            min_improvement?: number | null;
+            /** Drift Threshold */
+            drift_threshold?: number | null;
         };
         /** ProtectReport */
         ProtectReport: {
@@ -1201,6 +1487,41 @@ export interface operations {
             };
         };
     };
+    put_settings_projects__project_id__settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_data_projects__project_id__data_post: {
         parameters: {
             query?: never;
@@ -1463,6 +1784,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeaderboardOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    versions_projects__project_id__versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelVersionOut"][];
                 };
             };
             /** @description Validation Error */
@@ -1769,22 +2121,16 @@ export interface operations {
             };
         };
     };
-    score_projects__project_id__score_post: {
+    get_lists_projects__project_id__lists_get: {
         parameters: {
-            query?: {
-                solver?: string | null;
-            };
+            query?: never;
             header?: never;
             path: {
                 project_id: string;
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_score_projects__project_id__score_post"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -1792,9 +2138,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ListOut"][];
                 };
             };
             /** @description Validation Error */
@@ -1808,12 +2152,84 @@ export interface operations {
             };
         };
     };
-    score_download_projects__project_id__score_download_get: {
+    create_list_projects__project_id__lists_post: {
+        parameters: {
+            query?: {
+                sample?: boolean;
+                n?: number;
+                top_n?: number | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_create_list_projects__project_id__lists_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_list_projects__project_id__lists__list_id__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 project_id: string;
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_list_projects__project_id__lists__list_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                list_id: string;
             };
             cookie?: never;
         };
@@ -1839,10 +2255,82 @@ export interface operations {
             };
         };
     };
+    check_health_projects__project_id__health_post: {
+        parameters: {
+            query?: {
+                sample?: boolean;
+                degrade?: boolean;
+                n?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_check_health_projects__project_id__health_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    improvement_plan_projects__project_id__plan_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     sample_csv_projects__project_id__sample_csv_get: {
         parameters: {
             query?: {
                 n?: number;
+                labeled?: boolean;
+                degrade?: boolean;
             };
             header?: never;
             path: {

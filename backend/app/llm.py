@@ -1,4 +1,4 @@
-"""One LLM entry point for Brief. Two providers, picked at runtime:
+"""One LLM entry point for Concours. Two providers, picked at runtime:
 
 - "api": the Anthropic Messages API when ANTHROPIC_API_KEY is set.
 - "cli": the installed Claude Code CLI (`claude -p`), which runs on the user's Claude subscription.

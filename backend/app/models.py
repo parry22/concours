@@ -11,7 +11,10 @@ from sqlmodel import Field as SQLField
 from sqlmodel import SQLModel
 
 Template = Literal["fraud", "churn", "leads", "custom"]
-Stage = Literal["upload", "intake", "protect", "arena", "serve", "launch"]
+Stage = Literal["upload", "intake", "protect", "model", "improve", "launch"]
+VersionSource = Literal["baseline", "local_contest", "apex_contest"]
+Health = Literal["unknown", "healthy", "slipping"]
+ModelStatus = Literal["improving", "healthy", "slipping", "none"]
 Validation = Literal["pass", "fail", "not_run"]
 
 
@@ -239,6 +242,7 @@ class IntakeMessage(BaseModel):
 
 class IntakeRequest(BaseModel):
     message: str
+    prefer_cache: bool = False  # replay a saved reply when one exists (the demo seed)
 
 
 class IntakeResponse(BaseModel):
@@ -248,6 +252,74 @@ class IntakeResponse(BaseModel):
     done: bool
     source: Literal["llm", "cache", "defaults"]
     history: list[IntakeMessage]
+
+
+# ---------- Model versions, lists, health, plan ----------
+
+
+class ModelVersionOut(BaseModel):
+    id: str
+    project_id: str
+    version: int
+    source: VersionSource
+    solver_name: str  # internal; the UI shows it only in the technical drawer
+    submission_id: str | None = None
+    private_score: float
+    public_score: float | None = None
+    metric_name: str
+    business_value: str  # headline line, computed in code
+    improvement_line: str | None = None  # versus v1
+    status: Literal["active", "retired"]
+    created_at: datetime
+
+
+class ListOut(BaseModel):
+    id: str
+    project_id: str
+    name: str
+    model_version: int
+    model_version_id: str
+    solver_name: str
+    rows_scored: int
+    top_n: int
+    row_label: str
+    action_label: str
+    columns: list[str]
+    preview: list[dict[str, Any]] = Field(default_factory=list)  # the top rows, rank first
+    created_at: datetime
+    download: str
+
+
+class HealthOut(BaseModel):
+    health: Health
+    model_version: int
+    rows: int
+    positives: int
+    score: float  # primary metric on the uploaded rows
+    holdout_score: float  # the active version's private holdout score
+    drop: float  # relative drop, positive means worse
+    threshold: float
+    metric_name: str
+    line: str
+    checked_at: datetime
+
+
+class PlanOut(BaseModel):
+    """Illustrative improvement plan shown on the Launch screen. The contest reward is for HANDOFF.md only."""
+
+    subscription_per_month: float
+    success_fee_share: float
+    improvement_rel: float | None = None  # active vs v1, relative, on the private holdout
+    value_uplift_per_month: float | None = None  # from the value model, active vs v1
+    success_fee_per_month: float | None = None
+    illustrative: bool = True
+    lines: list[str] = Field(default_factory=list)
+
+
+class ProjectSettingsIn(BaseModel):
+    refresh_daily: bool | None = None
+    min_improvement: float | None = None
+    drift_threshold: float | None = None
 
 
 # ---------- Package / validation ----------
@@ -288,6 +360,19 @@ class ProjectOut(BaseModel):
     protect: ProtectReport | None = None
     finalized: bool = False
     winner_solver: str | None = None
+    active_model: ModelVersionOut | None = None
+    versions: list[ModelVersionOut] = Field(default_factory=list)
+    current_result: str | None = None  # active version's business line
+    improvement_line: str | None = None  # since v1
+    result_short: str | None = None  # "Buyers reached: 34% to 52%" for tables
+    health: Health = "unknown"
+    health_check: HealthOut | None = None
+    model_status: ModelStatus = "none"
+    refresh_daily: bool = False
+    min_improvement: float = 0.01
+    drift_threshold: float = 0.10
+    list_name: str = "Action list"
+    updated_at: datetime | None = None
 
 
 # ---------- SQLModel tables ----------
@@ -312,7 +397,14 @@ class ProjectRow(SQLModel, table=True):
     package_json: str | None = None
     finalized: bool = False
     winner_solver: str | None = None
+    active_model_id: str | None = None
+    min_improvement: float = 0.01
+    drift_threshold: float = 0.10
+    health: str = "unknown"
+    health_json: str | None = None
+    refresh_daily: bool = False
     created_at: datetime = SQLField(default_factory=_now)
+    updated_at: datetime = SQLField(default_factory=_now)
 
     def spec(self) -> ProblemSpec | None:
         return ProblemSpec.model_validate_json(self.spec_json) if self.spec_json else None
@@ -332,7 +424,24 @@ class ProjectRow(SQLModel, table=True):
     def set_intake(self, msgs: list[IntakeMessage]) -> None:
         self.intake_json = json.dumps([m.model_dump() for m in msgs])
 
-    def to_out(self) -> ProjectOut:
+    def health_check(self) -> HealthOut | None:
+        return HealthOut.model_validate_json(self.health_json) if self.health_json else None
+
+    def to_out(self, versions: list[ModelVersionOut] | None = None, *, running: bool = False) -> ProjectOut:
+        versions = versions or []
+        active = next((v for v in versions if v.id == self.active_model_id), None) or next((v for v in versions if v.status == "active"), None)
+        v1 = next((v for v in versions if v.version == 1), None)
+        from app.models_registry.promotion import list_framing, result_short  # noqa: PLC0415 - avoids an import cycle
+
+        spec = self.spec()
+        if self.health == "slipping":
+            status = "slipping"
+        elif active is None:
+            status = "none"
+        elif running or self.stage == "improve":
+            status = "improving"
+        else:
+            status = "healthy"
         return ProjectOut(
             id=self.id,
             name=self.name,
@@ -346,7 +455,53 @@ class ProjectRow(SQLModel, table=True):
             protect=self.protect(),
             finalized=self.finalized,
             winner_solver=self.winner_solver,
+            active_model=active,
+            versions=versions,
+            current_result=active.business_value if active else None,
+            improvement_line=active.improvement_line if active else None,
+            result_short=result_short(spec, v1, active) if spec and active else None,
+            health=self.health,  # type: ignore[arg-type]
+            health_check=self.health_check(),
+            model_status=status,  # type: ignore[arg-type]
+            refresh_daily=self.refresh_daily,
+            min_improvement=self.min_improvement,
+            drift_threshold=self.drift_threshold,
+            list_name=list_framing(self.template, spec)["name"],
+            updated_at=self.updated_at,
         )
+
+
+class ModelVersionRow(SQLModel, table=True):
+    __tablename__ = "model_version"
+
+    id: str = SQLField(default_factory=lambda: uuid.uuid4().hex[:12], primary_key=True)
+    project_id: str = SQLField(index=True)
+    version: int = 1
+    source: str = "baseline"
+    solver_name: str = ""
+    submission_id: str | None = None
+    private_score: float = 0.0
+    public_score: float | None = None
+    metric_name: str = ""
+    business_value: str = ""
+    status: str = "active"
+    created_at: datetime = SQLField(default_factory=_now)
+
+
+class ListRow(SQLModel, table=True):
+    __tablename__ = "scored_list"
+
+    id: str = SQLField(default_factory=lambda: uuid.uuid4().hex[:12], primary_key=True)
+    project_id: str = SQLField(index=True)
+    model_version_id: str = ""
+    model_version: int = 1
+    solver_name: str = ""
+    name: str = ""
+    rows_scored: int = 0
+    top_n: int = 0
+    path: str = ""
+    columns_json: str = "[]"
+    created_at: datetime = SQLField(default_factory=_now)
 
 
 class SubmissionRow(SQLModel, table=True):

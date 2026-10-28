@@ -39,3 +39,11 @@ def toy_df():
             "target": y,
         }
     )
+
+
+@pytest.fixture(scope="session")
+def leads_df():
+    p = TEMPLATES_DIR / "leads" / "dataset.csv"
+    if not p.exists():
+        pytest.skip("leads dataset not fetched")
+    return pd.read_csv(p)

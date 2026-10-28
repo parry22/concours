@@ -1,6 +1,6 @@
 {
   "name": "Card fraud",
-  "description": "Catch more card fraud without annoying good customers.",
+  "description": "Catch more fraud without blocking good customers.",
   "label": "Fraud",
   "icon": "credit-card",
   "dataset": "dataset.csv",
@@ -16,7 +16,7 @@
   },
   "secondary_metric": "pr_auc",
   "business_template": "fraud",
-  "metric_line": "Fraud caught at 1 false alarm per 1,000",
+  "metric_line": "Fraud caught per false alarm",
   "rate_hint": 0.01,
   "words": {
     "positive": "fraud",
@@ -40,5 +40,11 @@
     "cost_per_action": 0.0,
     "cost_per_false_positive": 4.0
   },
-  "scoring_sample": "scoring_sample.csv"
+  "scoring_sample": "scoring_sample.csv",
+  "list": {
+    "name": "Fraud review queue",
+    "top_n": 200,
+    "row_label": "transaction",
+    "action_label": "Review"
+  }
 }

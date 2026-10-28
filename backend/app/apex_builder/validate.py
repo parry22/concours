@@ -1,4 +1,4 @@
-"""Validate the generated package: apex-dev preflight, apex-dev screen, and Brief's local referee run."""
+"""Validate the generated package: apex-dev preflight, apex-dev screen, and Concours's local referee run."""
 from __future__ import annotations
 
 import json
@@ -36,7 +36,7 @@ def screen(comp: Path) -> ValidationStep:
 
 
 def local_run(project_id: str) -> ValidationStep:
-    """apex-dev run is not implemented upstream (exits 3). Brief's arena ran the same referee/player contract."""
+    """apex-dev run is not implemented upstream (exits 3). Concours's arena ran the same referee/player contract."""
     with session() as s:
         subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at.desc())).all()
     scored = [x for x in subs if x.status == "scored" and x.result_json]

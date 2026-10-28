@@ -120,3 +120,14 @@ def test_spec_is_complete():
     assert not spec_is_complete(ProblemSpec(target_column="y", positive_label=1, metric_params={}))
     assert spec_is_complete(ProblemSpec(target_column="y", positive_label=1, metric_params={"fpr": 0.001}))
     assert spec_is_complete(ProblemSpec(target_column="y", task_type="regression", primary_metric="wape"))
+
+
+def test_leads_rationale_uses_template_words():
+    from app.shared.translate import business_card
+
+    spec = decide_metric(FRAUD_PROFILE, ProblemSpec(template="leads", target_column="y", positive_label="yes"), positive_rate=0.117)
+    assert spec.primary_metric == "recall_at_top_k" and spec.business_template == "churn"
+    assert "riskiest 10% of prospects" in spec.metric_rationale
+    assert business_card(spec, 0.2, 0.3) == "Of people who bought, reached by contacting your riskiest 10%: 20% to 30%."
+    churn = decide_metric(FRAUD_PROFILE, ProblemSpec(template="churn", target_column="Churn", positive_label=1), positive_rate=0.15)
+    assert business_card(churn, 0.47, 0.64) == "Of customers who left, reached by contacting your riskiest 10%: 47% to 64%."

@@ -6,6 +6,7 @@ import { ActionBar, NextLink, useProject } from "@/components/ProjectShell";
 import { Alert, Badge, Button, Card, DataTable, Meter, PageHeader, Spinner, Stat, cx } from "@/components/ui";
 import { api, errorText, type DataProfile } from "@/lib/api";
 import { fmtCompact, fmtInt, fmtPct } from "@/lib/format";
+import { upload as copy } from "@/lib/copy";
 
 const MAX_MB = 200;
 
@@ -35,7 +36,7 @@ export default function UploadPage() {
   async function upload(file: File) {
     setError(null);
     if (file.size > MAX_MB * 1024 * 1024) {
-      setError(`That file is ${(file.size / 1024 / 1024).toFixed(0)} MB. The limit is ${MAX_MB} MB.`);
+      setError(copy.tooBig(Number((file.size / 1024 / 1024).toFixed(0)), MAX_MB));
       return;
     }
     setBusy(true);
@@ -69,21 +70,17 @@ export default function UploadPage() {
     <div className="space-y-5">
       {picker}
       <PageHeader
-        title="Your data"
+        title={copy.title}
         actions={
           profile ? (
             <Button variant="secondary" busy={busy} onClick={() => inputRef.current?.click()}>
               <Upload className="h-4 w-4" />
-              {isTemplate ? "Use my own CSV" : "Replace CSV"}
+              {isTemplate ? copy.useOwn : copy.replace}
             </Button>
           ) : null
         }
       >
-        {profile
-          ? isTemplate
-            ? "The sample dataset is loaded. Check it looks right, or swap in your own CSV with the same idea: one row per case, one outcome column."
-            : "Here is what Brief read from your file. Nothing has been changed yet."
-          : "Upload a CSV with one row per case and one column that records the outcome."}
+        {profile ? (isTemplate ? copy.templateLoaded : copy.ownLoaded) : copy.empty}
       </PageHeader>
 
       {error ? <Alert>{error}</Alert> : null}
@@ -108,40 +105,36 @@ export default function UploadPage() {
         >
           {busy ? <Spinner className="h-8 w-8 text-pink" /> : <FileSpreadsheet className="icon-brand h-9 w-9" strokeWidth={1.5} aria-hidden />}
           <div>
-            <p className="text-[15px] font-medium">{busy ? "Reading the file" : "Drop a CSV here"}</p>
-            <p className="mt-1 text-[13px] text-muted">Max {MAX_MB} MB. The file stays on this machine.</p>
+            <p className="text-[15px] font-medium">{busy ? copy.reading : copy.drop}</p>
+            <p className="mt-1 text-[13px] text-muted">{copy.max(MAX_MB)}</p>
           </div>
           <Button size="lg" busy={busy} onClick={() => inputRef.current?.click()}>
             <Upload className="h-4 w-4" />
-            Choose a CSV
+            {copy.choose}
           </Button>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Rows" value={fmtInt(profile.n_rows)} hint={isTemplate ? "Sample dataset" : "As uploaded"} />
-            <Stat label="Columns" value={fmtInt(profile.n_cols)} hint={`${profile.columns.filter((c) => c.looks_like_time).length} look like time`} />
+            <Stat label={copy.rows} value={fmtInt(profile.n_rows)} hint={isTemplate ? copy.sample : copy.asUploaded} />
+            <Stat label={copy.columns} value={fmtInt(profile.n_cols)} hint={copy.lookLikeTime(profile.columns.filter((c) => c.looks_like_time).length)} />
             <Stat
-              label="Outcome rate"
+              label={copy.outcomeRate}
               value={profile.positive_rate != null ? fmtPct(profile.positive_rate, 2) : "n/a"}
-              hint={profile.positive_rate != null ? `About 1 in ${fmtInt(Math.round(1 / Math.max(profile.positive_rate, 1e-9)))} rows` : "Confirmed in the next step"}
+              hint={profile.positive_rate != null ? copy.oneIn(fmtInt(Math.round(1 / Math.max(profile.positive_rate, 1e-9)))) : copy.confirmedNext}
             />
-            <Stat
-              label="Likely outcome column"
-              value={<span className="text-[16px] sm:text-[18px]">{target || "Not sure yet"}</span>}
-              hint="We confirm this together next"
-            />
+            <Stat label={copy.likelyOutcome} value={<span className="num font-sans text-[16px] font-medium sm:text-[18px]">{target || copy.notSure}</span>} hint={copy.confirmTogether} />
           </div>
 
           <Card
-            title="First 10 rows"
-            subtitle="A preview of the data exactly as loaded."
+            title={copy.first10}
+            subtitle={copy.first10Sub}
             actions={<Badge>{fmtCompact(profile.n_rows)} rows</Badge>}
           >
             <DataTable columns={previewCols} rows={profile.preview_rows.slice(0, 10)} highlight={target ? [target] : undefined} className="max-h-[420px]" />
           </Card>
 
-          <Card title="Column health" subtitle="How complete each column is, its type, and anything Brief noticed.">
+          <Card title={copy.health} subtitle={copy.healthSub}>
             <ul className="grid gap-x-8 gap-y-1 md:grid-cols-2">
               {profile.columns.map((c) => {
                 const filled = 1 - c.null_pct / 100;
@@ -155,12 +148,12 @@ export default function UploadPage() {
                       </span>
                       <span className="flex shrink-0 items-center gap-1.5">
                         {c.looks_like_time ? (
-                          <span title="Looks like a time">
+                          <span title={copy.looksLikeTime}>
                             <Clock className="icon-brand h-3.5 w-3.5" />
                           </span>
                         ) : null}
                         {c.pii_masked ? (
-                          <span title="Personal data, masked">
+                          <span title={copy.piiMasked}>
                             <EyeOff className="icon-brand h-3.5 w-3.5" />
                           </span>
                         ) : null}
@@ -170,7 +163,7 @@ export default function UploadPage() {
                     <div className="flex items-center gap-3">
                       <Meter value={filled} color={filled > 0.98 ? "brand" : filled > 0.8 ? "var(--c-peach)" : "var(--danger)"} className="h-1.5 min-w-0 flex-1" />
                       <span className="num shrink-0 text-right text-[11px] whitespace-nowrap text-muted">
-                        {fmtPct(filled, 0)} · {fmtCompact(c.n_unique)} distinct
+                        {fmtPct(filled, 0)} · {fmtCompact(c.n_unique)} {copy.distinct}
                       </span>
                     </div>
                   </li>
@@ -181,8 +174,8 @@ export default function UploadPage() {
         </>
       )}
 
-      <ActionBar hint={profile ? "Next, tell Brief in plain words what you want to predict." : "Upload a CSV to continue."}>
-        <NextLink stage="intake" label="Describe the goal" disabled={!project.has_data} />
+      <ActionBar hint={profile ? copy.hintNext : copy.hintUpload}>
+        <NextLink stage="intake" label={copy.next} disabled={!project.has_data} />
       </ActionBar>
     </div>
   );

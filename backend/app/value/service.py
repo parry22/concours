@@ -99,8 +99,10 @@ def report_for(
     profile: DataProfile | None,
     protect: ProtectReport | None,
     allow_refit: bool,
+    baseline_solver: str = BASELINE_SOLVER,
 ) -> ValueReport | None:
-    """Report for `solver` (or the leader when None). None when nothing is scored or scores are unavailable."""
+    """Report for `solver` (or the leader when None), compared with `baseline_solver` (v1's solver when the caller
+    knows it). None when nothing is scored or scores are unavailable."""
     from app.arena.leaderboard import rank  # noqa: PLC0415 - avoid an import cycle
 
     scored = [s for s in subs if s.status == "scored"]
@@ -117,7 +119,7 @@ def report_for(
     if sc is None:
         return None
     prm = P.resolve(project_id, spec, profile, protect)
-    base = next((s for s in sorted(scored, key=lambda r: r.created_at, reverse=True) if s.solver == BASELINE_SOLVER), None)
+    base = next((s for s in sorted(scored, key=lambda r: r.created_at, reverse=True) if s.solver == baseline_solver), None)
     base_sc = S.split_scores(project_id, base, spec, allow_refit=allow_refit) if base is not None and base.id != sub.id else None
     return build_report(project_id, spec, sub, sc, prm, finalized=finalized, baseline=base if base_sc else None, baseline_scores=base_sc)
 
@@ -127,7 +129,7 @@ def summary_lines(rep: ValueReport | None) -> tuple[str | None, str | None]:
     if rep is None:
         return None, None
     if rep.uplift_net is not None:
-        line = f"Net value vs the baseline: {'+' if rep.uplift_net >= 0 else ''}{_money(rep.uplift_net)} per month"
+        line = f"Net value over your first model: {'+' if rep.uplift_net >= 0 else ''}{_money(rep.uplift_net)} per month"
     else:
         line = rep.headline.split(" (")[0]
     return line, rep.formula

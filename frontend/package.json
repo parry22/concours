@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "lint:copy": "node scripts/copy-lint.mjs",
+    "test": "node scripts/copy-lint.mjs && tsc --noEmit"
   },
   "dependencies": {
     "lucide-react": "^1.62.0",

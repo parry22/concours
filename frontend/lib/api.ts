@@ -2,7 +2,8 @@ import type { components } from "./api-types";
 
 type S = components["schemas"];
 
-export type ProjectOut = S["ProjectOut"];
+// Fields with backend defaults are optional in the schema; the API always sends them.
+export type ProjectOut = S["ProjectOut"] & { versions: S["ModelVersionOut"][] };
 export type ProblemSpec = S["ProblemSpec"];
 export type DataProfile = S["DataProfile"];
 export type ColumnProfile = S["ColumnProfile"];
@@ -19,6 +20,12 @@ export type ValueReport = S["ValueReport"];
 export type ValueParam = S["ValueParam"];
 export type ValuePoint = S["ValuePoint"];
 export type ValueParamsIn = S["ValueParamsIn"];
+export type ModelVersionOut = S["ModelVersionOut"];
+export type ListOut = S["ListOut"];
+export type HealthOut = S["HealthOut"];
+export type PlanOut = S["PlanOut"] & { lines: string[] };
+export type ProjectSettingsIn = S["ProjectSettingsIn"];
+export type ModelStatus = ProjectOut["model_status"];
 export type Stage = ProjectOut["stage"];
 export type TemplateId = S["ProjectCreate"]["template"];
 
@@ -31,20 +38,12 @@ export type TemplateOut = {
   metric_line: string;
   goal: string;
   replies: string[];
+  list: { name: string; top_n: number; row_label: string; action_label: string } | null;
   has_dataset: boolean;
 };
 export type SolverOut = { name: string; label: string; local: boolean; agent?: boolean };
 export type DockerStatus = { available: boolean; info: string };
 export type IntakeStatus = { offline: boolean; model: string; has_key: boolean };
-export type ScoreOut = {
-  rows: number;
-  flagged: number;
-  threshold: number;
-  solver: string;
-  preview: Record<string, unknown>[];
-  columns: string[];
-  download: string;
-};
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -139,22 +138,25 @@ export const api = {
     request<{ path: string; content: string }>(`/projects/${id}/package/file?path=${encodeURIComponent(path)}`),
   handoffUrl: (id: string) => `${API_URL}/projects/${id}/handoff`,
 
-  score: (id: string, file: File, solver?: string) =>
-    request<ScoreOut>(`/projects/${id}/score${solver ? `?solver=${encodeURIComponent(solver)}` : ""}`, {
-      method: "POST",
-      body: form(file),
-    }),
-  scoreDownloadUrl: (id: string) => `${API_URL}/projects/${id}/score/download`,
-  sampleCsv: async (id: string, n = 2000): Promise<File> => {
-    let res: Response;
-    try {
-      res = await fetch(`${API_URL}/projects/${id}/sample-csv?n=${n}`, { cache: "no-store" });
-    } catch {
-      throw new ApiError(0, `Could not reach the backend at ${API_URL}.`);
-    }
-    if (!res.ok) throw await parseError(res);
-    const blob = await res.blob();
-    return new File([blob], "new_rows.csv", { type: "text/csv" });
+  versions: (id: string) => request<ModelVersionOut[]>(`/projects/${id}/versions`),
+  putSettings: (id: string, body: ProjectSettingsIn) => request<ProjectOut>(`/projects/${id}/settings`, json("PUT", body)),
+  plan: (id: string) => request<PlanOut>(`/projects/${id}/plan`),
+
+  lists: (id: string) => request<ListOut[]>(`/projects/${id}/lists`),
+  list: (id: string, listId: string) => request<ListOut>(`/projects/${id}/lists/${listId}`),
+  createList: (id: string, file?: File, opts: { sample?: boolean; top_n?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.sample) q.set("sample", "true");
+    if (opts.top_n) q.set("top_n", String(opts.top_n));
+    return request<ListOut>(`/projects/${id}/lists${q.size ? `?${q}` : ""}`, { method: "POST", body: file ? form(file) : new FormData() });
+  },
+  listDownloadUrl: (id: string, listId: string) => `${API_URL}/projects/${id}/lists/${listId}/download`,
+
+  health: (id: string, file?: File, opts: { sample?: boolean; degrade?: boolean } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.sample) q.set("sample", "true");
+    if (opts.degrade) q.set("degrade", "true");
+    return request<HealthOut>(`/projects/${id}/health${q.size ? `?${q}` : ""}`, { method: "POST", body: file ? form(file) : new FormData() });
   },
 };
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useId, type ReactNode } from "react";
 import { fmtCell } from "@/lib/format";
+import { brand, status as statusCopy, tooltips } from "@/lib/copy";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -140,12 +141,42 @@ const toneStyles: Record<Tone, string> = {
   danger: "bg-danger-soft text-danger",
 };
 
-export function Badge({ tone = "neutral", children, className, dot }: { tone?: Tone; children: ReactNode; className?: string; dot?: boolean }) {
+export function Badge({ tone = "neutral", children, className, dot, title }: { tone?: Tone; children: ReactNode; className?: string; dot?: boolean; title?: string }) {
   return (
-    <span className={cx("inline-flex h-[22px] items-center gap-1.5 rounded-md px-2 text-[12px] font-medium whitespace-nowrap", toneStyles[tone], className)}>
+    <span title={title} className={cx("inline-flex h-[22px] items-center gap-1.5 rounded-md px-2 text-[12px] font-medium whitespace-nowrap", toneStyles[tone], className)}>
       {dot ? <span className={cx("h-1.5 w-1.5 rounded-full", tone === "ok" || tone === "accent" ? "bg-brand" : "bg-current")} /> : null}
       {children}
     </span>
+  );
+}
+
+/** "Improving", "Healthy" or "Slipping" next to a model version. */
+export function StatusPill({ status, className }: { status: "improving" | "healthy" | "slipping" | "none"; className?: string }) {
+  if (status === "none") return null;
+  const tone: Tone = status === "slipping" ? "danger" : status === "improving" ? "accent" : "ok";
+  return (
+    <Badge tone={tone} dot className={className} title={tooltips[status]}>
+      {statusCopy[status]}
+    </Badge>
+  );
+}
+
+/** The result figure that leads a screen: the big gradient number with a label above and a line under it. */
+export function ResultFigure({ label, value, unit, line, delta, className }: { label: ReactNode; value: ReactNode; unit?: ReactNode; line?: ReactNode; delta?: ReactNode; className?: string }) {
+  return (
+    <div className={cx("min-w-0", className)}>
+      <span className="inline-flex h-8 max-w-full items-center gap-2 rounded-lg border border-border-strong bg-card-2 px-3 text-[13px] font-medium">
+        <span className="truncate">{label}</span>
+      </span>
+      <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="num pop-in text-gradient text-[44px] leading-none font-medium tracking-[-0.03em] sm:text-[56px]">
+          {value}
+          {unit ? <span className="ml-0.5 align-top text-[22px] sm:text-[26px]">{unit}</span> : null}
+        </span>
+        {delta ? <span>{delta}</span> : null}
+      </div>
+      {line ? <div className="mt-2 text-[13px] text-muted">{line}</div> : null}
+    </div>
   );
 }
 
@@ -180,11 +211,11 @@ export function Empty({ children, icon }: { children: ReactNode; icon?: ReactNod
 }
 
 /** KPI tile: small label, large monospace figure. */
-export function Stat({ label, value, hint, className }: { label: ReactNode; value: ReactNode; hint?: ReactNode; className?: string }) {
+export function Stat({ label, value, hint, className, accent }: { label: ReactNode; value: ReactNode; hint?: ReactNode; className?: string; accent?: boolean }) {
   return (
     <div className={cx("min-w-0 rounded-2xl border border-border bg-card px-4 py-3.5", className)}>
       <div className="text-[12px] font-medium text-muted">{label}</div>
-      <div className="num mt-1.5 truncate text-[22px] font-medium leading-none sm:text-[26px]">{value}</div>
+      <div className={cx("num mt-1.5 truncate text-[22px] font-medium leading-none sm:text-[26px]", accent && "text-gradient")}>{value}</div>
       {hint ? <div className="mt-2 text-[12px] leading-snug text-muted">{hint}</div> : null}
     </div>
   );
@@ -311,16 +342,16 @@ export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: Re
 }
 
 /**
- * Brief's mark: one cylinder of data cut in two. The lower body is the public data (a seam marks the thin leaderboard
+ * Concours's mark: one cylinder of data cut in two. The lower body is the public data (a seam marks the thin leaderboard
  * band above the training rows); the floating slice with the glowing cap is the sealed private holdout, and light
  * leaks through the gap between them. No background. Same drawing as app/icon.svg, but the viewBox is cropped to the
  * artwork (22 x 28) so the mark sits flush beside text; size it by height with a width of about 0.79 of that.
  */
-export function Logo({ className }: { className?: string }) {
+export function Logo({ className }: { className?: string; compact?: boolean }) {
   // Ids per instance: a gradient defined inside a hidden copy (the desktop sidebar on phones) would not paint elsewhere.
   const id = useId().replace(/:/g, "");
   return (
-    <svg viewBox="5 2 22 28" fill="none" className={cx("h-[22px] w-[17px] overflow-visible", className)} role="img" aria-label="Brief">
+    <svg viewBox="5 2 22 28" fill="none" className={cx("h-[22px] w-[17px] overflow-visible", className)} role="img" aria-label={brand.name}>
       <defs>
         <linearGradient id={`${id}fill`} gradientUnits="userSpaceOnUse" x1="0" y1="3" x2="0" y2="29.5">
           <stop offset="0" stopColor="#fbb39c" />

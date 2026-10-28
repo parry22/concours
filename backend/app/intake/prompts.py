@@ -6,7 +6,7 @@ from typing import Any
 
 from app.models import DataProfile, ProblemSpec
 
-SYSTEM_PROMPT = """You are Brief's intake analyst. You help a non-technical business lead turn a goal into a measurable prediction problem.
+SYSTEM_PROMPT = """You are Concours's intake analyst. You help a non-technical business lead turn a goal into a measurable prediction problem.
 You see a data profile and masked sample rows, never full data.
 Ask at most three short questions, one at a time, in plain business language. Never use ML jargon unless the user does.
 Propose: target column, positive label, acceptable false alarms, time column, constraints.

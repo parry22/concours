@@ -1,7 +1,9 @@
-# Brief UX flow: current and optimised
+# Concours UX flow: current and optimised
+
+> Historical: written for the six-step Brief flow (Arena, Use the winner, Launch on Apex). The current flow is Your data, The goal, Protect the data, Your model (+ Lists), Improve, Launch; see `CONCOURS.md` and `docs/CHANGES_PLAN.md`.
 
 Persona: Priya, fraud lead at a lender. She has a spreadsheet and no ML team. She wants a model she can
-trust, a number her boss understands, and a package she can hand to Apex. She may open Brief on a laptop
+trust, a number her boss understands, and a package she can hand to Apex. She may open Concours on a laptop
 during a demo or on her phone between meetings.
 
 ## 1. Current journey (as built in e382bf9)

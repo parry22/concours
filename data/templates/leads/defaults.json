@@ -1,0 +1,52 @@
+{
+  "name": "Lead conversion",
+  "description": "Call the buyers most likely to say yes.",
+  "label": "Leads",
+  "icon": "megaphone",
+  "dataset": "dataset.csv",
+  "target_column": "y",
+  "positive_label": "yes",
+  "time_column": null,
+  "id_columns_hint": [],
+  "primary_metric": "recall_at_top_k",
+  "metric_params": {
+    "top_k": 0.1
+  },
+  "secondary_metric": "roc_auc",
+  "business_template": "churn",
+  "metric_line": "Buyers reached per call",
+  "rate_hint": 0.12,
+  "words": {
+    "positive": "people who would buy",
+    "negative": "prospects",
+    "short": "buyers",
+    "past": "people who bought",
+    "future": "prospects will buy",
+    "event": "the prospect bought",
+    "team": "sales team",
+    "about_to": "about to buy"
+  },
+  "known_leaks": {
+    "duration": "Call length is only known after the call ends, and long calls are the ones that convert. It is not available when deciding whom to call."
+  },
+  "intake_goal": "We want to know which prospects to call first, since we can only call some of them.",
+  "replies": [
+    "We want to know which prospects to call first, since we can only call some of them.",
+    "We can call the riskiest 10% each month.",
+    "A new subscriber is worth about 150 dollars, a call costs about 3. About 1,500 prospects a month."
+  ],
+  "economics_defaults": {
+    "rows_per_month": 1500,
+    "value_per_positive": 150.0,
+    "action_success_rate": 0.3,
+    "cost_per_action": 3.0,
+    "cost_per_false_positive": 0.0
+  },
+  "scoring_sample": "scoring_sample.csv",
+  "list": {
+    "name": "Lead call list",
+    "top_n": 150,
+    "row_label": "prospect",
+    "action_label": "Call"
+  }
+}

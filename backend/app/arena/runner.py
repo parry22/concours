@@ -19,7 +19,7 @@ from docker.errors import DockerException, ImageNotFound, NotFound
 from app.config import SOLVER_CPUS, SOLVER_MEM, SOLVER_TIMEOUT_S, SOLVERS_DIR, project_dir
 from app.arena.stage import competition_dir
 
-SOLVERS = ["baseline_logreg", "lgbm_default", "lgbm_tuned"]
+SOLVERS = ["baseline_logreg", "lgbm_default", "lgbm_tuned", "lgbm_regularized", "lgbm_ensemble"]
 
 
 @dataclass
@@ -36,7 +36,7 @@ def client() -> docker.DockerClient:
 
 
 def image_tag(project_id: str, side: str) -> str:
-    return f"brief-{side}-{project_id}"
+    return f"concours-{side}-{project_id}"
 
 
 def build_images(project_id: str, log) -> None:
@@ -68,8 +68,8 @@ def run_submission(project_id: str, submission_id: str, solver: str, config: dic
     out_dir.mkdir(parents=True, exist_ok=True)
     out_dir.chmod(0o777)
     sub_path = submission_path or (SOLVERS_DIR / solver / "submission.py")
-    net_name = f"brief-net-{project_id}-{submission_id}"
-    player_name = f"brief-player-{project_id}-{submission_id}"
+    net_name = f"concours-net-{project_id}-{submission_id}"
+    player_name = f"concours-player-{project_id}-{submission_id}"
     t0 = time.monotonic()
     net = player = referee = None
     try:

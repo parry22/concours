@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the Brief backend (FastAPI on 8000) and frontend (Next.js on 3000).
+# Start the Concours backend (FastAPI on 8000) and frontend (Next.js on 3000).
 # Usage: scripts/dev.sh [backend|frontend|both]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

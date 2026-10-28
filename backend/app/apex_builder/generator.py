@@ -14,9 +14,12 @@ from app.arena.stage import HIDDEN_FILES, competition_dir, stage
 from app.config import SOLVER_CPUS, SOLVER_TIMEOUT_S, project_dir
 from app.db import session
 from app.models import ProblemSpec, ProjectRow, SubmissionRow
+from app.models_registry import plan as plan_mod
+from app.models_registry import promotion
 from app.packager.protect import sha256_file
 from app.shared.metrics import METRIC_NAMES
 from app.shared.translate import business_card
+from app.templates import words
 
 TEMPLATES = Path(__file__).parent / "templates"
 ZERO = "sha256:" + "0" * 64
@@ -24,22 +27,24 @@ env = Environment(loader=FileSystemLoader(str(TEMPLATES)), autoescape=select_aut
 
 
 def competition_id(row: ProjectRow) -> str:
-    return f"brief_{row.template}_{row.id}"[:64]
+    return f"concours_{row.template}_{row.id}"[:64]
 
 
 def task_description(spec: ProblemSpec, row: ProjectRow) -> str:
+    w = words(spec.template, spec.business_template)
     if spec.business_template == "fraud":
-        return f"Predict which rows are fraud (target `{spec.target_column}`) so that more fraud is caught at a fixed false-alarm budget."
+        return f"Predict which rows are {w['short']} (target `{spec.target_column}`) so that more {w['short']} is caught at a fixed false-alarm budget."
     if spec.business_template == "churn":
-        return f"Predict which customers will leave (target `{spec.target_column}`) so the riskiest can be contacted first."
+        return f"Predict which {w['future']} (target `{spec.target_column}`) so the riskiest can be contacted first."
     return f"Predict `{spec.target_column}` from the other columns."
 
 
 def success_statement(spec: ProblemSpec) -> str:
+    w = words(spec.template, spec.business_template)
     if spec.business_template == "fraud":
-        return "A model the fraud team would switch on tomorrow: it catches clearly more fraud than today's rules at the same number of blocked good customers, and keeps doing so on next month's transactions."
+        return f"A model the {w['team']} would switch on tomorrow: it catches clearly more {w['short']} than today's rules at the same number of blocked good customers, and keeps doing so on next month's transactions."
     if spec.business_template == "churn":
-        return "A ranking the retention team can act on: the customers it puts first really are the ones about to leave, and that holds on the next cohort."
+        return f"A ranking the {w['team']} can act on: the {w['negative']} it puts first really are the ones {w['about_to']}, and that holds on the next cohort."
     return "A model that improves on the baseline on fresh data and is simple enough to run inside the owner's systems."
 
 
@@ -54,7 +59,12 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
         spec = row.spec()
         report = row.protect()
         subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at)).all()
-        board = leaderboard.build(project_id, subs, spec, True)
+        versions = promotion.versions_for(s, project_id)
+        v1 = next((v for v in versions if v.version == 1), None)
+        active = next((v for v in versions if v.status == "active"), None)
+        board = leaderboard.build(project_id, subs, spec, True, v1_submission_id=v1.submission_id if v1 else None, v1_solver=v1.solver_name if v1 else None)
+        suggested_reward = plan_mod.suggested_reward(s, row)
+        min_improvement = row.min_improvement
     comp = stage(project_id, spec) if not (competition_dir(project_id) / "player" / "launch.py").exists() else competition_dir(project_id)
     cid = competition_id(row)
     parts = {p.name: p for p in report.parts}
@@ -74,7 +84,7 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
     ctx = {
         "competition_id": cid,
         "version": "0.1.0",
-        "display_name": f"{row.name} (Brief)",
+        "display_name": f"{row.name} (Concours)",
         "date": date.today().isoformat(),
         "cpu_limit": int(SOLVER_CPUS) if float(SOLVER_CPUS).is_integer() else SOLVER_CPUS,
         "mem_limit": "2Gi",
@@ -91,7 +101,7 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
         "metric_name": METRIC_NAMES.get(spec.primary_metric, spec.primary_metric),
         "metric_params": ", ".join(f"{k}={v}" for k, v in spec.metric_params.items()),
         "secondary_name": METRIC_NAMES.get(spec.secondary_metric or "", spec.secondary_metric or "none"),
-        "metric_rationale": spec.metric_rationale or "chosen by Brief's metric policy from the positive rate",
+        "metric_rationale": spec.metric_rationale or "chosen by Concours's metric policy from the positive rate",
         "split_strategy": "by time (oldest 70% train, next 10% leaderboard, newest 20% holdout)" if report.strategy == "time" else "stratified random 70/10/20, seed 42",
         "train_rows": train_rows,
         "lb_rows": lb_rows,
@@ -107,6 +117,11 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
         "best_private": f"{best.private_score:.4f}" if best and best.private_score is not None else "not run",
         "best_solver": best.solver if best else "none",
         "business_card": board.business_card or "",
+        "v1_line": f"v{v1.version} ({v1.solver_name}, {v1.private_score:.4f})" if v1 else "not built",
+        "active_line": f"v{active.version} ({active.solver_name}, {active.private_score:.4f})" if active else "not built",
+        "n_versions": len(versions),
+        "min_improvement_pct": f"{min_improvement * 100:g}%",
+        "suggested_reward": f"${suggested_reward:,.0f}",
         "takeover_margin": f"{best.private_score * 0.01:.4f}" if best and best.private_score else "n/a",
         "eval_seconds": f"{eval_s:.0f}",
         "n_batches": n_batches,

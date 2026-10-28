@@ -1,6 +1,6 @@
 # Value model
 
-How Brief turns a leaderboard score into money. Replaces the single-line savings estimate
+How Concours turns a leaderboard score into money. Replaces the single-line savings estimate
 (`volume x positive rate x recall lift x cost per miss`) that shipped first.
 
 ## What changed

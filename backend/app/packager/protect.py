@@ -12,6 +12,7 @@ from app.packager.checks import constant, cross_split_dup, id_like, pii, post_ou
 from app.packager.checks.base import CheckContext
 from app.packager.split import make_split, split_parts
 from app.packager.transform import Transform
+from app.templates import known_leaks
 
 # target_leak runs before constant: a rare-but-perfect column (99% zeros) is a leak, not noise
 COLUMN_CHECKS = (id_like.run, pii.run, post_outcome_name.run, target_leak.run, constant.run)
@@ -42,6 +43,10 @@ def coerce_positive(df: pd.DataFrame, target: str, positive):
 def run_column_checks(df: pd.DataFrame, spec: ProblemSpec) -> CheckContext:
     positive = coerce_positive(df, spec.target_column, spec.positive_label)
     ctx = CheckContext(df=df, target=spec.target_column, positive=positive, time_column=spec.time_column)
+    # columns the template documents as recorded after the outcome but too weak for the statistical test alone
+    for col, reason in known_leaks(spec.template).items():
+        if col in df.columns and col != spec.target_column:
+            ctx.drop(Finding(check="known_leak", severity="high", column=col, reason=reason, action="dropped", evidence={"source": "template"}))
     for check in COLUMN_CHECKS:
         check(ctx)
     # a warned post-outcome column that was then dropped by target_leak: keep only the drop finding

@@ -23,19 +23,11 @@ export function fmtMoney(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 }
 
-export function solverLabel(name: string): string {
-  const map: Record<string, string> = {
-    baseline_logreg: "Baseline (logistic regression)",
-    lgbm_default: "LightGBM, default settings",
-    lgbm_tuned: "LightGBM, tuned",
-    agent_solver: "Agent solver",
-    agent_solver_1: "Agent solver, attempt 1",
-    agent_solver_2: "Agent solver, attempt 2",
-    agent_solver_3: "Agent solver, attempt 3",
-  };
-  const agent = name.match(/^agent_solver_(\d+)$/);
-  if (agent) return `Agent solver, attempt ${agent[1]}`;
-  return map[name] || name.replace(/_/g, " ");
+/** Attempt label for the Improve screen: never an algorithm name. Local solvers are numbered; agent attempts named. */
+export function attemptLabel(solver: string, index?: number): string {
+  const agent = solver.match(/^agent_solver_(\d+)$/);
+  if (agent) return `Agent attempt ${agent[1]}`;
+  return index != null ? `Attempt ${index}` : "Attempt";
 }
 
 export function metricLabel(metric: string, params: Record<string, unknown> | undefined): string {
@@ -58,7 +50,8 @@ export function rawMetricLabel(metric: string, params: Record<string, unknown> |
   return metric;
 }
 
-export function fmtAgo(iso: string): string {
+export function fmtAgo(iso: string | null | undefined): string {
+  if (!iso) return "";
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return "";
   const s = Math.max(0, (Date.now() - t) / 1000);
@@ -69,20 +62,22 @@ export function fmtAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+export function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 export function fmtCompact(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return "";
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
 
-/** Short solver name for tight spaces. */
-export function solverShort(name: string): string {
-  const map: Record<string, string> = {
-    baseline_logreg: "Baseline",
-    lgbm_default: "LightGBM",
-    lgbm_tuned: "LightGBM tuned",
-    agent_solver: "Agent",
-  };
-  const agent = name.match(/^agent_solver_(\d+)$/);
-  if (agent) return `Agent ${agent[1]}`;
-  return map[name] || name.replace(/_/g, " ");
+/** "84%" from a business line like "Fraud caught at 1 false alarm per 1,000 good transactions: 84%". */
+export function figureOf(line: string | null | undefined): { label: string; value: string } | null {
+  if (!line) return null;
+  const i = line.lastIndexOf(":");
+  if (i < 0) return null;
+  return { label: line.slice(0, i).trim(), value: line.slice(i + 1).trim() };
 }

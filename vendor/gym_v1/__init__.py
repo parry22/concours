@@ -1,4 +1,4 @@
-# VENDORED from macrocosm-os/apex-competitions-builder @ 49eb05e (src/apex_sdk/gym_v1). Imports rewritten; player.py do_POST patched by Brief.
+# VENDORED from macrocosm-os/apex-competitions-builder @ 49eb05e (src/apex_sdk/gym_v1). Imports rewritten; player.py do_POST patched by Concours.
 """The gym_v1 duel protocol: player server base, referee harness, and referee-side client."""
 
 from gym_v1.client import PlayerClient, PlayerError

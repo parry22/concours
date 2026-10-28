@@ -1,35 +1,48 @@
-"""Brief backend. One FastAPI app, six service modules, SQLite + workspace/ on disk."""
+"""Concours backend. One FastAPI app, SQLite + workspace/ on disk.
+
+Flow: upload, intake, protect (which builds model version 1), model (lists, performance watch), improve
+(contest rounds and promotions), launch (Apex handoff)."""
 from __future__ import annotations
 
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 
-from app.config import MAX_UPLOAD_MB, project_dir
+from app.config import BASELINE_SOLVERS, MAX_UPLOAD_MB, project_dir
 from app.db import get_session, init_db
 from app.models import (
     DataProfile,
+    HealthOut,
+    ListOut,
+    ModelVersionOut,
+    PlanOut,
     ProblemSpec,
     ProjectCreate,
     ProjectOut,
     ProjectRow,
+    ProjectSettingsIn,
     ProtectReport,
     ValueParamsIn,
     ValueReport,
 )
+from app.models_registry import health as health_mod
+from app.models_registry import lists as lists_mod
+from app.models_registry import plan as plan_mod
+from app.models_registry import promotion
 from app.packager.profile import profile_dataframe, read_csv
 from app.value import params as value_params_mod
 from app.value import service as value_service
 from app.packager.protect import protect
 from app.templates import dataset_path, list_templates, load_defaults, spec_from_defaults
 
-app = FastAPI(title="Brief", version="0.1.0", description="Turn a spreadsheet prediction problem into a protected, Apex-ready competition.")
+app = FastAPI(title="Concours", version="0.2.0", description="A working model today. A global network of solvers keeps improving it.")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-STAGES = ["upload", "intake", "protect", "arena", "serve", "launch"]
+STAGES = ["upload", "intake", "protect", "model", "improve", "launch"]
 
 
 @app.on_event("startup")
@@ -47,6 +60,13 @@ def get_project(project_id: str, s: Session) -> ProjectRow:
 def advance(row: ProjectRow, stage: str) -> None:
     if STAGES.index(stage) > STAGES.index(row.stage):
         row.stage = stage
+    row.updated_at = datetime.now(timezone.utc)
+
+
+def project_out(row: ProjectRow, s: Session) -> ProjectOut:
+    from app.arena import service as _arena  # noqa: PLC0415
+
+    return row.to_out(promotion.versions_out(s, row.id, row.spec()), running=_arena.is_running(row.id))
 
 
 # ---------- templates and projects ----------
@@ -60,7 +80,7 @@ def templates() -> list[dict]:
 @app.get("/projects", response_model=list[ProjectOut])
 def list_projects(s: Session = Depends(get_session)) -> list[ProjectOut]:
     rows = s.exec(select(ProjectRow).order_by(ProjectRow.created_at.desc())).all()
-    return [r.to_out() for r in rows]
+    return [project_out(r, s) for r in rows]
 
 
 @app.post("/projects", response_model=ProjectOut)
@@ -77,12 +97,32 @@ def create_project(body: ProjectCreate, s: Session = Depends(get_session)) -> Pr
             s.add(row)
             s.commit()
             s.refresh(row)
-    return row.to_out()
+    return project_out(row, s)
 
 
 @app.get("/projects/{project_id}", response_model=ProjectOut)
 def get_project_out(project_id: str, s: Session = Depends(get_session)) -> ProjectOut:
-    return get_project(project_id, s).to_out()
+    return project_out(get_project(project_id, s), s)
+
+
+@app.put("/projects/{project_id}/settings", response_model=ProjectOut)
+def put_settings(project_id: str, body: ProjectSettingsIn, s: Session = Depends(get_session)) -> ProjectOut:
+    """Refresh preference (stored only, no scheduler yet), promotion margin and drift threshold."""
+    row = get_project(project_id, s)
+    if body.refresh_daily is not None:
+        row.refresh_daily = body.refresh_daily
+    if body.min_improvement is not None:
+        if not 0 <= body.min_improvement <= 1:
+            raise HTTPException(400, "min_improvement must be between 0 and 1")
+        row.min_improvement = body.min_improvement
+    if body.drift_threshold is not None:
+        if not 0 <= body.drift_threshold <= 1:
+            raise HTTPException(400, "drift_threshold must be between 0 and 1")
+        row.drift_threshold = body.drift_threshold
+    row.updated_at = datetime.now(timezone.utc)
+    s.add(row)
+    s.commit()
+    return project_out(row, s)
 
 
 @app.delete("/projects/{project_id}")
@@ -156,7 +196,7 @@ def put_spec(project_id: str, spec: ProblemSpec, s: Session = Depends(get_sessio
     advance(row, "protect")
     s.add(row)
     s.commit()
-    return row.to_out()
+    return project_out(row, s)
 
 
 # ---------- protect ----------
@@ -173,9 +213,21 @@ def run_protect(project_id: str, s: Session = Depends(get_session)) -> ProtectRe
         raise HTTPException(400, f"target column {spec.target_column} is not in the data")
     report, _ = protect(df, spec, project_dir(project_id) / "protected")
     row.protect_json = report.model_dump_json()
-    advance(row, "arena")
+    # a new protected split invalidates the versions built on the old one
+    for v in promotion.versions_for(s, project_id):
+        s.delete(v)
+    row.active_model_id = None
+    row.finalized = False
+    row.health, row.health_json = "unknown", None
+    row.stage = "protect"
+    row.updated_at = datetime.now(timezone.utc)
     s.add(row)
     s.commit()
+    # version 1 starts now: the baseline solvers run (replayed from cache when the data is known)
+    try:
+        arena.start_run(project_id, list(BASELINE_SOLVERS), replay=True, purpose="baseline")
+    except RuntimeError:
+        pass  # a run is in progress; after_run builds v1 when it ends
     return report
 
 
@@ -236,10 +288,10 @@ def arena_run(project_id: str, body: ArenaRunRequest | None = None, s: Session =
     if unknown:
         raise HTTPException(400, f"unknown solvers {unknown}")
     try:
-        ids = arena.start_run(project_id, solvers, replay=body.replay, rebuild=body.rebuild)
+        ids = arena.start_run(project_id, solvers, replay=body.replay, rebuild=body.rebuild, purpose="contest")
     except RuntimeError as e:
         raise HTTPException(409, str(e)) from e
-    advance(row, "arena")
+    advance(row, "improve")
     s.add(row)
     s.commit()
     return {"submission_ids": ids}
@@ -251,8 +303,13 @@ def arena_leaderboard(project_id: str, s: Session = Depends(get_session)) -> Lea
     spec = row.spec()
     if not spec:
         raise HTTPException(409, "confirm the problem spec first")
-    subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at)).all()
-    return leaderboard.build(project_id, subs, spec, row.finalized, profile=row.profile(), protect=row.protect())
+    return arena.build_board(s, project_id, spec, row)
+
+
+@app.get("/projects/{project_id}/versions", response_model=list[ModelVersionOut])
+def versions(project_id: str, s: Session = Depends(get_session)) -> list[ModelVersionOut]:
+    row = get_project(project_id, s)
+    return promotion.versions_out(s, project_id, row.spec())
 
 
 # ---------- value model ----------
@@ -266,7 +323,9 @@ def value_report(project_id: str, solver: str | None = None, s: Session = Depend
     if not spec:
         raise HTTPException(409, "confirm the problem spec first")
     subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at)).all()
-    rep = value_service.report_for(project_id, spec, subs, solver, finalized=row.finalized, profile=row.profile(), protect=row.protect(), allow_refit=True)
+    v1 = next((v for v in promotion.versions_for(s, project_id) if v.version == 1), None)
+    rep = value_service.report_for(project_id, spec, subs, solver, finalized=True, profile=row.profile(), protect=row.protect(), allow_refit=True,
+                                   baseline_solver=v1.solver_name if v1 else "baseline_logreg")
     if rep is None:
         raise HTTPException(409, "no scored submission to price yet")
     return rep
@@ -334,8 +393,7 @@ from fastapi.responses import FileResponse  # noqa: E402
 
 from app.apex_builder import generator, validate  # noqa: E402
 from app.handoff.build import build_zip  # noqa: E402
-from app.models import PackageOut  # noqa: E402
-from app.serving.score import score_csv  # noqa: E402
+from app.models import ListRow, PackageOut  # noqa: E402
 
 
 @app.post("/projects/{project_id}/package", response_model=PackageOut)
@@ -346,7 +404,7 @@ def build_package(project_id: str, s: Session = Depends(get_session)) -> Package
     if arena.is_running(project_id):
         raise HTTPException(409, "wait for the arena run to finish")
     if runner.image_id(project_id, "player") is None or runner.image_id(project_id, "referee") is None:
-        # arena replayed cached scores, so the images for this project were never built; build them now
+        # cached replays never built this project's images; build them now
         from app.arena.stage import stage  # noqa: PLC0415
 
         stage(project_id, row.spec())
@@ -361,6 +419,7 @@ def build_package(project_id: str, s: Session = Depends(get_session)) -> Package
                      steps=steps, files=generator.file_list(comp))
     row.apex_validation = status
     row.package_json = out.model_dump_json()
+    advance(row, "launch")
     s.add(row)
     s.commit()
     return out
@@ -398,56 +457,140 @@ def handoff(project_id: str, s: Session = Depends(get_session)):
     advance(row, "launch")
     s.add(row)
     s.commit()
-    return FileResponse(path, media_type="application/zip", filename=f"brief-handoff-{generator.competition_id(row)}.zip")
+    return FileResponse(path, media_type="application/zip", filename=f"concours-handoff-{generator.competition_id(row)}.zip")
 
 
-@app.post("/projects/{project_id}/score")
-async def score(project_id: str, file: UploadFile = File(...), solver: str | None = None, s: Session = Depends(get_session)) -> dict:
+# ---------- lists (batch delivery) and the performance watch ----------
+
+
+def _active_version(row: ProjectRow, s: Session):
+    v = promotion.active_version(s, row.id)
+    if v is None:
+        raise HTTPException(409, "no model yet: protect the data first and version 1 is built automatically")
+    return v
+
+
+async def _save_upload(file: UploadFile, dst: Path) -> None:
+    with open(dst, "wb") as f:
+        while chunk := await file.read(1 << 20):
+            f.write(chunk)
+
+
+def _sample_rows(row: ProjectRow, n: int, *, labeled: bool, degrade: bool) -> Path:
+    """Fresh rows for the demo: the newest holdout rows, with or without labels, optionally degraded."""
+    import pandas as pd  # noqa: PLC0415
+
+    spec = row.spec()
+    src = project_dir(row.id) / "protected" / "holdout.csv"
+    df = pd.read_csv(src).tail(n).reset_index(drop=True)
+    if labeled:
+        y = pd.read_csv(project_dir(row.id) / "protected" / "holdout_labels.csv")["label"].tail(n).to_numpy()
+        pos = spec.positive_label if spec.positive_label is not None else 1
+        neg = 0 if isinstance(pos, int) else "no"
+        df[spec.target_column] = [pos if v == 1 else neg for v in y]
+        if degrade:
+            df = health_mod.degrade(df, spec.target_column)
+    out = project_dir(row.id) / "serving"
+    out.mkdir(exist_ok=True)
+    p = out / ("sample_labeled.csv" if labeled else "sample_new_rows.csv")
+    df.to_csv(p, index=False)
+    return p
+
+
+@app.post("/projects/{project_id}/lists", response_model=ListOut)
+async def create_list(project_id: str, file: UploadFile | None = File(None), sample: bool = False, n: int = 2000, top_n: int | None = None,
+                      s: Session = Depends(get_session)) -> ListOut:
+    """Upload new rows (or `sample=true` for fresh holdout rows), score them with the active model, return the ranked list."""
     row = get_project(project_id, s)
     spec = row.spec()
     if not spec or not row.protect():
         raise HTTPException(409, "run protection first")
-    chosen = solver or row.winner_solver or "lgbm_tuned"
-    if chosen not in runner.SOLVERS:
-        raise HTTPException(400, f"unknown solver {chosen}")
-    sdir = project_dir(project_id) / "serving"
-    sdir.mkdir(exist_ok=True)
-    src, dst = sdir / "input.csv", sdir / "scored.csv"
-    with open(src, "wb") as f:
-        while chunk := await file.read(1 << 20):
-            f.write(chunk)
+    version = _active_version(row, s)
+    if file is not None:
+        src = project_dir(project_id) / "lists" / "upload.csv"
+        src.parent.mkdir(exist_ok=True)
+        await _save_upload(file, src)
+    elif sample:
+        src = _sample_rows(row, n, labeled=False, degrade=False)
+    else:
+        raise HTTPException(400, "upload a CSV or pass sample=true")
     try:
-        result = score_csv(project_id, chosen, spec, src, dst)
+        rec = lists_mod.build(s, row, version, spec, src, top_n=top_n)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    advance(row, "serve")
-    s.add(row)
-    s.commit()
-    result["download"] = f"/projects/{project_id}/score/download"
-    return result
+    return lists_mod.to_out(rec, row.template, spec)
 
 
-@app.get("/projects/{project_id}/score/download")
-def score_download(project_id: str, s: Session = Depends(get_session)):
+@app.get("/projects/{project_id}/lists", response_model=list[ListOut])
+def get_lists(project_id: str, s: Session = Depends(get_session)) -> list[ListOut]:
+    row = get_project(project_id, s)
+    recs = lists_mod.for_project(s, project_id)
+    return [lists_mod.to_out(r, row.template, row.spec(), preview=(i == 0)) for i, r in enumerate(recs)]
+
+
+@app.get("/projects/{project_id}/lists/{list_id}", response_model=ListOut)
+def get_list(project_id: str, list_id: str, s: Session = Depends(get_session)) -> ListOut:
+    row = get_project(project_id, s)
+    rec = s.get(ListRow, list_id)
+    if rec is None or rec.project_id != project_id:
+        raise HTTPException(404, "no such list")
+    return lists_mod.to_out(rec, row.template, row.spec())
+
+
+@app.get("/projects/{project_id}/lists/{list_id}/download")
+def download_list(project_id: str, list_id: str, s: Session = Depends(get_session)):
     get_project(project_id, s)
-    p = project_dir(project_id) / "serving" / "scored.csv"
-    if not p.exists():
-        raise HTTPException(404, "score a CSV first")
-    return FileResponse(p, media_type="text/csv", filename="scored.csv")
+    rec = s.get(ListRow, list_id)
+    if rec is None or rec.project_id != project_id or not Path(rec.path).exists():
+        raise HTTPException(404, "no such list")
+    slug = rec.name.lower().replace(" ", "-")
+    return FileResponse(rec.path, media_type="text/csv", filename=f"{slug}-v{rec.model_version}-{rec.created_at:%Y%m%d}.csv")
 
 
-@app.get("/projects/{project_id}/sample-csv")
-def sample_csv(project_id: str, n: int = 2000, s: Session = Depends(get_session)):
-    """A fresh CSV for the demo: the newest rows of the holdout, without labels."""
+@app.post("/projects/{project_id}/health", response_model=HealthOut)
+async def check_health(project_id: str, file: UploadFile | None = File(None), sample: bool = False, degrade: bool = False, n: int = 2000,
+                       s: Session = Depends(get_session)) -> HealthOut:
+    """Score fresh labeled rows with the active model and compare with its holdout score. Sets project.health."""
     import pandas as pd  # noqa: PLC0415
 
     row = get_project(project_id, s)
+    spec = row.spec()
+    if not spec or not row.protect():
+        raise HTTPException(409, "run protection first")
+    version = _active_version(row, s)
+    if file is not None:
+        src = project_dir(project_id) / "serving" / "health_upload.csv"
+        src.parent.mkdir(exist_ok=True)
+        await _save_upload(file, src)
+    elif sample:
+        src = _sample_rows(row, n, labeled=True, degrade=degrade)
+    else:
+        raise HTTPException(400, "upload a labeled CSV or pass sample=true")
+    try:
+        result = health_mod.evaluate(project_id, version, spec, pd.read_csv(src, low_memory=False), drift_threshold=row.drift_threshold)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    row.health = result.health
+    row.health_json = result.model_dump_json()
+    row.updated_at = datetime.now(timezone.utc)
+    s.add(row)
+    s.commit()
+    return result
+
+
+@app.get("/projects/{project_id}/plan", response_model=PlanOut)
+def improvement_plan(project_id: str, s: Session = Depends(get_session)) -> PlanOut:
+    """Illustrative subscription plus success fee on the measured improvement over v1. No payment is taken."""
+    return plan_mod.improvement_plan(s, get_project(project_id, s))
+
+
+@app.get("/projects/{project_id}/sample-csv")
+def sample_csv(project_id: str, n: int = 2000, labeled: bool = False, degrade: bool = False, s: Session = Depends(get_session)):
+    """A fresh CSV for the demo: the newest holdout rows. `labeled=true` adds the outcome column (for the performance watch)."""
+    row = get_project(project_id, s)
     if not row.protect():
         raise HTTPException(409, "run protection first")
-    src = project_dir(project_id) / "protected" / "holdout.csv"
-    p = project_dir(project_id) / "serving" / "sample_new_rows.csv"
-    p.parent.mkdir(exist_ok=True)
-    pd.read_csv(src).tail(n).to_csv(p, index=False)
+    p = _sample_rows(row, n, labeled=labeled, degrade=degrade)
     return FileResponse(p, media_type="text/csv", filename="new_rows.csv")
 
 
@@ -465,7 +608,7 @@ async def intake(project_id: str, body: IntakeRequest, s: Session = Depends(get_
     prof = row.profile()
     if not prof:
         raise HTTPException(409, "upload a CSV first")
-    resp = await _agent.turn(template=row.template, profile=prof, spec=row.spec(), history=row.intake(), user_message=body.message)
+    resp = await _agent.turn(template=row.template, profile=prof, spec=row.spec(), history=row.intake(), user_message=body.message, prefer_cache=body.prefer_cache)
     row.set_intake(resp.history)
     if resp.spec:
         row.set_spec(resp.spec)

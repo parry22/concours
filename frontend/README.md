@@ -1,4 +1,4 @@
-# Brief frontend
+# Concours frontend
 
 Next.js 15 (App Router), TypeScript, Tailwind 4, Recharts. Talks to the FastAPI backend over REST and
 server-sent events.

@@ -1,7 +1,8 @@
-"""Download the two template datasets into data/templates/<name>/dataset.csv.
+"""Download the template datasets into data/templates/<name>/dataset.csv.
 
 Fraud: 31 daily pickles (2018-07-01..2018-07-31) from Fraud-Detection-Handbook/simulated-data-raw.
 Churn: UCI dataset 563 (Iranian Churn), CC BY 4.0.
+Leads: UCI dataset 222 (Bank Marketing, bank-full.csv), CC BY 4.0.
 No GPL code from the handbook is used; only its published data files are read.
 """
 from __future__ import annotations
@@ -18,6 +19,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1] / "data" / "templates"
 FRAUD_BASE = "https://raw.githubusercontent.com/Fraud-Detection-Handbook/simulated-data-raw/main/data/"
 CHURN_ZIP = "https://archive.ics.uci.edu/static/public/563/iranian+churn+dataset.zip"
+LEADS_ZIP = "https://archive.ics.uci.edu/static/public/222/bank+marketing.zip"
 
 
 def fetch(url: str) -> bytes:
@@ -61,9 +63,28 @@ def churn() -> Path:
     return out
 
 
+def leads() -> Path:
+    """bank-full.csv as published (`;` separated), with `,` as the separator. It has month and day of month but no
+    year, and the campaign's last months are a different regime (about a third of contacts convert against 6% at the
+    start), so the template splits stratified rather than by time."""
+    out = ROOT / "leads" / "dataset.csv"
+    if out.exists():
+        print("leads: exists", out)
+        return out
+    outer = zipfile.ZipFile(io.BytesIO(fetch(LEADS_ZIP)))
+    inner = zipfile.ZipFile(io.BytesIO(outer.read("bank.zip")))
+    df = pd.read_csv(io.BytesIO(inner.read("bank-full.csv")), sep=";")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(out, index=False)
+    print(f"leads: wrote {len(df)} rows, conversion rate {(df['y'] == 'yes').mean():.4%}, cols={list(df.columns)}")
+    return out
+
+
 if __name__ == "__main__":
-    which = sys.argv[1:] or ["fraud", "churn"]
+    which = sys.argv[1:] or ["fraud", "churn", "leads"]
     if "fraud" in which:
         fraud()
     if "churn" in which:
         churn()
+    if "leads" in which:
+        leads()

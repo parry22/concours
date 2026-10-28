@@ -5,7 +5,8 @@ import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip,
 import { ChevronDown, RotateCcw } from "lucide-react";
 import { Badge, Button, Spinner, cx, inputClass } from "@/components/ui";
 import { api, errorText, type ValueParam, type ValueParamsIn, type ValueReport } from "@/lib/api";
-import { fmtInt, fmtPct, solverLabel } from "@/lib/format";
+import { fmtInt, fmtPct } from "@/lib/format";
+import { value as copy } from "@/lib/copy";
 
 function money(x: number | null | undefined, digits = 0): string {
   if (x == null || !Number.isFinite(x)) return "–";
@@ -24,14 +25,14 @@ function paramValue(p: ValueParam): string {
 }
 
 const SOURCE_TONE: Record<ValueParam["source"], { label: string; tone: "ok" | "accent" | "warn" }> = {
-  data: { label: "Measured", tone: "ok" },
-  user: { label: "Yours", tone: "accent" },
-  default: { label: "Placeholder", tone: "warn" },
+  data: { label: copy.measured, tone: "ok" },
+  user: { label: copy.yours, tone: "accent" },
+  default: { label: copy.placeholder, tone: "warn" },
 };
 
 const USER_KEYS: (keyof ValueParamsIn)[] = ["rows_per_month", "value_per_positive", "action_success_rate", "cost_per_action", "cost_per_false_positive"];
 
-export function ValuePanel({ projectId, version, finalized, onChange }: { projectId: string; version: number; finalized: boolean; onChange?: () => void }) {
+export function ValuePanel({ projectId, version, activeVersion, onChange }: { projectId: string; version: number; activeVersion: number | null; onChange?: () => void }) {
   const [report, setReport] = useState<ValueReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function ValuePanel({ projectId, version, finalized, onChange }: { projec
 
   useEffect(() => {
     void load();
-  }, [load, version, finalized]);
+  }, [load, version, activeVersion]);
 
   const dirty = Object.keys(edits).length > 0;
 
@@ -105,12 +106,12 @@ export function ValuePanel({ projectId, version, finalized, onChange }: { projec
       <div className="text-[13px] leading-relaxed text-muted">
         {loading ? (
           <span className="flex items-center gap-2">
-            <Spinner className="h-3.5 w-3.5" /> Pricing the leader
+            <Spinner className="h-3.5 w-3.5" /> {copy.pricing}
           </span>
         ) : error ? (
           <span className="text-danger">{error}</span>
         ) : (
-          "Appears once a solver is scored."
+          copy.appears
         )}
       </div>
     );
@@ -127,62 +128,58 @@ export function ValuePanel({ projectId, version, finalized, onChange }: { projec
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
-        <span>{solverLabel(report.solver)}</span>
+        <span>{copy.modelLabel(activeVersion)}</span>
         <span aria-hidden>·</span>
-        <span>{report.eval_split === "holdout" ? "Priced on the private holdout" : "Priced on the public slice, finalize for the holdout figure"}</span>
+        <span>{copy.pricedOn(report.eval_split === "holdout")}</span>
         {loading ? <Spinner className="h-3 w-3" /> : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Figure label="Net value per month" value={money(c.net)} hint={c.net_low != null && c.net_high != null ? `90% range ${money(c.net_low)} to ${money(c.net_high)}` : undefined} accent />
-        <Figure label="Against the simple baseline" value={report.uplift_net != null ? signedMoney(report.uplift_net) : "–"} hint={b ? `Baseline nets ${money(b.net)} a month` : "Run the baseline solver to compare"} />
-        <Figure label="At stake without a model" value={money(report.exposure_per_month)} hint={`${fmtInt(Math.round(byKey.rows_per_month.value * byKey.positive_rate.value))} cases a month x ${money(byKey.value_per_positive.value)}`} />
+        <Figure label={copy.netPerMonth} value={money(c.net)} hint={c.net_low != null && c.net_high != null ? copy.range(money(c.net_low), money(c.net_high)) : undefined} accent />
+        <Figure label={copy.againstFirst} value={report.uplift_net != null ? signedMoney(report.uplift_net) : "–"} hint={b ? copy.firstNets(money(b.net)) : copy.needFirst} />
+        <Figure label={copy.atStake} value={money(report.exposure_per_month)} hint={copy.cases(fmtInt(Math.round(byKey.rows_per_month.value * byKey.positive_rate.value)), money(byKey.value_per_positive.value))} />
       </div>
 
       {placeholders > 0 ? (
-        <p className="rounded-xl border border-warn/30 bg-warn-soft px-3 py-2 text-[12px] leading-relaxed text-subtle">
-          {placeholders} of {report.params.length} inputs {placeholders === 1 ? "is a placeholder" : "are placeholders"}. Replace them below with your own numbers; every figure here recalculates.
-        </p>
+        <p className="rounded-xl border border-warn/30 bg-warn-soft px-3 py-2 text-[12px] leading-relaxed text-subtle">{copy.placeholders(placeholders, report.params.length)}</p>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="min-w-0 lg:col-span-3">
           <div className="mb-2 flex items-baseline justify-between">
-            <h3 className="text-[13px] font-medium">Net value by how much you flag</h3>
-            <span className="text-[11px] text-muted">share of rows flagged, log scale</span>
+            <h3 className="text-[13px] font-medium">{copy.curve}</h3>
+            <span className="text-[11px] text-muted">{copy.curveAxis}</span>
           </div>
           <ValueCurve report={report} />
         </div>
         <div className="min-w-0 lg:col-span-2">
-          <h3 className="mb-2 text-[13px] font-medium">Two operating points</h3>
+          <h3 className="mb-2 text-[13px] font-medium">{copy.points}</h3>
           <table className="w-full text-[12px]">
             <thead>
               <tr className="text-left text-[11px] text-muted">
                 <th className="py-1 font-normal" />
-                <th className="py-1 text-right font-normal">Agreed rule</th>
-                <th className="py-1 text-right font-normal">Best value</th>
+                <th className="py-1 text-right font-normal">{copy.agreed}</th>
+                <th className="py-1 text-right font-normal">{copy.best}</th>
               </tr>
             </thead>
             <tbody className="num">
-              <PointRow label="Rows flagged" a={fmtPct(c.flagged_share, 2)} b={fmtPct(o.flagged_share, 2)} />
-              <PointRow label="Cases caught" a={fmtPct(c.recall)} b={fmtPct(o.recall)} />
-              <PointRow label="Caught per month" a={fmtInt(Math.round(c.tp))} b={fmtInt(Math.round(o.tp))} />
-              <PointRow label="Wrong flags per month" a={fmtInt(Math.round(c.fp))} b={fmtInt(Math.round(o.fp))} />
-              <PointRow label="Net per month" a={money(c.net)} b={money(o.net)} strong />
+              <PointRow label={copy.rowsFlagged} a={fmtPct(c.flagged_share, 2)} b={fmtPct(o.flagged_share, 2)} />
+              <PointRow label={copy.caught} a={fmtPct(c.recall)} b={fmtPct(o.recall)} />
+              <PointRow label={copy.caughtMonth} a={fmtInt(Math.round(c.tp))} b={fmtInt(Math.round(o.tp))} />
+              <PointRow label={copy.wrongMonth} a={fmtInt(Math.round(c.fp))} b={fmtInt(Math.round(o.fp))} />
+              <PointRow label={copy.netMonth} a={money(c.net)} b={money(o.net)} strong />
             </tbody>
           </table>
-          <p className="mt-2 text-[11px] leading-relaxed text-muted">
-            The agreed rule is the false-alarm budget or contact share from intake. Best value is the point on the curve with the highest net at these inputs.
-          </p>
+          <p className="mt-2 text-[11px] leading-relaxed text-muted">{copy.pointsNote}</p>
         </div>
       </div>
 
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
-          <h3 className="text-[13px] font-medium">Inputs</h3>
+          <h3 className="text-[13px] font-medium">{copy.inputs}</h3>
           {dirty ? (
             <Button size="sm" busy={saving} onClick={() => void save()}>
-              Recalculate
+              {copy.recalc}
             </Button>
           ) : null}
         </div>
@@ -210,7 +207,7 @@ export function ValuePanel({ projectId, version, finalized, onChange }: { projec
                       aria-label={p.label}
                     />
                     {p.source === "user" ? (
-                      <button type="button" className="text-muted hover:text-foreground" title="Back to the measured value or placeholder" onClick={() => void reset(p.key as keyof ValueParamsIn)}>
+                      <button type="button" className="text-muted hover:text-foreground" title={copy.resetTitle} onClick={() => void reset(p.key as keyof ValueParamsIn)}>
                         <RotateCcw className="h-3.5 w-3.5" />
                       </button>
                     ) : null}
@@ -226,18 +223,18 @@ export function ValuePanel({ projectId, version, finalized, onChange }: { projec
 
       <details className="group" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
         <summary className="flex cursor-pointer list-none items-center gap-1 text-[12px] text-muted [&::-webkit-details-marker]:hidden">
-          What moves the number, and what is assumed
+          {copy.moves}
           <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         </summary>
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
           <div>
-            <h4 className="mb-1.5 text-[12px] font-medium">If an input were half, or one and a half times</h4>
+            <h4 className="mb-1.5 text-[12px] font-medium">{copy.half}</h4>
             <table className="w-full text-[12px]">
               <thead>
                 <tr className="text-left text-[11px] text-muted">
-                  <th className="py-1 font-normal">Input</th>
-                  <th className="py-1 text-right font-normal">Half</th>
-                  <th className="py-1 text-right font-normal">1.5x</th>
+                  <th className="py-1 font-normal">{copy.input}</th>
+                  <th className="py-1 text-right font-normal">{copy.halfCol}</th>
+                  <th className="py-1 text-right font-normal">{copy.x15}</th>
                 </tr>
               </thead>
               <tbody className="num">
@@ -252,15 +249,15 @@ export function ValuePanel({ projectId, version, finalized, onChange }: { projec
             </table>
             {be.cost_per_false_positive != null || be.action_success_rate != null ? (
               <p className="mt-2 text-[11px] leading-relaxed text-muted">
-                Break-even:
-                {be.cost_per_false_positive != null ? ` the value hits zero if a wrong flag cost ${money(be.cost_per_false_positive)}` : ""}
-                {be.cost_per_false_positive != null && be.action_success_rate != null ? ", or" : ""}
-                {be.action_success_rate != null ? ` if only ${fmtPct(be.action_success_rate)} of flagged cases were acted on successfully` : ""}.
+                {copy.breakEven}
+                {be.cost_per_false_positive != null ? copy.breakEvenFp(money(be.cost_per_false_positive)) : ""}
+                {be.cost_per_false_positive != null && be.action_success_rate != null ? copy.breakEvenOr : ""}
+                {be.action_success_rate != null ? copy.breakEvenRate(fmtPct(be.action_success_rate)) : ""}.
               </p>
             ) : null}
           </div>
           <div>
-            <h4 className="mb-1.5 text-[12px] font-medium">How it is worked out</h4>
+            <h4 className="mb-1.5 text-[12px] font-medium">{copy.how}</h4>
             <p className="num rounded-lg bg-card-2 p-3 text-[11px] leading-relaxed text-subtle">{report.formula}</p>
             <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-muted">
               {assumptions.map((a, i) => (

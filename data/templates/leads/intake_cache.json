@@ -1,0 +1,40 @@
+{
+  "b1c810126d7370dea5f1c59b3f03bf88584867d3597e545ac57f6f6d76e07b13": {
+    "done": false,
+    "message": "Thanks. Here is what I would set up. The outcome to predict is the 'y' column, and a 'yes' is a prospect who says yes. Since you can only call some prospects, we will rank them and check how many of the yeses land in the top 10% you would call first. Is 10% about right, or can you call more or fewer? One more thing: one column, 'duration', records how long the call lasted. That is only known after the call happens, so it could leak the answer. I suggest we leave it out of the ranking. Does your data have a date column, or should we treat it as having none?",
+    "spec_patch": {
+      "metric_params": {
+        "top_k": 0.1
+      },
+      "positive_label": "yes",
+      "primary_metric": "recall_at_top_k",
+      "target_column": "y"
+    },
+    "user_text": "We want to know which prospects to call first, since we can only call some of them."
+  },
+  "ebb5e5702b6d5bd9eb017732b5cd34596814e770c5d08c66098602d17b6f1655": {
+    "done": false,
+    "message": "Got it. We will rank prospects and check how many yeses land in the top 10% you would call each month. One last thing: the data has no date column, so I will treat it as having none. Do you know roughly how many prospects you score each month, what a yes is worth, and what one call costs? If not, we can skip this and use estimates.",
+    "spec_patch": {
+      "metric_params": {
+        "top_k": 0.1
+      },
+      "primary_metric": "recall_at_top_k",
+      "time_column": null
+    },
+    "user_text": "We can call the riskiest 10% each month."
+  },
+  "fa2873d2f267763e7d259d17a4dbd0989800ef2eea70b61aebe4331e30ebdd74": {
+    "done": false,
+    "message": "Thanks. I have those numbers. I will use about 1,500 prospects a month, 150 dollars per new subscriber and 3 dollars per call. One last check: of the calls you make, roughly what share of yeses would you expect to actually sign up once you reach them? If you are not sure, I will use an estimate.",
+    "spec_patch": {
+      "economics": {
+        "cost_per_action": 3.0,
+        "rows_per_month": 1500,
+        "value_per_positive": 150.0
+      },
+      "time_column": "none"
+    },
+    "user_text": "A new subscriber is worth about 150 dollars, a call costs about 3. About 1,500 prospects a month."
+  }
+}

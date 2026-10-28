@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { brand } from "@/lib/copy";
 
 const sans = Geist({ subsets: ["latin"], variable: "--font-geist-sans", display: "swap" });
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Brief",
-  description: "Turn a spreadsheet prediction problem into a protected, Apex-ready competition.",
+  title: brand.name,
+  description: brand.oneLiner,
 };
 
 export const viewport: Viewport = {

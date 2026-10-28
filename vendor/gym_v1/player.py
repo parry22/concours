@@ -1,4 +1,4 @@
-# VENDORED from macrocosm-os/apex-competitions-builder @ 49eb05e (src/apex_sdk/gym_v1). Imports rewritten; player.py do_POST patched by Brief.
+# VENDORED from macrocosm-os/apex-competitions-builder @ 49eb05e (src/apex_sdk/gym_v1). Imports rewritten; player.py do_POST patched by Concours.
 """Player-side server base for gym_v1.
 
 A competition's player image implements a `Player` (loading the miner's submitted
@@ -72,7 +72,7 @@ def _make_handler(player: Player, readiness_path: str):
                 self._send_json(400, {"error": "invalid json"})
                 return
 
-            # Brief patch: wrap dispatch so a submission crash becomes a 500 the referee can
+            # Concours patch: wrap dispatch so a submission crash becomes a 500 the referee can
             # attribute to the player, instead of a dropped connection charged to the referee.
             try:
                 if self.path == "/reset":

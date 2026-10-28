@@ -29,7 +29,7 @@ MAX_ATTEMPTS = 3
 FORBIDDEN_MODULES = {"socket", "subprocess", "requests", "urllib", "http", "os", "sys", "shutil", "pathlib", "importlib", "ctypes", "multiprocessing", "pickle"}
 ALLOWED_TOP = {"numpy", "pandas", "sklearn", "lightgbm", "xgboost", "common", "math", "typing", "__future__", "collections", "itertools", "functools", "re", "json", "datetime"}
 
-SYSTEM = """You are a solver in Brief's local arena: a careful tabular ML engineer.
+SYSTEM = """You are a solver in Concours's local improvement round: a careful tabular ML engineer.
 You write ONE Python file, submission.py, that defines `class Solver(SolverBase)` with `fit(self, X, y)` and `predict_proba(self, X)`.
 Rules:
 - `from common.base import SolverBase, FeaturePrep` is available. SolverBase.__init__(transform) builds self.prep = FeaturePrep(transform, history=self.history).
@@ -199,8 +199,12 @@ def run_agent(project_id: str, *, replay: bool = True) -> None:
             (cache / f"attempt_{n}.json").write_text(json.dumps({"code": code, "note": note, "result": result, "eval_seconds": seconds, "logs_path": str(logs_dir)}))
         log(f"{name}: {out.status}" + (f", public score {out.public_score:.4f}" if out.public_score is not None else "") + (f" ({out.error})" if out.error else ""))
         events.publish(project_id, "submission_scored", out.model_dump())
+        if out.status == "scored":
+            from app.arena.service import promote_after_score  # noqa: PLC0415 - service imports this module
+
+            promote_after_score(project_id, sid, spec)
         _emit_board(project_id, spec)
-    events.publish(project_id, "run_complete", {"agent": True})
+    events.publish(project_id, "run_complete", {"agent": True, "purpose": "contest"})
 
 
 def _complete(messages: list[dict[str, str]]) -> str:
@@ -231,10 +235,11 @@ def _fail(sid: str, error: str, project_id: str, spec: ProblemSpec, log) -> None
 
 
 def _emit_board(project_id: str, spec: ProblemSpec) -> None:
+    from app.arena.service import build_board  # noqa: PLC0415 - service imports this module
+
     with session() as s:
         row = s.get(ProjectRow, project_id)
-        subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id).order_by(SubmissionRow.created_at)).all()
-        board = leaderboard.build(project_id, subs, spec, row.finalized)
+        board = build_board(s, project_id, spec, row)
     events.publish(project_id, "leaderboard_updated", board.model_dump())
 
 
