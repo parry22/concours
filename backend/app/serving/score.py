@@ -24,6 +24,7 @@ from app.packager.transform import Transform
 from app.shared.csv_safe import safe_frame
 from app.shared.metrics import threshold_at_fpr
 
+_LOAD_LOCK = threading.Lock()
 BUILT_IN = frozenset(p.name for p in SOLVERS_DIR.iterdir() if (p / "submission.py").exists())
 
 
@@ -38,13 +39,14 @@ def _load_solver_class(solver: str, submission_path: Path | None = None):
         sys.path.insert(0, str(SOLVERS_DIR))
     path = SOLVERS_DIR / solver / "submission.py"
     name = f"brief_sub_{solver}"
-    if name in sys.modules:
-        return sys.modules[name].Solver
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod  # registered so fitted models can be pickled and unpickled
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
-    return mod.Solver
+    with _LOAD_LOCK:  # two requests may load the same solver at once; the second must not see a half-built module
+        if name in sys.modules:
+            return sys.modules[name].Solver
+        spec = importlib.util.spec_from_file_location(name, path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+        sys.modules[name] = mod  # registered so fitted models can be pickled and unpickled
+        return mod.Solver
 
 
 def _file_hash(path: Path) -> str:
