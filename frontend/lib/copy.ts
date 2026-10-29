@@ -463,7 +463,7 @@ export const protect = {
   parts: {
     train: { title: "Training rows", who: "The model learns from these" },
     leaderboard: { title: "Public check", who: "Scored live while attempts arrive" },
-    holdout: { title: "Private holdout", who: "Decides every version. Never leaves this machine" },
+    holdout: { title: "Private holdout", who: "Decides every version. Never shown to anyone improving the model; it travels only inside the private scorer" },
   },
   removedRows: (n: string) => `${n} rows removed from training because they also appear in the holdout.`,
   whatSees: "What the model will see",

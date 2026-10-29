@@ -21,7 +21,8 @@ player image: numpy, pandas, scikit-learn, LightGBM, XGBoost. No network access.
 - Scoring happens inside the referee on rows you never see. Your submission is trained once on
   `player/data/train.csv` (the public training split, {{ train_rows }} rows, with the `label`
   column) at the start of evaluation and then asked to score batches of rows.
-- A new leader must beat the current top raw score by at least 1%.
+- The starting bar is today's model: {{ bar_text }} on the hidden rows. A new leader must beat the bar, or the
+  current top raw score if higher, by at least 1%.
 
 ## Data
 

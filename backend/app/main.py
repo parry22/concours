@@ -691,7 +691,7 @@ def arena_status(project_id: str) -> dict:
 from fastapi.responses import FileResponse  # noqa: E402
 
 from app.apex_builder import generator, validate  # noqa: E402
-from app.handoff.build import build_zip  # noqa: E402
+from app.handoff.build import build_repo_zip, build_zip  # noqa: E402
 from app.models import ListRow, PackageOut  # noqa: E402
 
 
@@ -758,6 +758,19 @@ def handoff(project_id: str, s: Session = Depends(get_session)):
     s.add(row)
     s.commit()
     return FileResponse(path, media_type="application/zip", filename=f"concours-handoff-{generator.competition_id(row)}.zip")
+
+
+@app.get("/projects/{project_id}/package/repo")
+def package_repo(project_id: str, s: Session = Depends(get_session)):
+    """The PRIVATE competition repo's contents, holdout included (release.yml builds the referee image from it)."""
+    row = get_project(project_id, s)
+    if not row.package_json:
+        raise HTTPException(409, "build the package first")
+    try:
+        path = build_repo_zip(project_id)
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from e
+    return FileResponse(path, media_type="application/zip", filename=f"concours-repo-{generator.competition_id(row)}.zip")
 
 
 # ---------- lists (batch delivery) and the performance watch ----------
