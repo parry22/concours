@@ -1,7 +1,8 @@
 """Run solver submissions through the referee in Docker. Mirrors the Apex contract and limits.
 
 Per submission: internal network -> player container (submission mounted read-only) -> referee container
-(env MATCH_ID/SEED/CONFIG_JSON/PLAYER_URLS/NUM_PLAYERS, /data bind) -> result.json. One at a time.
+(env MATCH_ID/SEED/CONFIG_JSON/PLAYER_URLS/NUM_PLAYERS, /data bind) -> result.json. One at a time. Both containers
+run with every capability dropped, no-new-privileges, a read-only root filesystem and a pid limit (see HARDENING).
 """
 from __future__ import annotations
 
@@ -42,6 +43,20 @@ def image_tag(project_id: str, side: str) -> str:
 
 
 DATA_LABEL = "concours.data_hash"
+
+# Hardening shared by every container the arena starts. The images already run as uid 1000 on an internal network
+# with no internet; this drops every capability, forbids privilege escalation, makes the root filesystem read-only
+# (a small tmpfs for scratch), and caps the process count. The player writes nothing; the referee writes /data only.
+HARDENING = {"cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"], "read_only": True}
+
+
+def player_limits() -> dict:
+    return {**HARDENING, "nano_cpus": int(SOLVER_CPUS * 1e9), "mem_limit": SOLVER_MEM, "pids_limit": 256,
+            "tmpfs": {"/tmp": "rw,noexec,nosuid,size=512m"}}
+
+
+def referee_limits() -> dict:
+    return {**HARDENING, "nano_cpus": int(1e9), "mem_limit": "1g", "pids_limit": 128, "tmpfs": {"/tmp": "rw,noexec,nosuid,size=64m"}}
 
 
 def build_images(project_id: str, log, data: str | None = None) -> None:
@@ -97,16 +112,13 @@ def run_submission(project_id: str, submission_id: str, solver: str, config: dic
             name=player_name,
             network=net_name,
             detach=True,
-            nano_cpus=int(SOLVER_CPUS * 1e9),
-            mem_limit=SOLVER_MEM,
             volumes={str(sub_path): {"bind": "/app/submission.py", "mode": "ro"}},
+            **player_limits(),
         )
         referee = cli.containers.run(
             image_tag(project_id, "referee"),
             network=net_name,
             detach=True,
-            nano_cpus=int(1e9),
-            mem_limit="1g",
             environment={
                 "MATCH_ID": submission_id,
                 "SEED": str(seed),
@@ -115,6 +127,7 @@ def run_submission(project_id: str, submission_id: str, solver: str, config: dic
                 "CONFIG_JSON": json.dumps(config),
             },
             volumes={str(out_dir): {"bind": "/data", "mode": "rw"}},
+            **referee_limits(),
         )
         exit_code = None
         deadline = time.monotonic() + timeout_s
