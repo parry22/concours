@@ -359,6 +359,9 @@ def monthly_ratio(row: ProjectRow) -> dict:
     """Fraud-and-dispute ratio by month from the customer's own labels: confirmed frauds divided by all payments,
     the way Visa's monitoring program counts (events over transactions, by count). Labels stand in for disputes
     until a dispute file is imported, and the card says so."""
+    cache = project_dir(row.id) / "ratio" / f"{row.as_of}.json"
+    if cache.exists():
+        return json.loads(cache.read_text())
     df = read_canonical(dataset_path(row.id))
     if row.as_of:
         df = df[df["transaction_time"] < pd.Timestamp(row.as_of) + pd.Timedelta(days=1)]
@@ -371,7 +374,10 @@ def monthly_ratio(row: ProjectRow) -> dict:
                     "counted": f >= VISA_COUNT_FLOOR, "over": n > 0 and f / n >= VISA_EXCESSIVE_RATIO and f >= VISA_COUNT_FLOOR})
     full = [x for x in out[:-1]] or out  # the last month may be partial
     latest = out[-1] if out else None
-    return {"months": out, "threshold": VISA_EXCESSIVE_RATIO, "count_floor": VISA_COUNT_FLOOR,
-            "latest_ratio": latest["ratio"] if latest else None, "latest_month": latest["month"] if latest else None,
-            "worst_ratio": max((x["ratio"] for x in full), default=None),
-            "source": "labels", "as_of": row.as_of}
+    result = {"months": out, "threshold": VISA_EXCESSIVE_RATIO, "count_floor": VISA_COUNT_FLOOR,
+              "latest_ratio": latest["ratio"] if latest else None, "latest_month": latest["month"] if latest else None,
+              "worst_ratio": max((x["ratio"] for x in full), default=None),
+              "source": "labels", "as_of": row.as_of}
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(result))  # reading 1.75 million rows takes seconds; the answer only changes when the clock moves
+    return result

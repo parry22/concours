@@ -196,7 +196,7 @@ function Row({ label, hint, value }: { label: string; hint: string; value: strin
   );
 }
 
-const pct = (x: number) => `${(x * 100).toFixed(x * 100 >= 10 ? 0 : 2)}%`;
+const pct = (x: number) => `${parseFloat((x * 100).toFixed(x * 100 >= 10 ? 0 : 2))}%`;
 
 /** Monthly fraud-and-dispute ratio with Visa's line drawn on it. */
 function RatioCard({ r }: { r: RatioOut }) {
@@ -218,8 +218,8 @@ function RatioCard({ r }: { r: RatioOut }) {
           <span className="num absolute right-0 -top-4 text-[10px] text-danger">{copy.ratioLine(pct(r.threshold))}</span>
         </div>
         {r.months.map((m) => (
-          <div key={m.month} className="flex min-w-0 flex-1 flex-col items-center gap-1" title={`${m.month}: ${pct(m.ratio)} (${m.events.toLocaleString("en-US")} of ${m.payments.toLocaleString("en-US")})`}>
-            <div className={cx("w-full rounded-t-md", m.ratio >= r.threshold ? "bg-danger/80" : "bg-brand")} style={{ height: `${Math.max(2, (m.ratio / max) * 100)}%` }} />
+          <div key={m.month} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${m.month}: ${pct(m.ratio)} (${m.events.toLocaleString("en-US")} of ${m.payments.toLocaleString("en-US")})`}>
+            <div className={cx("w-full shrink-0 rounded-t-md", m.ratio >= r.threshold ? "bg-danger/80" : "bg-brand")} style={{ height: `${Math.max(2, (m.ratio / max) * 88)}%` }} />
             <span className="num truncate text-[10px] text-muted">{m.month.slice(2).replace("-", "/")}</span>
           </div>
         ))}
