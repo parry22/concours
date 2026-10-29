@@ -1,4 +1,4 @@
-import { Database, Gauge, ListChecks, MessageSquareText, Rocket, ShieldCheck, Sparkles, Table2, type LucideIcon } from "lucide-react";
+import { Database, Gauge, ListChecks, Lock, MessageSquareText, Rocket, ShieldCheck, Sparkles, Table2, type LucideIcon } from "lucide-react";
 import type { ProjectOut, Stage } from "./api";
 import { phases, steps as stepCopy } from "./copy";
 
@@ -7,7 +7,7 @@ import { phases, steps as stepCopy } from "./copy";
  * questions, protection (version 1 builds right after). Then the project tabs, open once version 1 exists.
  * `Stage` is the backend's progress field; `Slug` is the route.
  */
-export type Slug = "upload" | "intake" | "protect" | "overview" | "queue" | "improve" | "data" | "launch";
+export type Slug = "upload" | "intake" | "protect" | "overview" | "queue" | "improve" | "data" | "trust" | "launch";
 export type Phase = keyof typeof phases;
 
 export const STEPS: { slug: Slug; label: string; short: string; phase: Phase; icon: LucideIcon; blurb: string }[] = [
@@ -18,6 +18,7 @@ export const STEPS: { slug: Slug; label: string; short: string; phase: Phase; ic
   { slug: "queue", ...stepCopy.queue, phase: "Project", icon: ListChecks },
   { slug: "improve", ...stepCopy.improve, phase: "Project", icon: Sparkles },
   { slug: "data", ...stepCopy.data, phase: "Project", icon: Table2 },
+  { slug: "trust", ...stepCopy.trust, phase: "Project", icon: Lock },
   { slug: "launch", ...stepCopy.launch, phase: "Project", icon: Rocket },
 ];
 

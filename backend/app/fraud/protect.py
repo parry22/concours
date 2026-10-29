@@ -25,6 +25,8 @@ from app.packager.checks import constant, future_info, id_like, pii, post_outcom
 from app.packager.checks.base import CheckContext
 from app.packager.protect import sha256_file
 from app.packager.transform import Transform
+from app.shared.metrics import fraud_queue
+from app.config import MIN_WINDOW_ROWS
 from app.fraud.labels import Windows, check_room, label_parts, summary_counts, windows
 
 HASHED = ("customer_id", "merchant_or_terminal_id")
@@ -56,6 +58,23 @@ def clock_counters(df: pd.DataFrame, features: list[str]) -> list[str]:
         if r > 0.99:
             out.append(c)
     return out
+
+
+def check_windows(df: pd.DataFrame, w: Windows) -> None:
+    """The public check and the private test windows must hold enough payments to mean anything. A file whose newest
+    weeks are sparse (or whose dates were misread) would otherwise build a model on nothing and crash the queue."""
+    iso = w.iso()
+    names = {"leaderboard": ("public check", iso["leaderboard_start"], iso["holdout_start"]),
+             "holdout": ("private test", iso["holdout_start"], iso["holdout_end"])}
+    counts = df["part"].value_counts()
+    first, last = df["transaction_time"].min().strftime("%Y-%m-%d"), df["transaction_time"].max().strftime("%Y-%m-%d")
+    for part, (label, a, b) in names.items():
+        n = int(counts.get(part, 0))
+        if n < MIN_WINDOW_ROWS:
+            raise ValueError(
+                f"The {label} days ({a} to {b}) hold only {n:,} payments; at least {MIN_WINDOW_ROWS:,} are needed. "
+                f"Your file runs {first} to {last}. Check that the dates were read correctly, or upload a file with more recent payments."
+            )
 
 
 def apply_analyst_labels(df: pd.DataFrame, labels: dict[str, tuple[int, str]]) -> tuple[pd.DataFrame, int]:
@@ -111,6 +130,7 @@ def protect_fraud(df: pd.DataFrame, settings: FraudSettings, as_of: str, salt: s
                                 evidence={"columns": hashed_cols}))
 
     df = label_parts(df, w)
+    check_windows(df, w)
     features = [c for c in df.columns if c not in NOT_FEATURES]
     for c in clock_counters(df, features):
         findings.append(Finding(check="clock_counter", severity="medium", column=c, action="dropped",
@@ -167,6 +187,18 @@ def protect_fraud(df: pd.DataFrame, settings: FraudSettings, as_of: str, salt: s
     secure_store.to_csv(recent.drop(columns=["y_train", "y_eval", "part"]), private_dir / "recent.csv")
     transform.save(out_dir / "transform.json")
 
+    current_tool = None
+    if "current_score" in df.columns and "current_score" in kept:
+        m = (df["part"] == "holdout").to_numpy()
+        cs = pd.to_numeric(df.loc[m, "current_score"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+        q = fraud_queue(df.loc[m, "y_eval"].to_numpy(), cs, df.loc[m, "amount"].to_numpy(dtype=float),
+                        df.loc[m, "transaction_time"].dt.strftime("%Y-%m-%d").to_numpy(), settings.daily_capacity, settings.fraud_fee, settings.review_cost)
+        current_tool = {"column": "current_score", "amount_per_day": round(q["amount_per_day"], 2), "precision": round(q["precision"], 4),
+                        "false_alarms_per_1000": round(q["false_alarms_per_1000"], 2), "net_per_day": round(q["net_per_day"], 2)}
+        findings.append(Finding(check="current_tool", severity="info", column="current_score", action="warned",
+                                reason=f"Your current tool's score was kept as an input. Ranked the same way on the test days, it catches "
+                                       f"${q['amount_per_day']:,.0f} of fraud per day in a {settings.daily_capacity}-case queue; every version is compared with that.",
+                                evidence=current_tool))
     order = {"high": 0, "medium": 1, "info": 2}
     findings.sort(key=lambda f: order[f.severity])
     iso = w.iso()
@@ -179,6 +211,7 @@ def protect_fraud(df: pd.DataFrame, settings: FraudSettings, as_of: str, salt: s
         masked_columns=sorted(ctx.masked),
         checksums=checksums,
         hashed_columns=hashed_cols,
+        current_tool=current_tool,
         maturity=MaturitySummary(
             as_of=iso["as_of"], label_delay_days=w.delay_days, label_time_simulated=simulated, train_end=iso["train_end"],
             embargo_start=iso["embargo_start"], embargo_end=iso["embargo_end"], leaderboard_start=iso["leaderboard_start"],

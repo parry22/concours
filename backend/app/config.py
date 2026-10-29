@@ -72,6 +72,10 @@ FRAUD_DEFAULTS = {
 }
 LABEL_DELAY_RANGE = (7, 60)  # simulated label_time = transaction_time + U(7, 60) days when the data has none
 HOLDOUT_DAYS = 14
+MIN_WINDOW_ROWS = 200
+# Exploration: this share of the daily queue is random payments from outside the model's picks (at least 1 when the
+# queue holds 20 or more), so analyst verdicts also reveal what the model misses. 0 turns it off.
+EXPLORE_SHARE = float(env("EXPLORE_SHARE", "0.05"))  # a public check or private test window with fewer payments is refused at Protect
 LEADERBOARD_DAYS = 7
 SAMPLE_AS_OF_DAY = 154  # the sample's "today": day 154 of 183, so four later weeks exist for the drift demo
 # Promotion gates

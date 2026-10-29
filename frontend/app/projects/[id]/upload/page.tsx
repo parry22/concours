@@ -140,9 +140,10 @@ export default function TransactionsPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={cx("grid gap-3", schema?.time_range ? "grid-cols-3" : "grid-cols-2")}>
             <Stat label={copy.rows} value={fmtInt(prof?.n_rows ?? 0)} />
             <Stat label={copy.fraudRate} value={prof?.positive_rate != null ? fmtPct(prof.positive_rate, 2) : "n/a"} />
+            {schema?.time_range ? <Stat label={copy.days} value={fmtInt(Number(schema.time_range.days))} hint={copy.range(String(schema.time_range.start), String(schema.time_range.end))} /> : null}
           </div>
 
           <Card
@@ -209,6 +210,14 @@ export default function TransactionsPage() {
               </div>
             )}
           </Card>
+
+          {schema?.notes?.length ? (
+            <ul className="space-y-1 text-[12px] leading-relaxed text-muted">
+              {schema.notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          ) : null}
 
           {schema?.preview?.length ? (
             <Card title={copy.preview}>

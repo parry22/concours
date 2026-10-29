@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarClock } from "lucide-react";
 import { DailyBars, MoneyFigure } from "@/components/Figures";
 import { ActionBar, NextLink, useProject } from "@/components/ProjectShell";
 import { Alert, Badge, Button, Card, Meter, StatusPill, cx } from "@/components/ui";
-import { api, errorText, type ModelVersionOut } from "@/lib/api";
+import { api, errorText, type ModelVersionOut, type RatioOut } from "@/lib/api";
 import { fmtPct } from "@/lib/format";
 import { alerts, overview as copy } from "@/lib/copy";
 import { stepHref } from "@/lib/stages";
@@ -19,6 +19,10 @@ export default function OverviewPage() {
   const { project, refresh } = useProject();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ratio, setRatio] = useState<RatioOut | null>(null);
+  useEffect(() => {
+    api.ratio(project.id).then(setRatio).catch(() => setRatio(null));
+  }, [project.id, project.as_of]);
   const active = project.active_model;
   const v1 = project.versions.find((v) => v.version === 1) ?? null;
   const drift = project.drift;
@@ -83,13 +87,20 @@ export default function OverviewPage() {
             value={project.money_per_day}
             suffix={copy.queueSize(st?.daily_capacity ?? 200)}
             compare={
-              v1 && v1.id !== active.id ? (
-                <>
-                  {copy.vs} <span className="num font-medium text-foreground">{money(v1.private_score)}</span> {copy.withFirst}
-                </>
-              ) : (
-                copy.source.baseline
-              )
+              <>
+                {v1 && v1.id !== active.id ? (
+                  <>
+                    {copy.vs} <span className="num font-medium text-foreground">{money(v1.private_score)}</span> {copy.withFirst}
+                  </>
+                ) : (
+                  copy.source.baseline
+                )}
+                {project.current_tool_per_day != null ? (
+                  <span className="block" title={copy.vsToolHint}>
+                    {copy.vs} <span className="num font-medium text-foreground">{money(project.current_tool_per_day)}</span> {copy.vsTool}
+                  </span>
+                ) : null}
+              </>
             }
           />
         </div>
@@ -111,9 +122,11 @@ export default function OverviewPage() {
         <Card
           title={copy.health}
           actions={
-            <Button size="sm" variant="secondary" busy={busy} disabled={!project.can_jump} onClick={() => void jump()} title={copy.jumpSub}>
-              {project.can_jump ? copy.jumpShort : copy.noJump}
-            </Button>
+            project.source === "sample" ? (
+              <Button size="sm" variant="secondary" busy={busy} disabled={!project.can_jump} onClick={() => void jump()} title={copy.jumpSub}>
+                {project.can_jump ? copy.jumpShort : copy.noJump}
+              </Button>
+            ) : null
           }
         >
           {drift && drift.weeks.length ? (
@@ -132,7 +145,7 @@ export default function OverviewPage() {
               })}
             </ul>
           ) : (
-            <p className="text-[13px] leading-relaxed text-muted">{copy.noWeeks}</p>
+            <p className="text-[13px] leading-relaxed text-muted">{project.source === "sample" ? copy.noWeeks : copy.noWeeksReal(st?.label_delay_days ?? 30)}</p>
           )}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-[12px] text-muted">
             <span className="flex items-center gap-1.5">
@@ -162,6 +175,8 @@ export default function OverviewPage() {
         </Card>
       </div>
 
+      {ratio && ratio.months.length ? <RatioCard r={ratio} /> : null}
+
       <ActionBar hint={copy.openQueue}>
         <NextLink stage="queue" label={copy.next} />
       </ActionBar>
@@ -181,6 +196,41 @@ function Row({ label, hint, value }: { label: string; hint: string; value: strin
   );
 }
 
+const pct = (x: number) => `${(x * 100).toFixed(x * 100 >= 10 ? 0 : 2)}%`;
+
+/** Monthly fraud-and-dispute ratio with Visa's line drawn on it. */
+function RatioCard({ r }: { r: RatioOut }) {
+  const max = Math.max(r.threshold * 1.6, ...r.months.map((m) => m.ratio));
+  const latest = r.months[r.months.length - 1];
+  const tone = latest.over ? "danger" : latest.ratio >= r.threshold ? "warn" : "ok";
+  return (
+    <Card
+      title={copy.ratio}
+      actions={
+        <Badge tone={tone} dot>
+          {latest.over ? copy.ratioOver : latest.ratio >= r.threshold ? copy.ratioBelowFloor : copy.ratioUnder}
+        </Badge>
+      }
+    >
+      <p className="text-[12px] leading-relaxed text-muted">{copy.ratioSub(pct(r.threshold))}</p>
+      <div className="relative mt-4 flex h-28 items-end gap-1.5">
+        <div className="pointer-events-none absolute right-0 left-0 border-t border-dashed border-danger/70" style={{ bottom: `${(r.threshold / max) * 100}%` }}>
+          <span className="num absolute right-0 -top-4 text-[10px] text-danger">{copy.ratioLine(pct(r.threshold))}</span>
+        </div>
+        {r.months.map((m) => (
+          <div key={m.month} className="flex min-w-0 flex-1 flex-col items-center gap-1" title={`${m.month}: ${pct(m.ratio)} (${m.events.toLocaleString("en-US")} of ${m.payments.toLocaleString("en-US")})`}>
+            <div className={cx("w-full rounded-t-md", m.ratio >= r.threshold ? "bg-danger/80" : "bg-brand")} style={{ height: `${Math.max(2, (m.ratio / max) * 100)}%` }} />
+            <span className="num truncate text-[10px] text-muted">{m.month.slice(2).replace("-", "/")}</span>
+          </div>
+        ))}
+      </div>
+      <p className="num mt-3 text-[13px]">
+        {copy.ratioLatest(latest.month, pct(latest.ratio))} <span className="text-muted">· {copy.ratioNote}</span>
+      </p>
+    </Card>
+  );
+}
+
 function VersionRow({ v, first }: { v: ModelVersionOut; first: boolean }) {
   const on = v.status === "active";
   return (
@@ -190,7 +240,9 @@ function VersionRow({ v, first }: { v: ModelVersionOut; first: boolean }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="num block text-[13px] font-medium">v{v.version}</span>
-        <span className="block truncate text-[11px] text-muted">{first ? copy.source.baseline : copy.source[v.source as keyof typeof copy.source]}</span>
+        <span className="block truncate text-[11px] text-muted" title={v.changes?.length ? `${copy.changes}: ${v.changes.join(" ")}` : undefined}>
+          {v.changes?.length && !first ? v.changes.slice(1, 2)[0] ?? v.changes[0] : first ? copy.source.baseline : copy.source[v.source as keyof typeof copy.source]}
+        </span>
       </span>
       <span className="num shrink-0 text-[13px] font-medium">{money(v.private_score)}</span>
     </li>

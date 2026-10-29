@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { ActionBar, NextLink, useProject } from "@/components/ProjectShell";
-import { Alert, Card, PageHeader, Skeleton, Spinner, cx } from "@/components/ui";
+import { Alert, Badge, Card, PageHeader, Skeleton, Spinner, cx } from "@/components/ui";
 import { api, errorText, type QueueCase, type QueueOut } from "@/lib/api";
 import { fmtInt } from "@/lib/format";
 import { queue as copy } from "@/lib/copy";
@@ -78,7 +78,7 @@ export default function QueuePage() {
             <Fig label={copy.figDay} value={q.day} hint={copy.version(q.model_version)} />
             <Fig label={copy.figScored} value={fmtInt(q.rows_scored)} hint={copy.figScoredHint} />
             <Fig label={copy.atStake} value={money(q.expected_loss_total)} hint={copy.figStakeHint(q.cases.length)} />
-            <Fig label={copy.figReviewed} value={`${q.labeled}/${q.cases.length}`} hint={copy.figReviewedHint} />
+            <Fig label={copy.figReviewed} value={`${q.labeled}/${q.cases.length}`} hint={q.explore_slots ? copy.figReviewedExplore(q.explore_slots) : copy.figReviewedHint} />
           </div>
 
           <Card pad={false} className="overflow-hidden">
@@ -101,7 +101,10 @@ export default function QueuePage() {
                   {cases.map((c) => (
                     <tr key={c.transaction_id} className={cx("align-top transition-opacity", c.label === "not_fraud" && "opacity-55")}>
                       <td className="num px-4 py-3 text-muted">{c.rank}</td>
-                      <td className="num px-2 py-3">{c.transaction_id}</td>
+                      <td className="num px-2 py-3">
+                        {c.transaction_id}
+                        {c.explore ? <Badge tone="neutral" className="ml-2 align-middle" title={copy.exploreHint}>{copy.explore}</Badge> : null}
+                      </td>
                       <td className="num px-2 py-3 whitespace-nowrap text-subtle">{c.time.slice(11)}</td>
                       <td className="num px-2 py-3 text-right font-medium">{money(c.amount)}</td>
                       <td className="num px-2 py-3 text-muted" title={copy.hashed}>

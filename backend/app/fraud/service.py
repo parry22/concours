@@ -2,6 +2,7 @@
 verdicts, the weekly health and drift check, and the simulated clock ("jump forward")."""
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
 from datetime import datetime, timezone
@@ -11,7 +12,7 @@ import numpy as np
 import pandas as pd
 from sqlmodel import Session, select
 
-from app.config import FRAUD_DEFAULTS, HEALTH_DROP, PSI_LIMIT, SAMPLE_AS_OF_DAY, project_dir
+from app.config import EXPLORE_SHARE, FRAUD_DEFAULTS, HEALTH_DROP, PSI_LIMIT, SAMPLE_AS_OF_DAY, project_dir
 from app.models import (
     CaseLabelRow, DriftFeature, DriftOut, FraudSettings, ModelVersionRow, ProblemSpec, ProjectRow, ProtectReport, QueueCase,
     QueueOut, QueueReason, SubmissionRow, WeekHealth,
@@ -144,6 +145,18 @@ def score_window(pid: str, version: ModelVersionRow, spec: ProblemSpec, frame: p
 # ---------- today's review queue ----------
 
 
+EXPLORE_REASON = "Random check: not a model pick. Your verdict shows what the model misses."
+
+
+def explore_slots(capacity: int, available: int) -> int:
+    """How many random checks a queue of `capacity` holds: EXPLORE_SHARE of it, at least one from 20 cases up, and
+    never more than the payments left outside the model's picks."""
+    if EXPLORE_SHARE <= 0 or capacity < 20:
+        return 0
+    n = max(1, int(round(capacity * EXPLORE_SHARE)))
+    return max(0, min(n, available - (capacity - n)))
+
+
 def queue_dir(pid: str) -> Path:
     d = project_dir(pid) / "queue"
     d.mkdir(exist_ok=True)
@@ -166,18 +179,26 @@ def build_queue(s: Session, row: ProjectRow, version: ModelVersionRow) -> QueueO
         today = np.flatnonzero((frame["transaction_time"] >= day).to_numpy())
         amt = frame["amount"].to_numpy(dtype=float)
         el = scores * (amt + st.fraud_fee)
-        pick = today[np.argsort(-el[today], kind="stable")[: st.daily_capacity]]
+        ranked = today[np.argsort(-el[today], kind="stable")]
+        n_explore = explore_slots(st.daily_capacity, len(today))
+        top = ranked[: st.daily_capacity - n_explore]
+        rest = ranked[st.daily_capacity - n_explore:]
+        rng = np.random.default_rng(int(hashlib.sha256(f"{row.id}:{row.as_of}".encode()).hexdigest()[:8], 16))  # the same checks all day
+        explore = rng.choice(rest, size=min(n_explore, len(rest)), replace=False) if n_explore and len(rest) else np.array([], dtype=int)
+        pick = np.concatenate([top, explore]).astype(int)
         why = reasons_mod.explain(model, feats, pick) if model is not None else reasons_mod.explain_plain(frame, scores, pick)
+        n_top = len(top)
         cases = [
             QueueCase(rank=i + 1, transaction_id=str(frame.at[j, "transaction_id"]),
                       time=frame.at[j, "transaction_time"].strftime("%Y-%m-%d %H:%M"), amount=round(float(amt[j]), 2),
                       customer=f"{int(frame.at[j, 'customer_id']):x}"[:10] if "customer_id" in frame.columns else "",
-                      risk=round(float(scores[j]), 4), expected_loss=round(float(el[j]), 2),
-                      reasons=[QueueReason(text=t, weight=w) for t, w in why[i]])
+                      risk=round(float(scores[j]), 4), expected_loss=round(float(el[j]), 2), explore=i >= n_top,
+                      reasons=([QueueReason(text=EXPLORE_REASON, weight=0.0)] if i >= n_top else []) + [QueueReason(text=t, weight=w) for t, w in why[i]])
             for i, j in enumerate(pick)
         ]
         q = QueueOut(day=row.as_of, model_version=version.version, capacity=st.daily_capacity, rows_scored=int(len(today)),
-                     cases=cases, expected_loss_total=round(float(el[pick].sum()), 2), labeled=0, created_at=datetime.now(timezone.utc))
+                     cases=cases, expected_loss_total=round(float(el[pick].sum()), 2), labeled=0, created_at=datetime.now(timezone.utc),
+                     explore_slots=int(len(explore)))
         cache.write_text(q.model_dump_json())
     labels = {r.transaction_id: r.label for r in s.exec(select(CaseLabelRow).where(CaseLabelRow.project_id == row.id)).all()}
     for c in q.cases:
@@ -326,3 +347,31 @@ def jump(s: Session, row: ProjectRow, days: int) -> tuple[DriftOut, bool]:
     row.drift_json = out.model_dump_json()
     row.updated_at = datetime.now(timezone.utc)
     return out, moved
+
+
+# ---------- the Visa ratio ----------
+
+VISA_EXCESSIVE_RATIO = 0.015  # VAMP "Excessive" merchant threshold from 1 April 2026 (US, Canada, Europe, Asia Pacific)
+VISA_COUNT_FLOOR = 1500  # the program counts a merchant only with at least this many fraud and dispute events a month
+
+
+def monthly_ratio(row: ProjectRow) -> dict:
+    """Fraud-and-dispute ratio by month from the customer's own labels: confirmed frauds divided by all payments,
+    the way Visa's monitoring program counts (events over transactions, by count). Labels stand in for disputes
+    until a dispute file is imported, and the card says so."""
+    df = read_canonical(dataset_path(row.id))
+    if row.as_of:
+        df = df[df["transaction_time"] < pd.Timestamp(row.as_of) + pd.Timedelta(days=1)]
+    month = df["transaction_time"].dt.to_period("M")
+    g = df.groupby(month)
+    out = []
+    for m, part in g:
+        n, f = int(len(part)), int(part["is_fraud"].sum())
+        out.append({"month": str(m), "payments": n, "events": f, "ratio": round(f / n, 5) if n else 0.0,
+                    "counted": f >= VISA_COUNT_FLOOR, "over": n > 0 and f / n >= VISA_EXCESSIVE_RATIO and f >= VISA_COUNT_FLOOR})
+    full = [x for x in out[:-1]] or out  # the last month may be partial
+    latest = out[-1] if out else None
+    return {"months": out, "threshold": VISA_EXCESSIVE_RATIO, "count_floor": VISA_COUNT_FLOOR,
+            "latest_ratio": latest["ratio"] if latest else None, "latest_month": latest["month"] if latest else None,
+            "worst_ratio": max((x["ratio"] for x in full), default=None),
+            "source": "labels", "as_of": row.as_of}

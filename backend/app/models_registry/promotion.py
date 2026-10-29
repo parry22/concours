@@ -81,7 +81,42 @@ def versions_out(s: Session, project_id: str, spec: ProblemSpec | None) -> list[
     if spec and spec.primary_metric == "fraud_amount_per_day":
         for o, v in zip(out, rows):
             o.stats = _queue_stats(s.get(SubmissionRow, v.submission_id) if v.submission_id else None)
+    for i, o in enumerate(out):
+        o.changes = what_changed(o, out[i - 1] if i else None, spec)
     return out
+
+
+SOURCE_LINES = {
+    "baseline": "Your first model: the better of two simple models, trained on your payments and measured on days it never saw.",
+    "local_contest": "Came from an improvement round run on this machine.",
+    "apex_contest": "Came from the solver network.",
+    "bittensor": "Written by an outside solver and submitted on chain; measured here like any attempt.",
+    "apex_local": "Came from a run of the signed scorer images on this machine (not a live network run).",
+    "apex_actions": "Came from a run of the signed scorer images on a GitHub Actions runner (not a live network run).",
+}
+
+
+def what_changed(v: ModelVersionOut, prev: ModelVersionOut | None, spec: ProblemSpec | None) -> list[str]:
+    """Three to five sentences a fraud lead can read: where the version came from, what it gains over the one before,
+    and which gates it passed. Every number comes from the stored scores and gate results."""
+    lines = [SOURCE_LINES.get(v.source, "Promoted after a measured improvement.")]
+    money = bool(spec and spec.primary_metric == "fraud_amount_per_day")
+    if prev is not None:
+        delta = v.private_score - prev.private_score
+        rel = delta / prev.private_score if prev.private_score else None
+        if money:
+            lines.append(f"Catches ${delta:,.0f} more fraud per day than v{prev.version}" + (f" ({rel:+.0%})." if rel is not None else "."))
+        elif rel is not None:
+            lines.append(f"Measures {rel:+.1%} against v{prev.version} on the private holdout.")
+        if v.stats and prev.stats:
+            p_now, p_prev = v.stats.get("precision"), prev.stats.get("precision")
+            if isinstance(p_now, (int, float)) and isinstance(p_prev, (int, float)) and abs(p_now - p_prev) >= 0.005:
+                lines.append(f"Queue precision {'up' if p_now > p_prev else 'down'} from {p_prev:.1%} to {p_now:.1%}: "
+                             f"{'more' if p_now > p_prev else 'fewer'} of the reviewed cases are fraud.")
+    for g in v.gates:
+        if g.key in ("luck", "segments", "speed") and g.passed and g.line:
+            lines.append(g.line.rstrip(".") + ".")
+    return lines[:5]
 
 
 def _queue_stats(sub: SubmissionRow | None) -> dict:

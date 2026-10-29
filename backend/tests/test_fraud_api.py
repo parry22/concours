@@ -69,7 +69,7 @@ def test_renamed_csv_maps_and_three_questions(client):
     sch = client.get(f"/projects/{p['id']}/schema").json()
     by = {f["name"]: f["column"] for f in sch["fields"]}
     assert by == {"transaction_id": "payment_id", "transaction_time": "created_at", "amount": "amount_usd", "customer_id": "user_id",
-                  "is_fraud": "is_fraud", "merchant_or_terminal_id": "merchant_id", "currency": None, "label_time": None}
+                  "is_fraud": "is_fraud", "merchant_or_terminal_id": "merchant_id", "currency": None, "label_time": None, "current_score": None}
     assert sch["problems"] == [] and not sch["confirmed"]
 
     bad = client.put(f"/projects/{p['id']}/schema", json={"mapping": {**by, "amount": None}})

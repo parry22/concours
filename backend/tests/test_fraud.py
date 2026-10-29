@@ -70,7 +70,7 @@ def test_mapping_suggested_for_renamed_columns(raw):
     renamed = renamed.drop(columns=["chargeback"])
     m = suggest(renamed)
     assert m == {"transaction_id": "payment_id", "transaction_time": "created_at", "amount": "Amount (USD)", "customer_id": "user_id",
-                 "is_fraud": "is_fraud", "merchant_or_terminal_id": "store", "currency": None, "label_time": None}
+                 "is_fraud": "is_fraud", "merchant_or_terminal_id": "store", "currency": None, "label_time": None, "current_score": None}
     df, _ = canonical(renamed, {k: v for k, v in m.items() if v})
     assert set(df["is_fraud"].unique()) == {0, 1} and df["amount"].dtype == float
     assert {"transaction_id", "transaction_time", "amount", "customer_id", "is_fraud", "merchant_or_terminal_id", "label_time"} <= set(df.columns)
