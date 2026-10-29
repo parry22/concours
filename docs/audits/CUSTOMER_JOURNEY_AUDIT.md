@@ -163,7 +163,8 @@ Built this week, in the commit `Customer journey quick wins` (and `Plan B ...` f
 - Walk 2 again, same `messy.csv`, no cleaning: upload 1.4 s, columns suggested for all five required fields,
   confirmation accepted in 9.9 s with the notes "3 date formats found in this column; all were read", "Dates
   with slashes were read as day/month/year" and "4,206 payments without an amount or a time will be left out";
-  the three questions and protection went through (2.7 s). The two planted leak columns were caught as before.
+  the three questions and protection went through (2.7 s). The two planted leak columns were caught as before;
+  v1 was ready 81 s later ($587/day on this 8% slice) and the queue loaded with 715 payments scored and 10 random checks.
 - Protection now refuses a public-check or private-test window with under 200 payments, with the file's date
   range in the sentence, instead of building a model on nothing.
 - The queue holds 10 random checks a day (5% of 200), marked "Random check" with the reason "not a model pick".

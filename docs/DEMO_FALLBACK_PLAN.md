@@ -112,6 +112,26 @@ artifact page.
 
 Plan B, rehearsed offline, with the recording as the last resort. Plan A only on top of a passing Plan B.
 
-## Measured on this laptop (filled in by Phase 2)
+## Measured on this laptop (Phase 2, 2026-10-29)
 
-See the end of `docs/AUDIT_SUMMARY.md` for the commands and the measured timings of the Plan B run.
+Apple Silicon (arm64), Docker Desktop 29.5, the signed v0.1.0 images (linux/amd64, emulated):
+
+| Step | Result |
+|---|---|
+| `cosign verify` of both images against the release workflow identity | pass (player `sha256:cc491c83...`, referee `sha256:06ea0c32...`) |
+| `docker pull` by digest | both present |
+| `run` baseline_logreg | 125 s, `raw_scores: [3713.534]` (filed: 3713.5343) |
+| `run` lgbm_default | 132 s, `raw_scores: [3706.485]` |
+| `run` lgbm_tuned | 986 s, `raw_scores: [3960.634]` (filed: 3960.6343) |
+| `run` lgbm_velocity | 877 s, `raw_scores: [3922.553]` |
+| `import` of the four results | four attempts with origin `apex_local` on the Improve screen; gates evaluated against v2; none promoted (correct: none beats v2) |
+| replay of cached results in the Improve screen | seconds |
+
+Every score matched the filed v0.1.0 numbers to four decimals, so the laptop run is the platform run. The tuned
+model's 16 minutes is the emulation cost; the v0.2.0 release workflow builds arm64 images too, after which the
+same run is native. The v0.2.0 referee (branch `v0.2.0` of the competition repo) was built and run natively from
+the repo: baseline lift -0.0054 (the logistic baseline is a hair under the largest-payments rule), money per day
+unchanged, private number absent from `result.json` metadata and present in `details.json`.
+
+Plan C: `.github/workflows/local-run.yml` is in the v0.2.0 package and repo branch; it has not run on a GitHub
+runner because the branch has not been pushed.
