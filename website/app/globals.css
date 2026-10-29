@@ -76,9 +76,12 @@ label {
   background: rgb(167 139 250 / 0.35);
 }
 
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+/* In the base layer so a component can replace it (the email field shows a ring on the whole form instead). */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 }
 
 /* iOS zooms into inputs under 16px. */
@@ -320,5 +323,26 @@ label {
   }
   50% {
     opacity: 0.9;
+  }
+}
+
+/* Hero stack opening. The stack is drawn open; only when the reveal script is armed (motion allowed) does it start
+ * closed, with its layers pressed together and its surroundings hidden. StackOpener adds .stack-open once, after
+ * the visitor's first scroll, and never removes it. */
+@media (prefers-reduced-motion: no-preference) {
+  .stack-armed .stack-layer {
+    transition:
+      transform 1100ms cubic-bezier(0.34, 1.3, 0.64, 1) calc(var(--i) * 110ms),
+      opacity 600ms ease calc(var(--i) * 110ms + 250ms);
+  }
+  .stack-armed .stack-extra {
+    transition: opacity 900ms ease 700ms;
+  }
+  html.reveal-ready .stack-armed:not(.stack-open) .stack-layer {
+    transform: translateY(var(--collapse));
+  }
+  html.reveal-ready .stack-armed:not(.stack-open) .stack-ghost,
+  html.reveal-ready .stack-armed:not(.stack-open) .stack-extra {
+    opacity: 0;
   }
 }

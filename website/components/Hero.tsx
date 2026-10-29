@@ -1,6 +1,7 @@
 import { DotField } from "./DotField";
 import { EmailForm } from "./EmailForm";
 import { StackDiagram } from "./StackDiagram";
+import { StackOpener } from "./StackOpener";
 
 // Brand-coloured dots that blink inside the halftone field at the edges, out of step with each other.
 const TWINKLES = [
@@ -94,6 +95,7 @@ export function Hero() {
         <Twinkles />
         <StackDiagram className="hidden md:block" />
         <StackDiagram compact className="block md:hidden" />
+        <StackOpener />
         <PhoneFlow />
       </div>
     </section>

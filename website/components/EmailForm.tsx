@@ -16,7 +16,7 @@ export function EmailForm() {
           e.preventDefault();
           setSent(true);
         }}
-        className="relative mx-[5px] flex flex-col gap-[5px] rounded-xl border border-border-strong bg-card-2 p-[5px] shadow-[0_10px_30px_-12px_rgb(129_140_248/0.35)] transition-colors duration-150 focus-within:border-[#3a3a40] sm:h-[62px] sm:flex-row sm:items-center sm:pl-[18px]"
+        className="relative mx-[5px] flex flex-col gap-[5px] rounded-xl border border-border-strong bg-card-2 p-[5px] shadow-[0_10px_30px_-12px_rgb(129_140_248/0.35)] transition-[border-color,box-shadow] duration-150 focus-within:border-accent/60 focus-within:ring-[3px] focus-within:ring-accent/15 sm:h-[62px] sm:flex-row sm:items-center sm:pl-[18px]"
       >
         <label htmlFor="work-email" className="sr-only">
           Work email
@@ -27,7 +27,8 @@ export function EmailForm() {
           required
           autoComplete="email"
           placeholder="Enter your work email"
-          className="h-12 min-w-0 flex-1 bg-transparent px-3 sm:h-full sm:px-0 text-[17px] tracking-[-0.01em] text-foreground outline-none placeholder:text-muted"
+          // Full width and fixed height when stacked; flex-1 only in the row, where it would otherwise squash the height.
+          className="h-[52px] w-full min-w-0 bg-transparent px-4 text-[17px] tracking-[-0.01em] text-foreground outline-none placeholder:text-muted focus-visible:outline-none sm:h-full sm:w-auto sm:flex-1 sm:px-0"
         />
         <button
           type="submit"

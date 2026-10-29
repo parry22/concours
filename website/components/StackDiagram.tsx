@@ -165,6 +165,12 @@ function Pill({ node, side, delay, p }: { node: Node; side: "left" | "right"; de
 
 const STACK_TOP = 117; // back vertex of the Concours slab
 const PITCH = 45; // distance between slabs
+/** How far each layer sits below its open position while the stack is closed (slabs pressed together). */
+const CLOSED_STEP = PITCH - T - 3;
+function layer(fromBottom: number, extra = 0) {
+  return { "--collapse": `${fromBottom * CLOSED_STEP + extra}px`, "--i": fromBottom } as CSSProperties;
+}
+
 const ORBIT_CY = 255; // centre of the orbit ring, about the middle of the stack
 const ORBIT_R = 250;
 
@@ -205,7 +211,7 @@ export function StackDiagram({ compact = false, className = "" }: { compact?: bo
   return (
     <svg
       viewBox={compact ? "-262 30 524 440" : "-450 0 900 500"}
-      className={`relative mx-auto h-auto w-full ${compact ? "max-w-[520px]" : "max-w-[900px]"} ${className}`}
+      className={`stack-armed relative mx-auto h-auto w-full ${compact ? "max-w-[520px]" : "max-w-[900px]"} ${className}`}
       role="img"
       aria-label="Transactions, your stack and labels flow into Concours, which returns a review queue and new model versions."
     >
@@ -251,43 +257,55 @@ export function StackDiagram({ compact = false, className = "" }: { compact?: bo
         </filter>
       </defs>
 
-      <Orbit />
-      {!compact && INPUTS.map((n, i) => (
-        <Pill p={p} key={n.label} node={n} side="left" delay={i * -0.9} />
-      ))}
-      {!compact && OUTPUTS.map((n, i) => (
-        <Pill p={p} key={n.label} node={n} side="right" delay={-0.5 + i * -1.3} />
-      ))}
+      {/* Everything around the stack fades in once it has opened (see .stack-armed in globals.css). */}
+      <g className="stack-extra">
+        <Orbit />
+        {!compact &&
+          INPUTS.map((n, i) => <Pill p={p} key={n.label} node={n} side="left" delay={i * -0.9} />)}
+        {!compact &&
+          OUTPUTS.map((n, i) => <Pill p={p} key={n.label} node={n} side="right" delay={-0.5 + i * -1.3} />)}
 
-      {/* Rings spreading from the Concours slab, behind the stack. */}
-      {[0, -1.8].map((d) => (
-        <path
-          key={d}
-          d={face(STACK_TOP)}
-          fill="none"
-          stroke={`url(#${p}edge-brand)`}
-          strokeWidth={1.2}
-          className="anim-ring anim-box"
-          style={{ animationDelay: `${d}s` }}
-        />
-      ))}
+        {/* Rings spreading from the Concours slab, behind the stack. */}
+        {[0, -1.8].map((d) => (
+          <path
+            key={d}
+            d={face(STACK_TOP)}
+            fill="none"
+            stroke={`url(#${p}edge-brand)`}
+            strokeWidth={1.2}
+            className="anim-ring anim-box"
+            style={{ animationDelay: `${d}s` }}
+          />
+        ))}
+      </g>
 
-      <Slab p={p} top={STACK_TOP + 3 * PITCH} tone={{ side: "#0f0f11", stroke: "var(--border-strong)" }} />
-      <Slab p={p} top={STACK_TOP + 2 * PITCH} tone={{ side: "#0f0f11", stroke: "var(--border-strong)" }} />
-      <Slab p={p} top={STACK_TOP + PITCH} tone={{ side: `url(#${p}side-grey)`, stroke: "#3a3a40", stripes: true }} />
+      {/* Layers sit pressed together until the stack opens; each then rises to its place, bottom first. */}
+      <g className="stack-layer" style={layer(0)}>
+        <Slab p={p} top={STACK_TOP + 3 * PITCH} tone={{ side: "#0f0f11", stroke: "var(--border-strong)" }} />
+      </g>
+      <g className="stack-layer" style={layer(1)}>
+        <Slab p={p} top={STACK_TOP + 2 * PITCH} tone={{ side: "#0f0f11", stroke: "var(--border-strong)" }} />
+      </g>
+      <g className="stack-layer" style={layer(2)}>
+        <Slab p={p} top={STACK_TOP + PITCH} tone={{ side: `url(#${p}side-grey)`, stroke: "#3a3a40", stripes: true }} />
+      </g>
       {/* The Concours slab lifts gently off the stack, carrying its mark. */}
-      <g className="anim-float-slow">
-        <Slab
-          p={p}
-          top={STACK_TOP}
-          tone={{ side: `url(#${p}side-brand)`, stroke: `url(#${p}edge-brand)`, faceStroke: `url(#${p}edge-brand)`, stripes: true }}
-        />
-        <ellipse cx="0" cy={STACK_TOP + HH} rx="58" ry="30" fill={`url(#${p}mark-glow)`} className="anim-breathe" />
-        <g className="anim-float">
-          <LogoMark id={`${p}stack-logo`} x={-22} y={STACK_TOP + HH - 49} width={44} height={56} overflow="visible" />
+      <g className="stack-layer" style={layer(3)}>
+        <g className="anim-float-slow">
+          <Slab
+            p={p}
+            top={STACK_TOP}
+            tone={{ side: `url(#${p}side-brand)`, stroke: `url(#${p}edge-brand)`, faceStroke: `url(#${p}edge-brand)`, stripes: true }}
+          />
+          <ellipse cx="0" cy={STACK_TOP + HH} rx="58" ry="30" fill={`url(#${p}mark-glow)`} className="anim-breathe" />
+          <g className="anim-float">
+            <LogoMark id={`${p}stack-logo`} x={-22} y={STACK_TOP + HH - 49} width={44} height={56} overflow="visible" />
+          </g>
         </g>
       </g>
-      <Ghost top={STACK_TOP - 47} />
+      <g className="stack-layer stack-ghost" style={layer(3, 47)}>
+        <Ghost top={STACK_TOP - 47} />
+      </g>
     </svg>
   );
 }
