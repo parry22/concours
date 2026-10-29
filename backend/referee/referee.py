@@ -93,7 +93,7 @@ class BriefReferee(Referee):
             except (PlayerError, TypeError, ValueError) as e:
                 faults += 1
                 scores.extend([0.0] * len(chunk))
-                self.trace({"split": name, "chunk": i, "fault": str(e)[:200]})
+                self.trace({"split": name, "chunk": i, "fault": type(e).__name__})  # never a value from a row
         secs = time.monotonic() - t0
         return scores, y, {"rows": len(rows), "faulted_chunks": faults, "seconds_per_10k": round(secs / max(1, len(rows)) * 10_000, 3)}
 
@@ -118,7 +118,7 @@ class BriefReferee(Referee):
             player.reset(match_id=ctx.match_id, player_index=0, seed=ctx.seed, config=cfg, timeout_s=float(cfg.get("reset_timeout_s", 900)))
         except PlayerError as e:
             return GameResult(raw_scores=[0.0], winner=-1, terminal_reason="player_error", steps=0,
-                              metadata={"error": str(e)[:500], "eval_time_in_seconds": time.monotonic() - start})
+                              metadata={"error": f"{type(e).__name__}: {str(e)[:160]}", "eval_time_in_seconds": time.monotonic() - start})
         out: dict = {"primary_metric": primary, "metric_params": params, "secondary_metric": secondary, "splits": {}}
         results = {}
         total_faults = 0

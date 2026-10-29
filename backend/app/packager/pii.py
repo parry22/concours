@@ -11,6 +11,7 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[a-z]{2,}$", re.I)
 PHONE_RE = re.compile(r"^\+?[\d\s().-]{7,20}$")
 NAME_COLS = ("first_name", "last_name", "full_name", "surname", "customer_name", "name", "email", "phone", "address", "ssn", "passport")
 CARD_COL_HINTS = ("card", "pan", "account_number", "iban")
+CARD_IN_TEXT = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
 
 
 def luhn_ok(s: str) -> bool:
@@ -46,8 +47,10 @@ def classify_pii(series: pd.Series, name: str) -> str | None:
     if pd.api.types.is_float_dtype(series):
         series = series.dropna()
         series = series[series == series.round()].astype("int64") if len(series) else series
-    if _share(series, lambda v: v.replace(" ", "").replace("-", "").isdigit() and luhn_ok(v)) > 0.8:
+    if _share(series, lambda v: v.replace(" ", "").replace("-", "").isdigit() and luhn_ok(v)) > 0.5:
         return "card"
+    if not numeric and _share(series, lambda v: bool(CARD_IN_TEXT.search(v)) and any(luhn_ok(m) for m in CARD_IN_TEXT.findall(v))) > 0.3:
+        return "card"  # a card number inside free text ("card 4111 1111 1111 1111 declined")
     if any(h in lname for h in ("phone", "mobile", "tel")) and _share(series, lambda v: bool(PHONE_RE.match(v))) > 0.8:
         return "phone"
     if not numeric and (lname in NAME_COLS or any(lname.endswith("_" + h) for h in NAME_COLS)):

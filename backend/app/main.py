@@ -53,6 +53,8 @@ from app.packager import fairness
 from app.packager.protect import protect
 from app.templates import dataset_path, list_templates, load_defaults, spec_from_defaults
 
+import logging  # noqa: E402
+
 from app import auth  # noqa: E402
 from app.observability import install as install_observability  # noqa: E402
 
@@ -62,6 +64,7 @@ app = FastAPI(title="Concours", version="0.3.0", description="Fraud models that 
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.include_router(auth.router)
 install_observability(app)
+log = logging.getLogger("concours.api")
 
 STAGES = ["upload", "intake", "protect", "model", "improve", "launch"]
 
@@ -215,6 +218,10 @@ async def upload_data(project_id: str, file: UploadFile = File(...), s: Session 
     size = 0
     with open(dst, "wb") as f:
         while chunk := await file.read(1 << 20):
+            if size == 0 and b"\x00" in chunk[:4096]:
+                f.close()
+                dst.unlink(missing_ok=True)
+                raise HTTPException(400, "This is not a text CSV file (it contains binary data). Export the transactions as CSV and try again.")
             size += len(chunk)
             if size > MAX_UPLOAD_MB << 20:
                 raise HTTPException(413, f"CSV larger than {MAX_UPLOAD_MB} MB")
@@ -224,7 +231,8 @@ async def upload_data(project_id: str, file: UploadFile = File(...), s: Session 
             secure_store.encrypt_in_place(dst)
             prof = _profile_raw(row)
         except Exception as e:  # noqa: BLE001
-            raise HTTPException(400, f"Could not read CSV: {e}") from e
+            log.warning("upload %s could not be read: %s", project_id, e)
+            raise HTTPException(400, "Could not read this file as a CSV. Check that it has a header row and comma-separated columns.") from e
         row.source = "upload"
         s.add(row)
         s.commit()
@@ -232,7 +240,8 @@ async def upload_data(project_id: str, file: UploadFile = File(...), s: Session 
     try:
         prof = _ingest_csv(row, dst)
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(400, f"Could not read CSV: {e}") from e
+        log.warning("upload %s could not be read: %s", project_id, e)
+        raise HTTPException(400, "Could not read this file as a CSV. Check that it has a header row and comma-separated columns.") from e
     # a new upload invalidates downstream state
     row.protect_json = None
     row.stage = "intake"
@@ -570,7 +579,9 @@ def list_solvers() -> list[dict]:
 @app.get("/arena/docker")
 def docker_status() -> dict:
     ok, info = runner.docker_available()
-    return {"available": ok, "info": info}
+    if not ok:
+        log.warning("docker unavailable: %s", info)
+    return {"available": ok, "info": info if ok else "Docker Desktop is not running or not reachable"}
 
 
 @app.post("/projects/{project_id}/arena/run")
@@ -785,7 +796,7 @@ def package_file(project_id: str, path: str, s: Session = Depends(get_session)) 
     get_project(project_id, s)
     comp = generator.competition_dir(project_id).resolve()
     p = (comp / path).resolve()
-    if not str(p).startswith(str(comp)) or not p.is_file():
+    if not p.is_relative_to(comp) or not p.is_file():
         raise HTTPException(404, "no such file")
     if p.suffix in (".csv",) and p.stat().st_size > 200_000:
         return {"path": path, "content": p.read_text()[:4000] + "\n... (truncated)"}

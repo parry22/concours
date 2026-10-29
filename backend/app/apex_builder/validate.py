@@ -44,7 +44,7 @@ def local_run(project_id: str) -> ValidationStep:
         return ValidationStep(name="local referee run", status="not_run", log="No arena run yet. Run the arena to produce a result.json through the referee/player contract.")
     r = json.loads(scored[0].result_json)
     ok = isinstance(r.get("raw_scores"), list) and len(r["raw_scores"]) == 1 and r.get("terminal_reason", "").startswith("scored")
-    log = f"{len(scored)} submissions scored through the referee. Latest ({scored[0].solver}): raw_scores={r.get('raw_scores')}, terminal_reason={r.get('terminal_reason')}, steps={r.get('steps')}. Logs: {scored[0].logs_path}"
+    log = f"{len(scored)} submissions scored through the referee. Latest ({scored[0].solver}): raw_scores={r.get('raw_scores')}, terminal_reason={r.get('terminal_reason')}, steps={r.get('steps')}."
     return ValidationStep(name="local referee run", status="pass" if ok else "fail", log=log)
 
 

@@ -92,3 +92,15 @@ def test_arena_cache_requires_same_scoring_rule():
     leads = ProblemSpec(target_column="t", primary_metric="recall_at_top_k", metric_params={"top_k": 0.1}, secondary_metric="roc_auc")
     assert _same_rule(sub, fraud) and not _same_rule(sub, leads)
     assert not _same_rule(SubmissionRow(project_id="p", solver="x", result_json=None), fraud)
+
+
+def test_card_numbers_inside_text_and_sparse_columns_are_caught():
+    import pandas as pd
+
+    from app.packager.pii import classify_pii
+
+    text = pd.Series(["card 4111 1111 1111 1111 declined", "paid with 4111-1111-1111-1111", "ok", "fine"] * 50)
+    assert classify_pii(text, "notes") == "card"
+    sparse = pd.Series(["4111111111111111", None, "4111111111111111", None] * 50)
+    assert classify_pii(sparse, "x") == "card"
+    assert classify_pii(pd.Series(["hello", "world"] * 50), "notes") is None
