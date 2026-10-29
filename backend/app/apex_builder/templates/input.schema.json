@@ -17,7 +17,7 @@
         "additionalProperties": false
       }
     },
-    "primary_metric": {"type": "string", "enum": ["recall_at_fpr", "recall_at_top_k", "wape", "fraud_amount_per_day"]},
+    "primary_metric": {"type": "string", "enum": ["recall_at_fpr", "recall_at_top_k", "wape", "fraud_amount_per_day", "fraud_lift_in_capacity"]},
     "metric_params": {"type": "object"},
     "secondary_metric": {"type": ["string", "null"]},
     "max_train_rows": {"type": "integer", "minimum": 0},
