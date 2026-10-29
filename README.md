@@ -26,8 +26,9 @@ Claude subscription (`claude auth login` once), else cached or default replies.
 ./scripts/dev.sh       # backend on :8000, frontend on :3000
 ```
 
-Sign in at http://localhost:3000 with the demo owner the seed creates (`CONCOURS_DEMO_EMAIL` and
-`CONCOURS_DEMO_PASSWORD` in `.env.example`; set your own in `.env`). `CONCOURS_AUTH=off` in `backend/.env`
+Sign in at http://localhost:3000 with the demo owner the seed creates: `CONCOURS_DEMO_EMAIL` from `.env.example`
+and the password the seed generates and writes to `.env` (gitignored; set your own there if you prefer). The dev
+servers listen on this machine only (`127.0.0.1`), so nobody on the same Wi-Fi can open the app. `CONCOURS_AUTH=off` in `backend/.env`
 turns sign-in off for single-user local use.
 
 Command line: `pipx install ./cli`, then `concours login --url http://127.0.0.1:8000` and `concours --help`

@@ -28,8 +28,8 @@ start_frontend() {
     echo "[dev] installing frontend deps with pnpm"
     (cd "$ROOT/frontend" && pnpm install)
   fi
-  echo "[dev] frontend on http://localhost:3000"
-  (cd "$ROOT/frontend" && exec pnpm dev --port 3000)
+  echo "[dev] frontend on http://localhost:3000 (bound to this machine only)"
+  (cd "$ROOT/frontend" && exec pnpm dev --port 3000 --hostname 127.0.0.1)
 }
 
 case "$WHAT" in

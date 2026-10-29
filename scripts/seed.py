@@ -54,6 +54,22 @@ def _env_file() -> dict[str, str]:
     return out
 
 
+def _generate_password(email: str) -> str:
+    """No committed demo password: make one, keep it in .env (gitignored) so later seeds and the founder can sign in."""
+    import secrets  # noqa: PLC0415
+
+    password = "demo-" + secrets.token_urlsafe(12)
+    env_file = ROOT / ".env"
+    lines = [l for l in env_file.read_text().splitlines() if not l.startswith("CONCOURS_DEMO_PASSWORD=")] if env_file.exists() else []
+    if not any(l.startswith("CONCOURS_DEMO_EMAIL=") for l in lines):
+        lines.append(f"CONCOURS_DEMO_EMAIL={email}")
+    lines.append(f"CONCOURS_DEMO_PASSWORD={password}")
+    env_file.write_text("\n".join(lines) + "\n")
+    env_file.chmod(0o600)
+    print(f"[seed] generated the demo owner password and wrote it to {env_file} (sign in as {email})")
+    return password
+
+
 def sign_in() -> None:
     """Sign up the demo owner on a fresh server (or sign in), then use an API key for everything else.
     Skipped when the server has sign-in off."""
@@ -68,7 +84,7 @@ def sign_in() -> None:
     e = _env_file()
     email, password = e.get("CONCOURS_DEMO_EMAIL", "demo@concours.local"), e.get("CONCOURS_DEMO_PASSWORD", "")
     if len(password) < 10:
-        raise SystemExit("[seed] set CONCOURS_DEMO_PASSWORD (10+ characters) in .env or the environment")
+        password = _generate_password(email)
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
     path = "/auth/signup" if cfg["first_run"] else "/auth/login"
