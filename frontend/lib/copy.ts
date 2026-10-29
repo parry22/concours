@@ -50,6 +50,7 @@ export const steps = {
   queue: { label: "Review queue", short: "Queue", blurb: "Today's cases, ranked by expected loss" },
   improve: { label: "Improve", short: "Improve", blurb: "Attempts, promotion gates, new versions" },
   data: { label: "Data", short: "Data", blurb: "Protection report and late labels" },
+  trust: { label: "Trust", short: "Trust", blurb: "What leaves this machine, who sees what" },
   launch: { label: "Launch", short: "Launch", blurb: "Package and hand off" },
 } as const;
 
@@ -291,6 +292,7 @@ export const mapping = {
   rows: "Payments",
   fraudRate: "Fraud rate",
   days: "Days covered",
+  range: (a: string, b: string) => `${a} to ${b}`,
   confirmed: "Confirmed",
   hintDone: "Columns confirmed. Next, three questions about your team.",
   hintTodo: "Match the five required fields to continue.",
@@ -316,6 +318,9 @@ export const questions = {
   next: "Protect the data",
 };
 
+// A version that came from a run of the signed scorer images on this machine (scripts/apex_local_run.sh).
+const SIGNED_RUN_SOURCE = "Improved in a signed-image run on this machine";
+
 export const overview = {
   title: (v: number) => `Model v${v}`,
   titleNone: "Your model",
@@ -339,12 +344,13 @@ export const overview = {
   falseAlarmsSub: "Per 1,000 legitimate payments",
   timeline: "Versions",
   timelineSub: "A version replaces the one before only when it passes all five promotion gates.",
-  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network", bittensor: "Improved by an outside solver on Bittensor" },
+  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network", bittensor: "Improved by an outside solver on Bittensor", apex_local: SIGNED_RUN_SOURCE, apex_actions: SIGNED_RUN_SOURCE },
   active: "Active",
   retired: "Retired",
   health: "Health",
   healthSub: "Fraud money caught per week, on weeks whose labels have matured, against the model's own test days.",
   noWeeks: "No week has mature labels since this model was built. Jump forward to see the next weeks.",
+  noWeeksReal: (d: number) => `Health checks start once a full week of payments after the test days has had ${d} days for its labels to arrive. Upload newer payments to move the clock.`,
   week: (a: string, b: string) => `${a} to ${b}`,
   share: (v: string) => `${v} of fraud money caught`,
   baseline: (v: string) => `Test days: ${v}`,
@@ -357,6 +363,17 @@ export const overview = {
   noJump: "No later data in this file.",
   openQueue: "Open today's queue",
   next: "Review queue",
+  vsTool: "with your current tool",
+  vsToolHint: "Your current tool's score, ranked the same way on the same test days",
+  ratio: "Fraud and dispute ratio",
+  ratioSub: (pct: string) => `By month, from your labels. Visa's monitoring program flags merchants at ${pct} once they have 1,500 fraud and dispute counts in a month.`,
+  ratioLatest: (m: string, v: string) => `${m}: ${v}`,
+  ratioOver: "Over the Visa line",
+  ratioUnder: "Under the Visa line",
+  ratioBelowFloor: "Under the count floor",
+  ratioNote: "Labels stand in for disputes until a dispute file is imported.",
+  ratioLine: (pct: string) => `Visa ${pct}`,
+  changes: "What changed",
 };
 
 export const alerts = {
@@ -380,6 +397,9 @@ export const queue = {
   figStakeHint: (n: number) => `Across the top ${n.toLocaleString("en-US")} cases`,
   figReviewed: "Reviewed",
   figReviewedHint: "Verdicts become new labels",
+  figReviewedExplore: (n: number) => `Verdicts become new labels. ${n} random ${n === 1 ? "check" : "checks"} included`,
+  explore: "Random check",
+  exploreHint: "Not a model pick: a random payment from today, so your verdict shows what the model misses.",
   labeled: (n: number, total: number) => `${n} of ${total} reviewed`,
   cols: { rank: "#", id: "Transaction", time: "Time", amount: "Amount", customer: "Customer", risk: "Risk", loss: "Expected loss", reasons: "Why", verdict: "Verdict" },
   fraud: "Fraud",
@@ -415,7 +435,7 @@ export const data = {
   embargoHint: (d: number) => `${d} days between training and the test days, used for nothing`,
   factAnalyst: "Analyst verdicts used",
   analystHint: "They replace the file's labels, dated when given",
-  next: "Launch",
+  next: "Trust",
 };
 
 export const gates = {
@@ -535,7 +555,7 @@ export const model = {
   firstModel: "Your first model",
   timeline: "Versions",
   timelineSub: "Each version replaced the one before it because it measured better on the private holdout.",
-  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network", bittensor: "Improved by an outside solver on Bittensor" },
+  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network", bittensor: "Improved by an outside solver on Bittensor", apex_local: SIGNED_RUN_SOURCE, apex_actions: SIGNED_RUN_SOURCE },
   active: "Active",
   retired: "Retired",
   today: "today",
@@ -755,4 +775,53 @@ export const launch = {
   build: "Build and validate",
   building: "Building and validating",
   closing: brand.oneLiner,
+};
+
+export const apexStatus = {
+  modes: { none: "Not on Apex", local: "Apex-compatible local run", testnet: "Live on Apex testnet", mainnet: "Live on Apex" },
+  detail: {
+    none: "Nothing has been submitted to Apex yet.",
+    local: "Attempts marked as signed-image runs were scored on this machine with the signed Apex referee and player images, through the same contract Apex uses. No live network run has happened.",
+    testnet: "The competition is active on Apex testnet. Results shown as live come from the network.",
+    mainnet: "The competition is active on Apex. Results shown as live come from the network.",
+  },
+  attempt: (n: number) => `Signed-image run ${n}`,
+  attemptLine: "Scored on this machine with the signed Apex referee and player images (not a live network run)",
+  actionsLine: "Scored on a GitHub Actions runner with the signed Apex images (not a live network run)",
+  dashboard: "Open the Apex dashboard",
+  launchRow: "Where this competition runs",
+};
+
+export const trust = {
+  title: "Trust",
+  sub: "What leaves this machine, who can see what, and how your data is held. Every line comes from this project.",
+  leaves: "What leaves this machine",
+  leavesNone: "Nothing, on its own. The upload, the protected data, the models and the queues stay here.",
+  leavesPackage: "You built a package. The handoff zip holds the training rows (scrambled IDs, no card numbers) and the scoring rule; the private test days are left out of it.",
+  leavesNoPackage: "No package has been built, so nothing has been prepared for submission.",
+  leavesHoldout: (n: string) => `The private test days (${n} payments, scrambled IDs) travel only inside the private scorer image, which is built and held privately for the competition.`,
+  apexModes: { none: "Not on Apex", local: "Apex-compatible local run", testnet: "Live on Apex testnet", mainnet: "Live on Apex" },
+  apexDetail: {
+    none: "Apex is the competition network on Bittensor where solvers improve the model. Nothing has been submitted.",
+    local: "Apex is the competition network on Bittensor where solvers improve the model. So far the signed scorer images have only been run on this machine.",
+    testnet: "Apex is the competition network on Bittensor where solvers improve the model. The competition is active on its test network.",
+    mainnet: "Apex is the competition network on Bittensor where solvers improve the model. The competition is active.",
+  },
+  who: "Who can see what",
+  whoYou: "Your team: everything, after signing in. Each project belongs to one organisation.",
+  whoSolvers: (cols: string, hashed: string) => `Solvers: the training rows only, with these columns: ${cols}. Identifiers (${hashed}) are scrambled with a key that stays here, so they can tell two payments share a customer, never who it is.`,
+  whoReferee: "The competition operator (Macrocosmos): the private scorer image, which holds the test days and their labels. It is signed and kept private.",
+  whoAnalysts: (n: number) => `Analysts' verdicts (${n} so far) are labels, not personal data; they stay here and train the next round.`,
+  held: "How it is held",
+  heldEncrypted: (where: string) => `The upload, the canonical data, the ID map and recent payments are encrypted on disk (key: ${where}).`,
+  heldRaw: "The raw upload is deleted as soon as the columns are confirmed; only its column names are kept.",
+  heldCards: (cols: string[]) => (cols.length ? `Card numbers were removed before anything was written: ${cols.join(", ")}.` : "No card-number column was found. If one appears, it is removed before anything is written."),
+  heldLeaks: (cols: string[]) => (cols.length ? `Columns that would let a model cheat were removed: ${cols.join(", ")}.` : "No column that leaks the outcome was found."),
+  heldRetention: "Everything stays until you delete the project; deleting removes the upload, the protected data, the queues and the labels.",
+  what: "What the model is",
+  whatRows: (rows: string, uploaded: number, kept: number) => `${rows} payments uploaded with ${uploaded} columns; ${kept} are used by the model.`,
+  whatLate: (d: number) => `Fraud takes about ${d} days to confirm, so the model learns and is tested only on what was knowable at the time.`,
+  whatBatch: "Delivery is a daily review queue sized to your team. No real-time decision is taken at checkout.",
+  whatNoNumbers: "Every number on these screens is computed from your data in code; no language model writes a number you see.",
+  next: "Launch",
 };

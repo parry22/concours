@@ -477,6 +477,15 @@ def queue_download(project_id: str, s: Session = Depends(get_session)):
     return Response(fraud.queue_csv(q), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
+@app.get("/projects/{project_id}/ratio")
+def visa_ratio(project_id: str, s: Session = Depends(get_session)) -> dict:
+    """Fraud-and-dispute ratio by month from the labels, against Visa's 1.5% monitoring threshold and count floor."""
+    row = _fraud_row(project_id, s)
+    if not row.mapping_json:
+        raise HTTPException(409, "map your columns first")
+    return fraud.monthly_ratio(row)
+
+
 @app.get("/projects/{project_id}/drift", response_model=DriftOut | None)
 def get_drift(project_id: str, s: Session = Depends(get_session)) -> DriftOut | None:
     """The last health and drift check (made when the clock moves or on POST)."""
@@ -1012,3 +1021,41 @@ def arena_agent_status(project_id: str) -> dict:
 from app import chain  # noqa: E402
 
 app.include_router(chain.router)
+
+from app.arena import apex_local  # noqa: E402
+
+app.include_router(apex_local.router)
+
+
+# ---------- trust page ----------
+
+
+@app.get("/projects/{project_id}/trust")
+def trust_facts(project_id: str, s: Session = Depends(get_session)) -> dict:
+    """What leaves this machine, who can see what, and how the data is held: facts from the project, for the trust page."""
+    from app.arena import apex_local as _apex  # noqa: PLC0415
+    from app.config import env as _env  # noqa: PLC0415
+
+    row = get_project(project_id, s)
+    rep = row.protect()
+    prof = row.profile()
+    st = row.fraud_settings() if hasattr(row, "fraud_settings") else None
+    return {
+        "rows": prof.n_rows if prof else None,
+        "columns_uploaded": prof.n_cols if prof else None,
+        "kept_columns": rep.kept_columns if rep else [],
+        "dropped_columns": rep.dropped_columns if rep else [],
+        "hashed_columns": rep.hashed_columns if rep else [],
+        "card_columns_dropped": [f.column for f in rep.findings if f.check == "pii" and f.action == "dropped"] if rep else [],
+        "leak_columns_dropped": [f.column for f in rep.findings if f.check in ("target_leak", "future_info", "post_outcome_name") and f.action == "dropped"] if rep else [],
+        "encrypted_at_rest": True,
+        "encryption_key_location": "CONCOURS_DATA_KEY" if _env("DATA_KEY", "") else "workspace/.data_key on this machine",
+        "raw_upload_deleted_after_mapping": True,
+        "label_delay_days": st.label_delay_days if st else None,
+        "holdout": {"rows": next((p.rows for p in rep.parts if p.name == "holdout"), None), "start": rep.maturity.holdout_start, "end": rep.maturity.holdout_end} if rep and rep.maturity else None,
+        "train_rows": next((p.rows for p in rep.parts if p.name == "train"), None) if rep else None,
+        "package_built": bool(row.package_json),
+        "apex": _apex.status(),
+        "analyst_labels": rep.maturity.analyst_labels if rep and rep.maturity else 0,
+        "retention": "Everything stays until you delete the project; deleting removes the upload, the protected data, the queues and the labels.",
+    }

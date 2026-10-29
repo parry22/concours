@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Lock, Play, RotateCcw, ShieldCheck, Terminal, Trophy, X } from "lucide-react";
 import { ActionBar, NextLink, useProject } from "@/components/ProjectShell";
 import { Alert, Badge, Button, Card, ResultFigure, Spinner, cx } from "@/components/ui";
-import { api, errorText, type ChainOut, type DockerStatus, type GateResult, type LeaderboardOut, type ModelVersionOut, type SolverOut, type SubmissionOut } from "@/lib/api";
+import { api, errorText, type ApexStatus, type ChainOut, type DockerStatus, type GateResult, type LeaderboardOut, type ModelVersionOut, type SolverOut, type SubmissionOut } from "@/lib/api";
 import { openArenaStream } from "@/lib/sse";
 import { attemptLabel } from "@/lib/format";
-import { chain as chainCopy, gates as gateCopy, improve as copy } from "@/lib/copy";
+import { apexStatus as apexCopy, chain as chainCopy, gates as gateCopy, improve as copy } from "@/lib/copy";
 
 const money = (x: number | null | undefined) => (x == null ? "–" : `${x < 0 ? "-" : ""}$${Math.abs(Math.round(x)).toLocaleString("en-US")}`);
 
@@ -28,6 +28,7 @@ export default function ImprovePage() {
   const [connected, setConnected] = useState(false);
   const [promoted, setPromoted] = useState<ModelVersionOut | null>(null);
   const [chain, setChain] = useState<ChainOut | null>(null);
+  const [apex, setApex] = useState<ApexStatus | null>(null);
   const seen = useRef<Set<string>>(new Set());
   const logEnd = useRef<HTMLDivElement>(null);
 
@@ -46,6 +47,7 @@ export default function ImprovePage() {
     api.solvers().then((list) => setSolvers(list.filter((x) => !x.agent))).catch(() => setSolvers([]));
     api.docker().then(setDocker).catch(() => setDocker({ available: false, info: "Could not check Docker." }));
     api.arenaStatus(project.id).then((s) => setRunning(s.running)).catch(() => undefined);
+    api.apexStatus().then(setApex).catch(() => setApex(null));
   }, [project.id, loadBoard]);
 
   // the Bittensor network's state while a validator reports it (outside solvers' attempts also arrive on the live stream)
@@ -187,6 +189,11 @@ export default function ImprovePage() {
               {connected ? copy.live : copy.reconnecting}
             </span>
             <span className="flex items-center gap-4">
+              {apex ? (
+                <Badge tone={apex.live ? "accent" : "neutral"} dot={apex.live} title={apexCopy.detail[apex.mode]}>
+                  {apexCopy.modes[apex.mode]}
+                </Badge>
+              ) : null}
               <span className="flex items-center gap-2">
                 <span className="bg-brand h-2 w-2 rounded-full" />
                 {copy.privateHoldout}
@@ -218,11 +225,11 @@ export default function ImprovePage() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="truncate text-[14px] font-medium">{isV1 ? copy.v1 : ver ? `Version ${ver.version}` : champ ? gateCopy.champion : r.origin === "chain" ? chainCopy.solver(r.uid) : attemptLabel(r.solver, attemptIndex)}</span>
+                        <span className="truncate text-[14px] font-medium">{isV1 ? copy.v1 : ver ? `Version ${ver.version}` : champ ? gateCopy.champion : r.origin === "chain" ? chainCopy.solver(r.uid) : r.origin === "apex_local" || r.origin === "apex_actions" ? apexCopy.attempt(attemptIndex) : attemptLabel(r.solver, attemptIndex)}</span>
                         {r.origin === "chain" && ver ? <span className="text-[12px] text-muted">{chainCopy.solver(r.uid)}</span> : null}
                         {isActive ? <Badge tone="accent">{copy.active}</Badge> : ver ? <Badge>v{ver.version}</Badge> : r.is_leader ? <Badge>{copy.leading}</Badge> : null}
                       </div>
-                      <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted sm:truncate">{r.error ? <span className="text-danger">{r.error}</span> : r.origin === "chain" ? chainCopy.minerLine(r.hotkey ?? "", r.chain_block) : r.status === "scored" ? copy.perDayLabel(project.fraud_settings?.daily_capacity ?? 200) : <StatusText status={r.status} />}</div>
+                      <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted sm:truncate">{r.error ? <span className="text-danger">{r.error}</span> : r.origin === "chain" ? chainCopy.minerLine(r.hotkey ?? "", r.chain_block) : r.origin === "apex_local" ? apexCopy.attemptLine : r.origin === "apex_actions" ? apexCopy.actionsLine : r.status === "scored" ? copy.perDayLabel(project.fraud_settings?.daily_capacity ?? 200) : <StatusText status={r.status} />}</div>
                       {r.gates?.length ? <GateChips gates={r.gates} /> : null}
                     </div>
                     <div className="grid shrink-0 grid-cols-2 items-end gap-4 text-right sm:gap-6">

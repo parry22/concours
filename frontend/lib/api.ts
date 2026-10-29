@@ -59,6 +59,11 @@ export type TemplateOut = {
 };
 export type SolverOut = { name: string; label: string; local: boolean; agent?: boolean };
 export type DockerStatus = { available: boolean; info: string };
+export type RatioMonth = { month: string; payments: number; events: number; ratio: number; counted: boolean; over: boolean };
+export type RatioOut = { months: RatioMonth[]; threshold: number; count_floor: number; latest_ratio: number | null; latest_month: string | null; worst_ratio: number | null; source: string; as_of: string | null };
+export type TrustOut = { rows: number | null; columns_uploaded: number | null; kept_columns: string[]; dropped_columns: string[]; hashed_columns: string[]; card_columns_dropped: string[]; leak_columns_dropped: string[]; encrypted_at_rest: boolean; encryption_key_location: string; raw_upload_deleted_after_mapping: boolean; label_delay_days: number | null; holdout: { rows: number | null; start: string; end: string } | null; train_rows: number | null; package_built: boolean; apex: ApexStatus; analyst_labels: number; retention: string };
+export type ApexMode = "none" | "local" | "testnet" | "mainnet";
+export type ApexStatus = { mode: ApexMode; live: boolean; dashboard_url: string | null; label: string };
 export type IntakeStatus = { offline: boolean; model: string; has_key: boolean };
 
 // Same origin by default (Next or the reverse proxy forwards /api to the backend), so the session cookie is first-party.
@@ -168,6 +173,9 @@ export const api = {
 
   solvers: () => request<SolverOut[]>("/arena/solvers"),
   docker: () => request<DockerStatus>("/arena/docker"),
+  apexStatus: () => request<ApexStatus>("/apex/status"),
+  ratio: (id: string) => request<RatioOut>(`/projects/${id}/ratio`),
+  trust: (id: string) => request<TrustOut>(`/projects/${id}/trust`),
   arenaRun: (id: string, body: { solvers?: string[]; replay?: boolean; rebuild?: boolean } = {}) =>
     request<{ submission_ids: string[] }>(`/projects/${id}/arena/run`, json("POST", body)),
   arenaStatus: (id: string) => request<{ running: boolean }>(`/projects/${id}/arena/status`),

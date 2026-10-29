@@ -4,14 +4,15 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronRight, Download, File, Folder, Package, RotateCcw, ShieldCheck, X } from "lucide-react";
 import { ActionBar, useProject } from "@/components/ProjectShell";
 import { Alert, Badge, Button, Card, Empty, LinkButton, PageHeader, Segments, Skeleton, Spinner, cx } from "@/components/ui";
-import { api, errorText, type PackageOut, type PlanOut } from "@/lib/api";
+import { api, errorText, type ApexStatus, type PackageOut, type PlanOut } from "@/lib/api";
 import { fmtMoney, fmtPct } from "@/lib/format";
-import { launch as copy } from "@/lib/copy";
+import { apexStatus as apexCopy, launch as copy } from "@/lib/copy";
 
 export default function LaunchPage() {
   const { project, refresh } = useProject();
   const [pkg, setPkg] = useState<PackageOut | null | undefined>(undefined);
   const [plan, setPlan] = useState<PlanOut | null>(null);
+  const [apex, setApex] = useState<ApexStatus | null>(null);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -22,6 +23,7 @@ export default function LaunchPage() {
   useEffect(() => {
     api.packageGet(project.id).then(setPkg).catch(() => setPkg(null));
     api.plan(project.id).then(setPlan).catch(() => setPlan(null));
+    api.apexStatus().then(setApex).catch(() => setApex(null));
   }, [project.id]);
 
   async function build() {
@@ -80,6 +82,24 @@ export default function LaunchPage() {
           />
           <Check3 n={3} state={pkg ? "done" : "todo"} title={copy.zip} detail={pkg ? copy.zipDone : copy.zipTodo} />
         </ol>
+        {apex ? (
+          <div className="mt-4 flex flex-col gap-1.5 border-t border-border pt-3 text-[12px] text-muted sm:flex-row sm:items-start sm:gap-3">
+            <Badge tone={apex.live ? "accent" : "neutral"} dot={apex.live} className="shrink-0">
+              {apexCopy.modes[apex.mode]}
+            </Badge>
+            <span className="leading-relaxed">
+              {apexCopy.detail[apex.mode]}
+              {apex.live && apex.dashboard_url ? (
+                <>
+                  {" "}
+                  <a href={apex.dashboard_url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                    {apexCopy.dashboard}
+                  </a>
+                </>
+              ) : null}
+            </span>
+          </div>
+        ) : null}
         {pkg && pkg.steps.length > 0 ? (
           <details className="group mt-4 border-t border-border pt-3">
             <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] text-subtle [&::-webkit-details-marker]:hidden">

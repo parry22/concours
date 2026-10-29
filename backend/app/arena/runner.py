@@ -159,7 +159,7 @@ def run_submission(project_id: str, submission_id: str, solver: str, config: dic
         (logs_dir / "player.log").write_bytes(player.logs())
         result_path = out_dir / "result.json"
         if result_path.exists():
-            result = json.loads(result_path.read_text())
+            result = read_result(out_dir)
             if "raw_scores" not in result:
                 return RunResult(False, result, "result.json missing raw_scores", time.monotonic() - t0, logs_dir)
             return RunResult(True, result, None, time.monotonic() - t0, logs_dir)
@@ -260,6 +260,21 @@ def _kill(container) -> None:
         container.kill()
     except (NotFound, DockerException):
         pass
+
+
+def read_result(out_dir: Path) -> dict:
+    """result.json with the referee's details.json (per-split numbers, private score, queue summary) merged into
+    its metadata. result.json alone carries only what the platform may show on its dashboard."""
+    result = json.loads((out_dir / "result.json").read_text())
+    details = out_dir / "details.json"
+    if details.exists():
+        try:
+            md = dict(result.get("metadata") or {})
+            md.update(json.loads(details.read_text()))
+            result["metadata"] = md
+        except (OSError, ValueError):
+            pass
+    return result
 
 
 def docker_available() -> tuple[bool, str]:

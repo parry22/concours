@@ -421,6 +421,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/ratio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Visa Ratio
+         * @description Fraud-and-dispute ratio by month from the labels, against Visa's 1.5% monitoring threshold and count floor.
+         */
+        get: operations["visa_ratio_projects__project_id__ratio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/drift": {
         parameters: {
             query?: never;
@@ -694,6 +714,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/package/repo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Package Repo
+         * @description The PRIVATE competition repo's contents, holdout included (release.yml builds the referee image from it).
+         */
+        get: operations["package_repo_projects__project_id__package_repo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/lists": {
         parameters: {
             query?: never;
@@ -947,6 +987,23 @@ export interface paths {
          * @description One miner's committed code. Starts an improvement round for it; 409 while another round runs.
          */
         post: operations["post_submission_projects__project_id__chain_submissions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/apex/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Apex Status */
+        get: operations["apex_status_apex_status_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1559,7 +1616,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "baseline" | "local_contest" | "apex_contest" | "bittensor";
+            source: "baseline" | "local_contest" | "apex_contest" | "bittensor" | "apex_local" | "apex_actions";
             /** Solver Name */
             solver_name: string;
             /** Submission Id */
@@ -1590,6 +1647,8 @@ export interface components {
             stats?: {
                 [key: string]: unknown;
             };
+            /** Changes */
+            changes?: string[];
         };
         /** PackageOut */
         PackageOut: {
@@ -1801,6 +1860,8 @@ export interface components {
              * @default false
              */
             can_jump: boolean;
+            /** Current Tool Per Day */
+            current_tool_per_day?: number | null;
             drift?: components["schemas"]["DriftOut"] | null;
             /** Money Per Day */
             money_per_day?: number | null;
@@ -1854,6 +1915,10 @@ export interface components {
             hashed_columns?: string[];
             /** Group Column */
             group_column?: string | null;
+            /** Current Tool */
+            current_tool?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** QueueCase */
         QueueCase: {
@@ -1875,6 +1940,11 @@ export interface components {
             reasons: components["schemas"]["QueueReason"][];
             /** Label */
             label?: ("fraud" | "not_fraud") | null;
+            /**
+             * Explore
+             * @default false
+             */
+            explore: boolean;
         };
         /** QueueLabelIn */
         QueueLabelIn: {
@@ -1902,6 +1972,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Explore Slots
+             * @default 0
+             */
+            explore_slots: number;
         };
         /** QueueReason */
         QueueReason: {
@@ -1945,6 +2020,12 @@ export interface components {
             confirmed: boolean;
             /** Problems */
             problems?: string[];
+            /** Notes */
+            notes?: string[];
+            /** Time Range */
+            time_range?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Sensitivity */
         Sensitivity: {
@@ -3099,6 +3180,39 @@ export interface operations {
             };
         };
     };
+    visa_ratio_projects__project_id__ratio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_drift_projects__project_id__drift_get: {
         parameters: {
             query?: never;
@@ -3602,6 +3716,37 @@ export interface operations {
         };
     };
     handoff_projects__project_id__handoff_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    package_repo_projects__project_id__package_repo_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4179,6 +4324,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apex_status_apex_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

@@ -12,7 +12,7 @@ from sqlmodel import SQLModel
 
 Template = Literal["fraud", "churn", "leads", "payments", "readmissions", "attrition", "custom"]
 Stage = Literal["upload", "intake", "protect", "model", "improve", "launch"]
-VersionSource = Literal["baseline", "local_contest", "apex_contest", "bittensor"]
+VersionSource = Literal["baseline", "local_contest", "apex_contest", "bittensor", "apex_local", "apex_actions"]
 Health = Literal["unknown", "healthy", "slipping"]
 ModelStatus = Literal["improving", "healthy", "slipping", "none"]
 Validation = Literal["pass", "fail", "not_run"]
@@ -140,6 +140,7 @@ class ProtectReport(BaseModel):
     maturity: MaturitySummary | None = None  # fraud projects: late labels and the embargo
     hashed_columns: list[str] = Field(default_factory=list)  # fraud: IDs replaced by salted hashes
     group_column: str | None = None  # the entity key of a group split
+    current_tool: dict[str, Any] | None = None  # fraud: the customer's own score ranked the same way on the holdout
 
 
 class FairnessGroup(BaseModel):
@@ -332,6 +333,7 @@ class ModelVersionOut(BaseModel):
     created_at: datetime
     gates: list[GateResult] = Field(default_factory=list)
     stats: dict[str, Any] = Field(default_factory=dict)  # fraud: holdout queue numbers (per day, precision, false alarms)
+    changes: list[str] = Field(default_factory=list)  # what changed with this version, in plain words, from code
 
 
 class ListOut(BaseModel):
@@ -403,7 +405,7 @@ class PackageOut(BaseModel):
 # ---------- Fraud ----------
 
 FRAUD_REQUIRED = ("transaction_id", "transaction_time", "amount", "customer_id", "is_fraud")
-FRAUD_OPTIONAL = ("merchant_or_terminal_id", "currency", "label_time")
+FRAUD_OPTIONAL = ("merchant_or_terminal_id", "currency", "label_time", "current_score")
 
 
 class FraudSettings(BaseModel):
@@ -426,6 +428,8 @@ class SchemaOut(BaseModel):
     preview: list[dict[str, Any]] = Field(default_factory=list)
     confirmed: bool = False
     problems: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)  # what will be read or left out, in plain words
+    time_range: dict[str, Any] | None = None  # {start, end, days} of the time column as read
 
 
 class SchemaIn(BaseModel):
@@ -455,6 +459,7 @@ class QueueCase(BaseModel):
     expected_loss: float
     reasons: list[QueueReason]
     label: Literal["fraud", "not_fraud"] | None = None
+    explore: bool = False  # a random check, not a model pick: analyst verdicts on these reveal what the model misses
 
 
 class QueueOut(BaseModel):
@@ -466,6 +471,7 @@ class QueueOut(BaseModel):
     expected_loss_total: float
     labeled: int
     created_at: datetime
+    explore_slots: int = 0  # how many of the cases are random checks
 
 
 class QueueLabelIn(BaseModel):
@@ -548,6 +554,7 @@ class ProjectOut(BaseModel):
     schema_confirmed: bool = False
     as_of: str | None = None
     can_jump: bool = False  # sample data beyond the as-of date exists
+    current_tool_per_day: float | None = None  # the customer's own score, ranked the same way, on the holdout
     drift: DriftOut | None = None
     money_per_day: float | None = None  # active version, fraud caught per day inside capacity
     net_per_day: float | None = None
@@ -662,6 +669,7 @@ class ProjectRow(SQLModel, table=True):
             updated_at=self.updated_at,
             fraud_settings=self.fraud_settings(),
             source=self.source or "sample",
+            current_tool_per_day=((self.protect().current_tool or {}).get("amount_per_day") if self.protect() else None),
             schema_confirmed=self.mapping_json is not None,
             as_of=self.as_of,
             can_jump=bool(self.as_of and self.data_end and self.as_of < self.data_end),
