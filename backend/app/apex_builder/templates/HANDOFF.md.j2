@@ -19,7 +19,7 @@ onboarding issue (`ONBOARDING_ISSUE.md` holds the prefilled issue body).
 {% endif %}- Requested terms: private competition (private repo and images, hidden results during the round, {{ reveal_days }}-day reveal delay, the maximum the platform allows); the customer owns the winning artifact.
 - Contact: {{ contact or "TODO owner name and email" }}.
 
-Private holdout and its labels are **excluded** from the handoff zip. They are committed only to the private competition repo{% if repo_url %} ({{ repo_url }}){% endif %}, because the release workflow builds the referee image from it; that repo and its GHCR packages must stay private. SHA-256:
+Private holdout and its labels are **excluded** from the handoff zip. They are committed encrypted (Fernet, `referee/data/*.enc`) to the private competition repo{% if repo_url %} ({{ repo_url }}){% endif %}; the release workflow decrypts them with the repository's `HOLDOUT_KEY` secret before building the referee image, which therefore carries them in clear: that package must stay private. Plaintext SHA-256:
 {% for name, sha in hidden_checksums.items() %}
 - `referee/data/{{ name }}`: `{{ sha }}`
 {% endfor %}

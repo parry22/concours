@@ -36,6 +36,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+      - name: Decrypt the private holdout (HOLDOUT_KEY repository secret)
+        if: matrix.name == 'referee'
+        env:
+          HOLDOUT_KEY: ${{ secrets.HOLDOUT_KEY }}
+        run: |
+          test -n "$HOLDOUT_KEY" || { echo "HOLDOUT_KEY secret is not set"; exit 1; }
+          python3 -m pip install -q "cryptography==50.0.2"
+          python3 - <<'PY'
+          import os, pathlib
+          from cryptography.fernet import Fernet
+          f = Fernet(os.environ["HOLDOUT_KEY"].encode())
+          n = 0
+          for enc in sorted(pathlib.Path("referee/data").glob("*.enc")):
+              enc.with_suffix("").write_bytes(f.decrypt(enc.read_bytes()))
+              n += 1
+          print(f"decrypted {n} holdout files")
+          PY
       - name: Build and push (amd64 and arm64)
         id: build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
