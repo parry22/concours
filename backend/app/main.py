@@ -644,9 +644,36 @@ def value_params(project_id: str, body: ValueParamsIn, solver: str | None = None
     return value_report(project_id, solver, s)
 
 
+import threading as _threading  # noqa: E402
+
+from app.config import env as _cfg_env  # noqa: E402
+
+# Live streams poll the database; a tab left open costs a query every half second, so each project allows a few
+# streams, polling slows down when nothing happens, and a stream ends after a while (the page reconnects).
+MAX_STREAMS_PER_PROJECT = int(_cfg_env("MAX_STREAMS", "10"))
+STREAM_MAX_S = int(_cfg_env("STREAM_MAX_S", "1800"))
+_streams: dict[str, int] = {}
+_streams_lock = _threading.Lock()
+
+
+def _take_stream(project_id: str) -> bool:
+    with _streams_lock:
+        if _streams.get(project_id, 0) >= MAX_STREAMS_PER_PROJECT:
+            return False
+        _streams[project_id] = _streams.get(project_id, 0) + 1
+        return True
+
+
+def _release_stream(project_id: str) -> None:
+    with _streams_lock:
+        _streams[project_id] = max(0, _streams.get(project_id, 0) - 1)
+
+
 @app.get("/projects/{project_id}/arena/stream")
 async def arena_stream(project_id: str, request: Request):
     """Live events (from the database, so the worker can be another process). Starts at the newest event."""
+    import time as _time  # noqa: PLC0415
+
     from app import jobs as _jobs  # noqa: PLC0415
     from app.db import session as _session  # noqa: PLC0415
 
@@ -655,25 +682,31 @@ async def arena_stream(project_id: str, request: Request):
             get_project(project_id, s)  # 404 for another organisation's project
 
     await asyncio.to_thread(_own)
+    if not _take_stream(project_id):
+        raise HTTPException(429, "Too many live views of this project are open. Close a tab and try again.")
     after = await asyncio.to_thread(_jobs.last_event_id, project_id)
 
     async def gen():
         nonlocal after
-        yield {"event": "connected", "data": "{}"}
-        idle = 0.0
-        while not await request.is_disconnected():
-            rows = await asyncio.to_thread(_jobs.events_after, project_id, after)
-            for r in rows:
-                after = r.id
-                yield {"event": r.event, "data": r.data}
-            if rows:
-                idle = 0.0
-                continue
-            await asyncio.sleep(0.5)
-            idle += 0.5
-            if idle >= 15:
-                idle = 0.0
-                yield {"event": "ping", "data": "{}"}
+        started = _time.monotonic()
+        try:
+            yield {"event": "connected", "data": "{}"}
+            idle = 0.0
+            while not await request.is_disconnected() and _time.monotonic() - started < STREAM_MAX_S:
+                rows = await asyncio.to_thread(_jobs.events_after, project_id, after)
+                for r in rows:
+                    after = r.id
+                    yield {"event": r.event, "data": r.data}
+                if rows:
+                    idle = 0.0
+                    continue
+                wait = 0.5 if idle < 60 else 2.0  # a quiet stream polls less often
+                await asyncio.sleep(wait)
+                idle += wait
+                if idle and int(idle) % 15 == 0:
+                    yield {"event": "ping", "data": "{}"}
+        finally:
+            _release_stream(project_id)
 
     return EventSourceResponse(gen())
 
