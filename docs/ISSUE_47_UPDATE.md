@@ -1,9 +1,13 @@
-# Draft update for issue #47 (not posted)
+# Update for issue #47 (ready to post, not yet posted)
 
-For the founder to review and paste as a comment on
-[macrocosm-os/apex-competitions-builder#47](https://github.com/macrocosm-os/apex-competitions-builder/issues/47)
-once v0.2.0 is tagged and the release workflow has pinned the new digests. Nothing below has been sent.
-v0.1.0 is untouched: same tag, same images, same `spec.yaml`.
+To post as a comment on
+[macrocosm-os/apex-competitions-builder#47](https://github.com/macrocosm-os/apex-competitions-builder/issues/47).
+The release workflow has pinned the digests; the full comment body (with spec.yaml and HANDOFF.md inline) is in
+`workspace/audit/issue47_comment.md`. Post it with:
+
+```bash
+gh issue comment 47 --repo macrocosm-os/apex-competitions-builder --body-file /Users/parry/concour/workspace/audit/issue47_comment.md
+``` v0.1.0 is untouched: same tag, same images, same `spec.yaml`.
 
 ## Plain-English summary
 
@@ -16,7 +20,7 @@ that by 1%. The data, the hidden rows and the player interface are unchanged; th
 
 ---
 
-Update: **v0.2.0** of `concours_fraud_6974713c0ea7` is tagged on `parry22/concours-fraud`. v0.1.0 stays as filed;
+Update: **v0.2.0** of `concours_fraud_6974713c0ea7` is tagged and released on `parry22/concours-fraud`. v0.1.0 stays as filed;
 please activate 0.2.0 instead.
 
 **What changed**
@@ -51,20 +55,20 @@ please activate 0.2.0 instead.
    `concours-fraud-referee`) only; `spec.yaml` and `HANDOFF.md` are attached here.
 3. Stage or testnet (netuid 61): whichever is faster for a short activation this week.
 
-Digests (from `spec.yaml` on `main` after the pin commit): player `sha256:<fill after release>`,
-referee `sha256:<fill after release>`.
+Digests (from `spec.yaml` on `main` at `918b1a3`, "Pin image digests for v0.2.0"): player `sha256:f83dfa6424e783c01365b8e017f7fd89a578d5da8f9f1441eba68b03e459a01b`,
+referee `sha256:ba26636bed0dd3789283aa9e12b754a0a5e4538c4ca87b1b90e8073c9943482a`. Both verified with cosign against the release workflow identity; both indexes carry linux/amd64 and linux/arm64.
 
 ---
 
 ## Checklist before posting
 
-- [ ] In the competition repo, review branch `v0.2.0` (local clone `/Users/parry/concours-fraud-repo`), then
+- [x] In the competition repo, review branch `v0.2.0` (local clone `/Users/parry/concours-fraud-repo`), then
       `git checkout main && git merge v0.2.0 && git push origin main`.
-- [ ] Add the repository secret `HOLDOUT_KEY` (Settings, Secrets and variables, Actions) with the output of
+- [x] Add the repository secret `HOLDOUT_KEY` (Settings, Secrets and variables, Actions) with the output of
       `cd backend && .venv/bin/python -m app.handoff.build key 6974713c0ea7`. The release workflow needs it to decrypt
       `referee/data/*.enc`.
-- [ ] `git tag v0.2.0 && git push origin v0.2.0`; wait for the `release` workflow; confirm the "Pin image digests for
+- [x] `git tag v0.2.0 && git push origin v0.2.0`; wait for the `release` workflow; confirm the "Pin image digests for
       v0.2.0" commit on `main`.
-- [ ] Paste the two digests into the comment above.
+- [x] Paste the two digests into the comment above.
 - [ ] Attach the new `spec.yaml` and `HANDOFF.md`.
-- [ ] Post the comment; do not edit the original issue body.
+- [ ] Post the comment (command above); do not edit the original issue body.

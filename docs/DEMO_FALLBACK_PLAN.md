@@ -136,5 +136,10 @@ same run is native. The v0.2.0 referee (branch `v0.2.0` of the competition repo)
 the repo: baseline lift -0.0054 (the logistic baseline is a hair under the largest-payments rule), money per day
 unchanged, private number absent from `result.json` metadata and present in `details.json`.
 
-Plan C: `.github/workflows/local-run.yml` is in the v0.2.0 package and repo branch; it has not run on a GitHub
-runner because the branch has not been pushed.
+v0.2.0 released 2026-10-29 (amd64 and arm64, cosign verified, `HOLDOUT_KEY` set). Native run of the four solvers
+with the signed v0.2.0 images on this laptop: 17 s, 10 s, 310 s, 66 s (404 s in all); lifts -0.0054, -0.0089,
+0.1171, 0.0983. The demo can use either: v0.1.0 results are imported and replay instantly; v0.2.0 images run
+natively in under seven minutes for all four.
+
+Plan C: `local-run.yml` ran green on a GitHub runner (run 40868194709): signatures verified, baseline scored
+-0.0054 lift, `result.json` and `details.json` uploaded as an artifact.
