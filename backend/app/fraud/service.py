@@ -20,6 +20,7 @@ from app.fraud import reasons as reasons_mod
 from app.fraud.labels import known_label, windows
 from app.fraud.protect import hash_ids, protect_fraud
 from app import secure_store
+from app.shared.csv_safe import safe_frame
 from app.fraud.schema import canonical, drop_card_columns, read_canonical, write_canonical
 from app.shared.metrics import fraud_queue
 
@@ -198,7 +199,7 @@ def queue_csv(q: QueueOut) -> str:
              "risk_score": c.risk, "expected_loss": c.expected_loss,
              **{f"reason_{i + 1}": (c.reasons[i].text if i < len(c.reasons) else "") for i in range(3)},
              "analyst_label": c.label or ""} for c in q.cases]
-    return pd.DataFrame(rows).to_csv(index=False)
+    return safe_frame(pd.DataFrame(rows)).to_csv(index=False)
 
 
 # ---------- health and drift ----------

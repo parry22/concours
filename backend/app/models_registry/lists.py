@@ -13,6 +13,7 @@ from app.config import project_dir
 from app.models import ListOut, ListRow, ModelVersionRow, ProblemSpec, ProjectRow
 from app.models_registry.promotion import list_framing
 from app.packager.transform import Transform
+from app.shared.csv_safe import safe_frame
 from app.serving.score import fitted_model
 from app.value.scores import submission_path
 
@@ -47,7 +48,7 @@ def build(s: Session, row: ProjectRow, version: ModelVersionRow, spec: ProblemSp
     rec = ListRow(project_id=row.id, model_version_id=version.id, model_version=version.version, solver_name=version.solver_name,
                   name=framing["name"], rows_scored=int(len(out)), top_n=n, columns_json=json.dumps(list(out.columns)))
     rec.path = str(lists_dir / f"{rec.id}.csv")
-    out.to_csv(rec.path, index=False)
+    safe_frame(out).to_csv(rec.path, index=False)  # analysts open this in Excel: no formula cells
     s.add(rec)
     row.updated_at = datetime.now(timezone.utc)
     if row.stage in ("upload", "intake", "protect"):

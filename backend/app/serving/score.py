@@ -15,6 +15,7 @@ from app.arena.stage import data_hash, solver_hash
 from app.config import ARENA_CACHE_DIR, SOLVERS_DIR, project_dir
 from app.models import ProblemSpec
 from app.packager.transform import Transform
+from app.shared.csv_safe import safe_frame
 from app.shared.metrics import threshold_at_fpr
 
 
@@ -83,7 +84,7 @@ def score_csv(project_id: str, solver: str, spec: ProblemSpec, src: Path, dst: P
     out = df.copy()
     out["score"] = np.round(scores, 6)
     out["flag"] = (scores >= thr).astype(int)
-    out.to_csv(dst, index=False)
+    safe_frame(out).to_csv(dst, index=False)
     preview = out.head(10).to_dict(orient="records")
     return {
         "rows": int(len(out)),
