@@ -1,5 +1,5 @@
 # The web app: Next.js standalone output. /api is proxied by Caddy in production (CONCOURS_BACKEND_URL for dev).
-FROM node:22-slim AS build
+FROM node:22-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS build
 RUN corepack enable
 WORKDIR /app
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
@@ -8,7 +8,7 @@ COPY frontend/ ./
 ENV NEXT_TELEMETRY_DISABLED=1 CONCOURS_BACKEND_URL=http://api:8000
 RUN pnpm build
 
-FROM node:22-slim
+FROM node:22-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 WORKDIR /app
 COPY --from=build /app/.next/standalone ./

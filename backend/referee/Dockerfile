@@ -1,7 +1,7 @@
 # Brief REFEREE image: holds hidden leaderboard + holdout data and labels, scores with shared metrics.
 # Build context = the competition folder (this repo root):
 #   docker build -f referee/Dockerfile -t brief-referee .
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
 
 RUN useradd --create-home --uid 1000 app \
     && mkdir -p /app /data && chown -R 1000:1000 /app /data

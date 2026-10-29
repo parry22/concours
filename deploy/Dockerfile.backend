@@ -1,5 +1,5 @@
 # The API and the worker (same image, different command). Python 3.11, dependencies from uv.lock.
-FROM python:3.11-slim
+FROM python:3.11-slim@sha256:673719e071ecf27434fd2635bbd8d00f49f4fdd81f243143438a42ced8bedf60
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 git ca-certificates curl \
