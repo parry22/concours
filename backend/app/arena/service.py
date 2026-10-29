@@ -163,13 +163,18 @@ def _emit_board(project_id: str, spec: ProblemSpec) -> None:
     events.publish(project_id, "leaderboard_updated", board.model_dump())
 
 
-def _emit_versions(project_id: str, made: list, spec: ProblemSpec) -> None:
-    """One event per new version so the UI can show the promotion moment."""
+def _emit_versions(project_id: str, made_ids: list[str], spec: ProblemSpec) -> None:
+    """One event per new version so the UI can show the promotion moment. Takes ids: the rows that made the
+    versions belong to a session that has closed by now."""
+    from app.models import ModelVersionRow  # noqa: PLC0415
+
     with session() as s:
         versions = promotion.versions_for(s, project_id)
         v1 = next((v for v in versions if v.version == 1), None)
-        for v in made:
-            fresh = s.get(type(v), v.id)
+        for vid in made_ids:
+            fresh = s.get(ModelVersionRow, vid)
+            if fresh is None:
+                continue
             payload = promotion.version_payload(fresh, spec, v1)
             events.publish(project_id, "model_version" if fresh.version == 1 else "model_promoted", payload)
 
@@ -179,9 +184,12 @@ def promote_after_score(project_id: str, sub_id: str, spec: ProblemSpec, *, sour
     with session() as s:
         sub = s.get(SubmissionRow, sub_id)
         made = [v for v in [promotion.consider(s, project_id, sub, source=source)] if v]
-    if made:
-        _log(project_id, f"new model v{made[0].version} promoted ({made[0].business_value})")
-        _emit_versions(project_id, made, spec)
+        lines = [f"new model v{v.version} promoted ({v.business_value})" for v in made]
+        made_ids = [v.id for v in made]
+    for line in lines:
+        _log(project_id, line)
+    if made_ids:
+        _emit_versions(project_id, made_ids, spec)
 
 
 def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, rebuild: bool, purpose: str = "contest") -> None:
@@ -260,10 +268,13 @@ def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, re
             row.updated_at = datetime.now(timezone.utc)
             s.add(row)
             s.commit()
-        if made:
-            for v in made:
-                log(f"model v{v.version} {'ready' if v.version == 1 else 'promoted'}: {v.business_value}")
-            _emit_versions(project_id, made, spec)
+            # read while the session is open: rows expire on commit and are unusable once it closes
+            lines = [f"model v{v.version} {'ready' if v.version == 1 else 'promoted'}: {v.business_value}" for v in made]
+            made_ids = [v.id for v in made]
+        for line in lines:
+            log(line)
+        if made_ids:
+            _emit_versions(project_id, made_ids, spec)
         _emit_board(project_id, spec)
         events.publish(project_id, "run_complete", {"ids": ids, "purpose": purpose})
     except Exception as e:  # noqa: BLE001
@@ -293,8 +304,9 @@ def finalize(project_id: str) -> None:
         s.add(row)
         s.commit()
         board = build_board(s, project_id, spec, row)
-    if made:
-        _emit_versions(project_id, made, spec)
+        made_ids = [v.id for v in made]
+    if made_ids:
+        _emit_versions(project_id, made_ids, spec)
     events.publish(project_id, "finalized", board.model_dump())
 
 
