@@ -177,6 +177,12 @@ def inspect_mapping(df: pd.DataFrame, mapping: dict[str, str | None]) -> tuple[l
         problems.append("Each column can be used for one field only.")
     if problems:
         return problems, notes, None
+    from app.packager.pii import classify_pii  # noqa: PLC0415
+
+    ccol = mapping["customer_id"]
+    if classify_pii(df[ccol].head(2000), str(ccol)) == "card":
+        problems.append(f"{ccol} looks like card numbers. Use a customer, account or card ID that is not the card number itself; "
+                        "card numbers are never kept, not even scrambled.")
     tcol, acol = mapping["transaction_time"], mapping["amount"]
     t, tnotes = parse_time(df[tcol])
     t_blank = _blank(df[tcol])

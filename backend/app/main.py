@@ -325,7 +325,8 @@ def fairness_report(project_id: str, s: Session = Depends(get_session)) -> Fairn
 def _create_fraud(body: ProjectCreate, s: Session) -> ProjectOut:
     """A fraud project: from the sample transactions (mapping screen next) or empty (the user uploads theirs)."""
     row = ProjectRow(name=body.name or ("Sample transactions" if body.sample else "My transactions"), template="fraud",
-                     source="sample" if body.sample else "upload", salt=body.salt, org_id=auth.current_org.get(),
+                     source="sample" if body.sample else "upload", salt=secure_store.encrypt_text(body.salt) if body.salt else None,
+                     org_id=auth.current_org.get(), protect_version=body.protect_version or 2,
                      fraud_settings_json=FraudSettings().model_dump_json())
     s.add(row)
     s.commit()

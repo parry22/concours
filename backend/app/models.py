@@ -521,6 +521,7 @@ class ProjectCreate(BaseModel):
     sample: bool = True  # fraud: start from the sample transactions (False: the user uploads theirs)
     sample_file: str | None = None  # seed only: another file in the fraud template folder (the drift copy)
     salt: str | None = None  # seed only: a fixed ID salt so cached arena runs replay
+    protect_version: int | None = None  # seed only: 1 keeps the demo on the protection its cached runs were made under
 
 
 class ProjectOut(BaseModel):
@@ -593,6 +594,9 @@ class ProjectRow(SQLModel, table=True):
     as_of: str | None = None  # simulated today (ISO date)
     data_end: str | None = None  # last transaction date in the data
     salt: str | None = None
+    # 1: salted hash, exact timestamps. 2 (new projects): keyed hash (blake2b with the salt as key), salt encrypted
+    # in this column, transaction times rounded to the minute in everything solvers see.
+    protect_version: int = 2
     source: str = "sample"  # sample or upload
     drift_json: str | None = None
     org_id: str | None = SQLField(default=None, index=True)

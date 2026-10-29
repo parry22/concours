@@ -69,3 +69,20 @@ def to_csv(df: pd.DataFrame, path: Path, **kw) -> None:
     buf = io.BytesIO()
     df.to_csv(buf, index=False, **kw)
     write_bytes(path, buf.getvalue())
+
+
+ENC_PREFIX = "enc:"
+
+
+def encrypt_text(value: str) -> str:
+    """A short secret for a database column (the per-project ID salt). Readable only with the data key."""
+    return ENC_PREFIX + fernet().encrypt(value.encode()).decode()
+
+
+def decrypt_text(value: str | None) -> str:
+    """The inverse; values written before encryption existed come back as they are."""
+    if not value:
+        return ""
+    if value.startswith(ENC_PREFIX):
+        return fernet().decrypt(value[len(ENC_PREFIX):].encode()).decode()
+    return value

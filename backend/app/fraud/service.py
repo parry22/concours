@@ -81,7 +81,7 @@ def confirm_schema(row: ProjectRow, mapping: dict[str, str | None], *, sample: b
     row.mapping_json = json.dumps({k: v for k, v in mapping.items() if v})
     row.data_end = last.strftime("%Y-%m-%d")
     row.as_of = as_of.strftime("%Y-%m-%d")
-    row.salt = row.salt or secrets.token_hex(16)
+    row.salt = row.salt or secure_store.encrypt_text(secrets.token_hex(16))  # the key to the ID map: encrypted in the database
     (private_dir(row.id) / "label_time.json").write_text(json.dumps({"simulated": simulated}))
     if row.fraud_settings_json is None:
         row.fraud_settings_json = FraudSettings(**FRAUD_DEFAULTS).model_dump_json()
@@ -101,8 +101,8 @@ def analyst_labels(s: Session, pid: str) -> dict[str, tuple[int, str]]:
 
 def run_protect(s: Session, row: ProjectRow) -> ProtectReport:
     df = read_canonical(dataset_path(row.id))
-    report, _, _ = protect_fraud(df, settings_of(row), row.as_of, row.salt or "", project_dir(row.id) / "protected", private_dir(row.id),
-                                 simulated=label_time_simulated(row.id), analyst_labels=analyst_labels(s, row.id))
+    report, _, _ = protect_fraud(df, settings_of(row), row.as_of, salt_of(row), project_dir(row.id) / "protected", private_dir(row.id),
+                                 simulated=label_time_simulated(row.id), analyst_labels=analyst_labels(s, row.id), version=row.protect_version or 1)
     row.protect_json = report.model_dump_json()
     return report
 
@@ -115,11 +115,17 @@ def window_moved(row: ProjectRow) -> bool:
 # ---------- scoring with the active version ----------
 
 
-def _hashed(df: pd.DataFrame, salt: str) -> pd.DataFrame:
+def salt_of(row: ProjectRow) -> str:
+    return secure_store.decrypt_text(row.salt)
+
+
+def _hashed(df: pd.DataFrame, salt: str, *, keyed: bool = True, round_time: bool = True) -> pd.DataFrame:
     out = df.copy()
     for c in ("customer_id", "merchant_or_terminal_id"):
         if c in out.columns:
-            out[c] = hash_ids(out[c], salt)[0]
+            out[c] = hash_ids(out[c], salt, keyed=keyed)[0]
+    if round_time and "transaction_time" in out.columns:
+        out["transaction_time"] = pd.to_datetime(out["transaction_time"]).dt.floor("min")
     return out
 
 
@@ -295,7 +301,7 @@ def check(s: Session, row: ProjectRow, *, new_as_of: str | None = None) -> Drift
     df = read_canonical(dataset_path(row.id))
     w_new = windows(as_of, st.label_delay_days)
     df = df[df["transaction_time"] < w_new.as_of_end]
-    df = _hashed(df, row.salt or "")
+    df = _hashed(df, salt_of(row), keyed=(row.protect_version or 1) >= 2, round_time=(row.protect_version or 1) >= 2)
     start = pd.Timestamp(rep.maturity.holdout_end) + pd.Timedelta(days=1)
     mature_end = w_new.immature_start  # first day without mature labels
     weeks: list[WeekHealth] = []

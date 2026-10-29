@@ -127,7 +127,7 @@ def seed(cfg: dict) -> str:
         print(f"[seed:{tag}] {label} ({now - last[0]:.1f}s)")
         last[0] = now
 
-    p = call("POST", "/projects", {"template": "fraud", "name": cfg["name"], "sample": True, "sample_file": "transactions_drift.csv", "salt": cfg["salt"]})
+    p = call("POST", "/projects", {"template": "fraud", "name": cfg["name"], "sample": True, "sample_file": "transactions_drift.csv", "salt": cfg["salt"], "protect_version": 1})  # v1: the cached runs were made under it
     pid = p["id"]
     lap(f"created {pid}, {p['profile']['n_rows']:,} payments")
     sch = call("GET", f"/projects/{pid}/schema")

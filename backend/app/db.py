@@ -42,6 +42,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "source": "VARCHAR DEFAULT 'sample'",
         "drift_json": "VARCHAR",
         "org_id": "VARCHAR",
+        "protect_version": "INTEGER DEFAULT 1",
     },
     "model_version": {"gates_json": "VARCHAR"},
     "submission": {"gates_json": "VARCHAR", "origin": "VARCHAR DEFAULT 'local'", "hotkey": "VARCHAR", "uid": "INTEGER",

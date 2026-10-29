@@ -35,10 +35,15 @@ CHECK_SAMPLE = 400_000  # rows the column checks look at (seeded sample); the sp
 COLUMN_CHECKS = (id_like.run, pii.run, post_outcome_name.run, target_leak.run, constant.run, future_info.run)
 
 
-def hash_ids(values: pd.Series, salt: str) -> tuple[pd.Series, pd.DataFrame]:
-    """Salted BLAKE2b of each distinct value, as a positive 63-bit integer. Returns the hashed column and the map."""
+def hash_ids(values: pd.Series, salt: str, *, keyed: bool = True) -> tuple[pd.Series, pd.DataFrame]:
+    """BLAKE2b of each distinct value, as a positive 63-bit integer. Returns the hashed column and the map.
+    `keyed` (protection version 2) uses the salt as the hash key, the keyed construction; version 1 prefixed it."""
     uniq = pd.unique(values.astype(str))
-    hashed = {u: int(hashlib.blake2b(f"{salt}:{u}".encode(), digest_size=8).hexdigest(), 16) >> 1 for u in uniq}
+    if keyed:
+        key = hashlib.sha256(salt.encode()).digest()  # any salt length becomes a 32-byte key
+        hashed = {u: int(hashlib.blake2b(u.encode(), key=key, digest_size=8).hexdigest(), 16) >> 1 for u in uniq}
+    else:
+        hashed = {u: int(hashlib.blake2b(f"{salt}:{u}".encode(), digest_size=8).hexdigest(), 16) >> 1 for u in uniq}
     out = values.astype(str).map(hashed).astype("int64")
     return out, pd.DataFrame({"original": list(hashed.keys()), "hashed": list(hashed.values())})
 
@@ -100,11 +105,15 @@ def _part(name: str, d: pd.DataFrame, y: pd.Series) -> SplitPart:
 
 
 def protect_fraud(df: pd.DataFrame, settings: FraudSettings, as_of: str, salt: str, out_dir: Path, private_dir: Path, *,
-                  simulated: bool, analyst_labels: dict[str, tuple[int, str]] | None = None) -> tuple[ProtectReport, Transform, Windows]:
+                  simulated: bool, analyst_labels: dict[str, tuple[int, str]] | None = None, version: int = 2) -> tuple[ProtectReport, Transform, Windows]:
     out_dir.mkdir(parents=True, exist_ok=True)
     private_dir.mkdir(parents=True, exist_ok=True)
     w = windows(as_of, settings.label_delay_days)
     df = df[df["transaction_time"] < w.as_of_end].copy()
+    if version >= 2:
+        # a payment's exact second plus its amount can identify a customer who knows one of their own payments;
+        # the minute is all a model needs
+        df["transaction_time"] = df["transaction_time"].dt.floor("min")
     check_room(df, w)
     findings: list[Finding] = []
 
@@ -118,7 +127,7 @@ def protect_fraud(df: pd.DataFrame, settings: FraudSettings, as_of: str, salt: s
     maps = []
     for c in HASHED:
         if c in df.columns:
-            df[c], m = hash_ids(df[c], salt)
+            df[c], m = hash_ids(df[c], salt, keyed=version >= 2)
             m.insert(0, "field", c)
             maps.append(m)
             hashed_cols.append(c)
@@ -126,8 +135,9 @@ def protect_fraud(df: pd.DataFrame, settings: FraudSettings, as_of: str, salt: s
         secure_store.to_csv(pd.concat(maps), private_dir / "id_map.csv")  # the only way back to real IDs: encrypted
         findings.append(Finding(check="hashed_ids", severity="info", column=None, action="hashed",
                                 reason="Customer and merchant IDs are scrambled with a key that stays on this machine. Solvers can still see "
-                                       "that two payments share a customer, never who it is.",
-                                evidence={"columns": hashed_cols}))
+                                       "that two payments share a customer, never who it is."
+                                       + (" Payment times are rounded to the minute." if version >= 2 else ""),
+                                evidence={"columns": hashed_cols, "keyed": version >= 2, "time_rounded": version >= 2}))
 
     df = label_parts(df, w)
     check_windows(df, w)
