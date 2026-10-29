@@ -2,10 +2,13 @@
 
 Writes /data/result.json as GameResult:
   raw_scores[0]  = private (holdout) primary metric, the number Apex reads
-  metadata       = {public_score, private_score, primary_metric, metric_params, secondary: {...},
-                    breakdown: {...}, eval_time_in_seconds, rows: {...}}
-Also writes /data/scores_<split>.csv (one score per row, split order) so Concours's value model can price the
-operating point without re-fitting. Those files stay with the arena logs and never enter the handoff.
+  metadata       = {primary_metric, metric_params, public_score, secondary_public, rows, eval_time_in_seconds, seconds_per_10k}
+Also writes /data/details.json (per-split numbers, the private score, the queue summary per split, the lift
+breakdown) and /data/scores_<split>.csv (one score per row, split order), so Concours can price the operating point
+and run its gates without re-fitting. Those files stay with the arena logs and never enter the handoff; the private
+number is never in result.json metadata, which the platform may show on its dashboard.
+Fraud metrics: `fraud_amount_per_day` (money inside capacity) and, from competition v0.2.0, `fraud_lift_in_capacity`
+(share of the catchable money beyond the largest-payments rule). Both need `<split>_meta.csv` (day, amount).
 Player failures (PlayerError or malformed responses) score 0 with terminal_reason "player_error".
 Fraud: when `<split>_meta.csv` (day, amount) sits next to the labels, the capacity metric reads it, and the
 metadata carries the queue summary per split and `seconds_per_10k` (holdout scoring time per 10,000 rows).
@@ -27,6 +30,7 @@ DATA_DIR = Path(os.environ.get("REFEREE_DATA_DIR", "/app/data"))
 OUT_DIR = Path(os.environ.get("REFEREE_OUT_DIR", "/data"))  # the same volume result.json lands in
 CHUNK = 5000
 DEADLINE_MS = 60_000
+FRAUD_METRICS = ("fraud_amount_per_day", "fraud_lift_in_capacity")
 
 
 def _read_csv(path: Path) -> tuple[list[str], list[list]]:
@@ -129,10 +133,11 @@ class BriefReferee(Referee):
                 "positives": int(sum(y)),
                 **info,
             }
-            if meta is not None and primary == "fraud_amount_per_day":
-                q = metrics.fraud_queue(y, s, meta["amount"], meta["day"], int(params.get("capacity", 200)),
-                                        float(params.get("fee", 0.0)), float(params.get("review_cost", 0.0)))
+            if meta is not None and primary in FRAUD_METRICS:
+                cap, fee, cost = int(params.get("capacity", 200)), float(params.get("fee", 0.0)), float(params.get("review_cost", 0.0))
+                q = metrics.fraud_queue(y, s, meta["amount"], meta["day"], cap, fee, cost)
                 results[split]["fraud"] = metrics.fraud_summary(q)
+                results[split]["lift"] = metrics.fraud_lift_in_capacity(y, s, meta["amount"], meta["day"], cap, fee, cost)
         out["splits"] = results
         out["public_score"] = results["leaderboard"]["primary"]
         out["private_score"] = results["holdout"]["primary"]
@@ -140,8 +145,22 @@ class BriefReferee(Referee):
         out["eval_time_in_seconds"] = time.monotonic() - start
         out["seconds_per_10k"] = results["holdout"].get("seconds_per_10k")
         reason = "scored" if total_faults == 0 else "scored_with_player_faults"
+        self._dump_details(out)
+        # result.json is what the platform reads and may show on its dashboard: the private number travels only in
+        # raw_scores (hidden during a round); per-split detail stays in the side file for the competition owner.
+        lean = {"primary_metric": primary, "metric_params": params, "secondary_metric": secondary,
+                "public_score": out["public_score"], "secondary_public": results["leaderboard"]["secondary"],
+                "rows": {k: v["rows"] for k, v in results.items()}, "faulted_chunks": total_faults,
+                "eval_time_in_seconds": out["eval_time_in_seconds"], "seconds_per_10k": out["seconds_per_10k"]}
         return GameResult(raw_scores=[out["private_score"]], winner=0, terminal_reason=reason,
-                          steps=sum(r["rows"] for r in results.values()), metadata=out)
+                          steps=sum(r["rows"] for r in results.values()), metadata=lean)
+
+    def _dump_details(self, out: dict) -> None:
+        try:
+            OUT_DIR.mkdir(parents=True, exist_ok=True)
+            (OUT_DIR / "details.json").write_text(json.dumps(out, default=float))
+        except OSError as e:
+            self.trace({"details_file_error": str(e)[:200]})
 
 
 if __name__ == "__main__":

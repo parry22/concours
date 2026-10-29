@@ -15,6 +15,7 @@ METRIC_NAMES = {
     "wape": "Weighted absolute percentage error",
     "mae": "Mean absolute error",
     "fraud_amount_per_day": "Fraud amount caught per day within review capacity",
+    "fraud_lift_in_capacity": "Lift inside review capacity over the largest-payments rule",
 }
 LOWER_IS_BETTER = {"wape", "mae"}
 
@@ -172,6 +173,35 @@ def fraud_queue(y_true, scores, amount, day, capacity: int = 200, fee: float = 0
     }
 
 
+def fraud_lift_in_capacity(y_true, scores, amount, day, capacity: int = 200, fee: float = 0.0, review_cost: float = 0.0) -> dict:
+    """How much of the catchable fraud money beyond the "review the largest payments" rule the model caught.
+
+    Three queues per day, each reviewing the top `capacity` cases: the model's (ranked by score x (amount + fee)),
+    the rule's (a constant score, so ranked by amount alone: what any team does without a model) and the oracle's
+    (ranked by the true label, so the most fraud money that `capacity` reviews could ever hold). Pooled over days:
+
+        lift = sum(model - rule) / sum(oracle - rule)
+
+    0 means no better than the rule, 1 means every catchable payment was caught, negative means worse than the rule.
+    A constant submission scores exactly 0, so it can never lead; the money per day stays in the summary.
+    """
+    y, _ = _prep(y_true, scores)
+    model = fraud_queue(y, scores, amount, day, capacity, fee, review_cost)
+    rule = fraud_queue(y, np.ones(len(y)), amount, day, capacity, fee, review_cost)
+    oracle = fraud_queue(y, y.astype(float), amount, day, capacity, fee, review_cost)
+    headroom = oracle["caught_amount_by_day"] - rule["caught_amount_by_day"]
+    gain = model["caught_amount_by_day"] - rule["caught_amount_by_day"]
+    total = float(headroom.sum())
+    return {
+        "lift": float(gain.sum() / total) if total > 0 else 0.0,
+        "model_per_day": model["amount_per_day"],
+        "rule_per_day": rule["amount_per_day"],
+        "oracle_per_day": oracle["amount_per_day"],
+        "days": len(headroom),
+        "days_with_headroom": int((headroom > 0).sum()),
+    }
+
+
 def fraud_summary(q: dict) -> dict:
     """The JSON-safe part of `fraud_queue` for result.json."""
     return {k: q[k] for k in ("amount_per_day", "count_per_day", "precision", "false_alarms_per_1000", "net_per_day", "share", "fraud_per_day")} | {
@@ -187,6 +217,11 @@ def compute(name: str, y_true, scores, params: dict | None = None, meta: dict | 
             raise ValueError("fraud_amount_per_day needs per-row amount and day")
         return fraud_queue(y_true, scores, meta["amount"], meta["day"], int(params.get("capacity", 200)),
                            float(params.get("fee", 0.0)), float(params.get("review_cost", 0.0)))["amount_per_day"]
+    if name == "fraud_lift_in_capacity":
+        if not meta:
+            raise ValueError("fraud_lift_in_capacity needs per-row amount and day")
+        return fraud_lift_in_capacity(y_true, scores, meta["amount"], meta["day"], int(params.get("capacity", 200)),
+                                      float(params.get("fee", 0.0)), float(params.get("review_cost", 0.0)))["lift"]
     if name == "recall_at_fpr":
         return recall_at_fpr(y_true, scores, float(params.get("fpr", 0.001)))
     if name == "recall_at_top_k":

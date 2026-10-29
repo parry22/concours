@@ -1,6 +1,7 @@
 """Generate the Apex competition package in workspace/<pid>/competition/ from the staged folder."""
 from __future__ import annotations
 
+import json
 import math
 import re
 import shutil
@@ -12,7 +13,7 @@ from sqlmodel import select
 
 from app.apex_builder import adversarial
 from app.arena import leaderboard, runner
-from app.arena.stage import HIDDEN_FILES, competition_dir, stage
+from app.arena.stage import HIDDEN_FILES, competition_dir, round_config, stage
 from app import config
 from app.config import SOLVER_CPUS, SOLVER_TIMEOUT_S, project_dir
 from app.db import session
@@ -25,6 +26,12 @@ from app.shared.translate import business_card
 from app.templates import words
 
 TEMPLATES = Path(__file__).parent / "templates"
+# The competition's version and scoring rule. 0.1.0 scored fraud money per day (a constant submission reached 94% of
+# the bar). 0.2.0 scores lift inside capacity over the largest-payments rule, so a trivial submission scores 0 and
+# the number says how much of the catchable fraud the solver found. Concours's own screens, gates and value model
+# keep money per day: the referee reports both (details.json), and the package's fixture names the lift as primary.
+COMPETITION_VERSION = "0.2.0"
+PACKAGE_METRIC = {"fraud_amount_per_day": "fraud_lift_in_capacity"}
 ZERO = "sha256:" + "0" * 64
 env = Environment(loader=FileSystemLoader(str(TEMPLATES)), autoescape=select_autoescape(default=False), keep_trailing_newline=True)
 
@@ -120,6 +127,9 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
         suggested_reward = plan_mod.suggested_reward(s, row)
         min_improvement = row.min_improvement
     comp = stage(project_id, spec) if not (competition_dir(project_id) / "player" / "launch.py").exists() else competition_dir(project_id)
+    package_metric = PACKAGE_METRIC.get(spec.primary_metric, spec.primary_metric)
+    (comp / "fixtures").mkdir(exist_ok=True)
+    (comp / "fixtures" / "input.json").write_text(json.dumps({**round_config(spec), "primary_metric": package_metric}, indent=2))
     cid = competition_id(row)
     parts = {p.name: p for p in report.parts}
     train_rows, lb_rows, ho_rows = parts["train"].rows, parts["leaderboard"].rows, parts["holdout"].rows
@@ -138,16 +148,22 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
     kept = [c for c in report.kept_columns]
     own = owner(cid)
     adv = adversarial.load(project_id)
-    # The starting bar (spec `baseline_raw_score`): the model the customer runs today. A contest pays only for beating
-    # it, and a degenerate submission (a constant score is "review the largest payments") must not lead an empty round.
+    # The starting bar (spec `baseline_raw_score`): the model the customer runs today, on the package's metric. A contest
+    # pays only for beating it. Under the lift metric (0.2.0) the bar is that version's lift on the private holdout,
+    # computed from the scores its referee run left behind; a constant submission scores 0 and can never lead.
+    money = spec.primary_metric == "fraud_amount_per_day"
+    lift_package = package_metric == "fraud_lift_in_capacity"
     bar_v = active or v1
     bar = bar_v.private_score if bar_v and bar_v.private_score is not None else None
-    adv_rows = adversarial.verdicts(adv, bar) if adv else []
-    money = spec.primary_metric == "fraud_amount_per_day"
-    bar_text = (f"${bar:,.0f}/day" if money else f"{bar:.4f}") if bar is not None else "0"
+    bar_money = bar
+    if lift_package and bar_v is not None:
+        bar = holdout_lift(project_id, s_version=bar_v, spec=spec)
+    adv_rows = adversarial.verdicts(adv, bar, metric=package_metric) if adv else []
+    fmt = (lambda v: f"{v:.4f} lift") if lift_package else (lambda v: f"${v:,.0f}/day") if money else (lambda v: f"{v:.4f}")
+    bar_text = fmt(bar) if bar is not None else "0"
     ctx = {
         "competition_id": cid,
-        "version": "0.1.0",
+        "version": COMPETITION_VERSION,
         "display_name": f"{row.name} (Concours)",
         "date": date.today().isoformat(),
         "cpu_limit": int(SOLVER_CPUS) if float(SOLVER_CPUS).is_integer() else SOLVER_CPUS,
@@ -164,7 +180,11 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
         "cosign_identity": own["cosign_identity"],
         "task_description": task_description(spec, row),
         "success_statement": success_statement(spec),
-        "metric_name": METRIC_NAMES.get(spec.primary_metric, spec.primary_metric),
+        "metric_name": METRIC_NAMES.get(package_metric, package_metric),
+        "package_metric": package_metric,
+        "capacity": spec.metric_params.get("capacity", 200),
+        "lift_package": lift_package,
+        "bar_money_text": f"${bar_money:,.0f}/day" if (bar_money is not None and money) else None,
         "metric_params": ", ".join(f"{k}={v}" for k, v in spec.metric_params.items()),
         "secondary_name": METRIC_NAMES.get(spec.secondary_metric or "", spec.secondary_metric or "none"),
         "metric_rationale": spec.metric_rationale or "chosen by Concours's metric policy from the positive rate",
@@ -199,7 +219,7 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
         "worst_case_s": worst,
         "fits": "yes" if worst < referee_timeout else "NO",
         "hidden_checksums": hidden,
-        "adversarial": [{**r, "score_text": f"${r['score']:,.0f}/day" if money else f"{r['score']:.4f}",
+        "adversarial": [{**r, "score_text": fmt(r["score"]),
                          "share_text": f"{r['share']:.1%}" if r["share"] is not None else "n/a"} for r in adv_rows],
         "adversarial_date": adv["date"] if adv else None,
         "adversarial_ok": bool(adv_rows) and all(r["below"] for r in adv_rows),
@@ -224,9 +244,30 @@ def generate(project_id: str, *, validation: dict | None = None) -> tuple[Path, 
     wf = comp / ".github" / "workflows"
     wf.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(TEMPLATES / "release.yml", wf / "release.yml")
+    shutil.copyfile(TEMPLATES / "local-run.yml", wf / "local-run.yml")  # demo plan C: a manual run on an Actions runner
     (comp / ".gitignore").write_text("out/\n__pycache__/\n")
     shutil.copyfile(project_dir(project_id) / "protected" / "leakage_report.json", comp / "leakage_report.json")
     return comp, ctx
+
+
+def holdout_lift(project_id: str, *, s_version, spec: ProblemSpec) -> float | None:
+    """A version's lift inside capacity on the private holdout, from the score file its referee run wrote."""
+    import pandas as pd  # noqa: PLC0415
+
+    from app.shared.metrics import fraud_lift_in_capacity  # noqa: PLC0415
+    from app.value.scores import labels, split_scores  # noqa: PLC0415
+
+    with session() as s:
+        sub = s.get(SubmissionRow, s_version.submission_id) if s_version.submission_id else None
+        if sub is None:
+            return None
+        sc = split_scores(project_id, sub, spec, allow_refit=False)
+    if not sc:
+        return None
+    meta = pd.read_csv(project_dir(project_id) / "protected" / "holdout_meta.csv")
+    p = spec.metric_params or {}
+    return round(fraud_lift_in_capacity(labels(project_id, "holdout"), sc["holdout"], meta["amount"].to_numpy(), meta["day"].to_numpy(),
+                                        int(p.get("capacity", 200)), float(p.get("fee", 0.0)), float(p.get("review_cost", 0.0)))["lift"], 4)
 
 
 def file_list(comp: Path) -> list[str]:

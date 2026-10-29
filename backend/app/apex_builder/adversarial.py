@@ -58,19 +58,28 @@ def load(project_id: str) -> dict | None:
     return json.loads(p.read_text()) if p.exists() else None
 
 
-def verdicts(results: dict, bar: float | None) -> list[dict]:
+def verdicts(results: dict, bar: float | None, *, metric: str | None = None) -> list[dict]:
     """One line per submission for HANDOFF.md: score, share of the starting bar (spec `baseline_raw_score`), and whether
-    it stays below that bar, so it can never take the lead."""
+    it stays below that bar, so it can never take the lead. `metric` is the package's primary metric: when it is the
+    lift (v0.2.0) and the run recorded a lift, that is the score compared with the bar."""
     out = []
+    use_lift = metric == "fraud_lift_in_capacity"
     for r in results.get("submissions", []):
-        score = r["raw_score"] if r["ok"] else 0.0
+        if use_lift and r.get("lift") is not None:
+            score = float(r["lift"]) if r["ok"] else 0.0
+        else:
+            score = r["raw_score"] if r["ok"] else 0.0
         share = score / bar if bar else None
         below = bar is not None and score < bar
         note = ""
-        if r["name"] == "constant" and results.get("primary_metric") == "fraud_amount_per_day":
-            note = ("Under fraud_amount_per_day a constant score ranks each day's payments by amount alone, so this "
-                    "submission is the rule 'review the largest payments'. The metric is unchanged; the starting bar is "
-                    "today's model, which this rule does not reach.")
+        if r["name"] == "constant":
+            if use_lift:
+                note = ("A constant score ranks each day's payments by amount alone, the rule 'review the largest payments'. "
+                        "The lift metric scores that rule 0 by construction, so this submission cannot take the lead.")
+            elif results.get("primary_metric") == "fraud_amount_per_day":
+                note = ("Under fraud_amount_per_day a constant score ranks each day's payments by amount alone, so this "
+                        "submission is the rule 'review the largest payments'. The metric is unchanged; the starting bar is "
+                        "today's model, which this rule does not reach.")
         out.append({**r, "score": score, "share": share, "below": below, "note": note})
     return out
 
@@ -98,6 +107,7 @@ def run(project_id: str, log=print) -> dict:
             "public_score": meta.get("public_score"),
             "terminal_reason": res.get("terminal_reason"),
             "fraud": holdout.get("fraud"),
+            "lift": (holdout.get("lift") or {}).get("lift"),
             "seconds": round(r.seconds, 1),
             "error": r.error,
         }

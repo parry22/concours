@@ -17,12 +17,20 @@ player image: numpy, pandas, scikit-learn, LightGBM, XGBoost. No network access.
 ## How you are scored
 
 - Primary metric: {{ metric_name }} ({{ metric_params }}). Higher is better.
-- Secondary (shown for information): {{ secondary_name }}.
+{% if lift_package %}- How the lift is computed: every day, three review queues of {{ capacity }} cases are compared. Yours (ranked by
+  score x amount), the "largest payments first" rule (a constant score) and the best possible queue (ranked by the
+  true label). `raw_score = sum over days (yours - rule) / sum over days (best - rule)`. 0 means no better than
+  reviewing the largest payments, 1 means every catchable payment was caught, negative means worse than the rule.
+  A constant score lands at exactly 0. The fraud money per day of each queue is reported alongside.
+{% endif %}- Secondary (shown for information): {{ secondary_name }}.
 - Scoring happens inside the referee on rows you never see. Your submission is trained once on
   `player/data/train.csv` (the public training split, {{ train_rows }} rows, with the `label`
   column) at the start of evaluation and then asked to score batches of rows.
-- The starting bar is today's model: {{ bar_text }} on the hidden rows. A new leader must beat the bar, or the
+- The starting bar is today's model: {{ bar_text }}{% if bar_money_text %} ({{ bar_money_text }}){% endif %} on the hidden rows. A new leader must beat the bar, or the
   current top raw score if higher, by at least 1%.
+- Leading here is not the same as becoming the customer's model. Concours promotes a version only after five gates
+  on its own private holdout: hidden data, the same rows as the active model, a day-block luck test, no amount band
+  or customer segment losing more than 5%, and scoring 10,000 rows in under 5 seconds.
 
 ## Data
 

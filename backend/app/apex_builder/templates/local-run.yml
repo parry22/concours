@@ -1,0 +1,58 @@
+# OPTIONAL: run the referee against one submission on a GitHub Actions runner (demo plan C). Manual trigger only.
+# Verifies both signed images with cosign, runs the same two-container loop the platform runs, and uploads
+# out/result.json as an artifact. Logs print row counts and the score, never rows. Nothing is committed.
+name: local-run
+
+on:
+  workflow_dispatch:
+    inputs:
+      solver:
+        description: "submission.py to run (a path in this repo)"
+        default: player/submission.py
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+      - name: Read the pinned images from spec.yaml
+        id: spec
+        run: |
+          echo "player=$(grep -A2 '^image:' spec.yaml | grep -oE 'ghcr.io/[a-z0-9._/-]+')@$(grep -A2 '^image:' spec.yaml | grep -oE 'sha256:[0-9a-f]{64}')" >> "$GITHUB_OUTPUT"
+          echo "referee=$(grep -A2 '^  image:' spec.yaml | grep -oE 'ghcr.io/[a-z0-9._/-]+')@$(grep -A2 '^  image:' spec.yaml | grep -oE 'sha256:[0-9a-f]{64}')" >> "$GITHUB_OUTPUT"
+      - name: Verify signatures
+        run: |
+          for img in "${{ steps.spec.outputs.player }}" "${{ steps.spec.outputs.referee }}"; do
+            cosign verify --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.github/workflows/release.yml@" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com "$img" > /dev/null
+          done
+      - name: Run the referee against the submission
+        run: |
+          mkdir -p out && chmod 777 out
+          docker network create --internal apexnet
+          docker run -d --name player --network apexnet --cpus 2 --memory 2g --pids-limit 256 --cap-drop ALL \
+            --security-opt no-new-privileges:true --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m \
+            -v "$PWD/${{ github.event.inputs.solver }}:/app/submission.py:ro" "${{ steps.spec.outputs.player }}"
+          docker run --rm --network apexnet --cpus 1 --memory 1g --pids-limit 128 --cap-drop ALL \
+            --security-opt no-new-privileges:true --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            -e MATCH_ID=actions-${{ github.run_id }} -e SEED=0 -e NUM_PLAYERS=1 -e PLAYER_URLS=http://player:8000 \
+            -e CONFIG_JSON="$(cat fixtures/input.json)" -v "$PWD/out:/data" "${{ steps.spec.outputs.referee }}" 2>&1 | tail -5
+          docker rm -f player; docker network rm apexnet
+          echo "raw_scores: $(grep -oE '"raw_scores": \[[^]]*\]' out/result.json)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: result-${{ github.run_id }}
+          path: |
+            out/result.json
+            out/details.json
