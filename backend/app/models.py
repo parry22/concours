@@ -12,7 +12,7 @@ from sqlmodel import SQLModel
 
 Template = Literal["fraud", "churn", "leads", "payments", "readmissions", "attrition", "custom"]
 Stage = Literal["upload", "intake", "protect", "model", "improve", "launch"]
-VersionSource = Literal["baseline", "local_contest", "apex_contest"]
+VersionSource = Literal["baseline", "local_contest", "apex_contest", "bittensor"]
 Health = Literal["unknown", "healthy", "slipping"]
 ModelStatus = Literal["improving", "healthy", "slipping", "none"]
 Validation = Literal["pass", "fail", "not_run"]
@@ -189,6 +189,10 @@ class SubmissionOut(BaseModel):
     is_leader: bool = False
     gates: list["GateResult"] = Field(default_factory=list)  # fraud: the five promotion gates
     champion: bool = False  # fraud: the active version re-scored on this window
+    origin: str = "local"  # "chain": submitted by a Bittensor miner
+    hotkey: str | None = None
+    uid: int | None = None
+    chain_block: int | None = None
 
 
 class LeaderboardOut(BaseModel):
@@ -733,6 +737,13 @@ class SubmissionRow(SQLModel, table=True):
     data_hash: str = ""
     result_json: str | None = None
     gates_json: str | None = None
+    # Bittensor: an attempt a miner committed on chain (origin "chain"); its code lives at code_path
+    origin: str = "local"
+    hotkey: str | None = None
+    uid: int | None = None
+    chain_block: int | None = None
+    code_sha: str | None = None
+    code_path: str | None = None
     created_at: datetime = SQLField(default_factory=_now)
 
 

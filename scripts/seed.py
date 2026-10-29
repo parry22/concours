@@ -7,6 +7,10 @@
 
 Both use the sample with the injected card-testing pattern (scripts/inject_drift.py) and fixed ID salts, so the
 protected data is identical every reseed and arena runs and fitted models replay from .cache/. Usage: seed.py [api]
+
+A third project, "Card fraud on Bittensor" (v1, slipping), is seeded only with `--only=bittensor`: the subnet demo,
+where a miner's submission fixes it (subnet/README.md). `CONCOURS_API_KEY` signs in with that key instead of the
+demo owner's password.
 """
 from __future__ import annotations
 
@@ -26,6 +30,9 @@ ANSWERS = ["200 cases a day", "About 10 per review, no extra fee", "Usually abou
 PROJECTS = [
     {"name": "Card fraud review queue, Q4", "salt": "concours-demo-q4", "contest": ["lgbm_tuned"], "label_cases": 3, "jump": False},
     {"name": "Marketplace payments", "salt": "concours-demo-marketplace", "contest": [], "label_cases": 0, "jump": True},
+    # the Bittensor demo: moved into the new fraud pattern and left slipping, for a miner's submission to fix
+    # (see subnet/README.md); only seeded with --only=bittensor
+    {"name": "Card fraud on Bittensor", "salt": "concours-demo-bittensor", "contest": [], "label_cases": 0, "jump": True, "optional": True},
 ]
 
 
@@ -51,6 +58,10 @@ def sign_in() -> None:
     """Sign up the demo owner on a fresh server (or sign in), then use an API key for everything else.
     Skipped when the server has sign-in off."""
     global TOKEN, KEY_ID
+    if os.environ.get("CONCOURS_API_KEY"):
+        TOKEN = os.environ["CONCOURS_API_KEY"]  # the caller's key: used as is, not revoked at the end
+        print("[seed] using CONCOURS_API_KEY")
+        return
     cfg = call("GET", "/auth/config")
     if cfg["auth"] == "off":
         return
@@ -135,8 +146,12 @@ if __name__ == "__main__":
     t = time.time()
     sign_in()
     try:
+        only = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--only=")), None)
         if "--auth-only" not in sys.argv:
             for cfg in PROJECTS:
+                tag = cfg["name"].split(",")[0].split()[-1].lower()
+                if (only and only not in (tag, cfg["name"])) or (not only and cfg.get("optional")):
+                    continue
                 seed(cfg)
             print(f"[seed] all done in {time.time() - t:.0f}s")
     finally:

@@ -195,7 +195,7 @@ def after_run(s: Session, project_id: str, submission_ids: list[str]) -> list[Mo
         sub = s.get(SubmissionRow, sid)
         if sub is None:
             continue
-        v = consider(s, project_id, sub)
+        v = consider(s, project_id, sub, source="bittensor" if sub.origin == "chain" else "local_contest")
         if v:
             made.append(v)
     return made

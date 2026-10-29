@@ -121,10 +121,10 @@ def run_agent(project_id: str, *, replay: bool = True) -> None:
     dh = data_hash(project_id)
     cache = _cache_dir(dh)
     cached_attempts = sorted(cache.glob("attempt_*.json")) if replay and cache.exists() else []
-    if runner.image_id(project_id, "player") is None or runner.image_id(project_id, "referee") is None:
+    if not runner.images_current(project_id, dh):
         log("agent_solver: building player and referee images")
         stage(project_id, spec)
-        runner.build_images(project_id, lambda line: None)
+        runner.build_images(project_id, lambda line: None, data=dh)
     cfg = round_config(spec)
     attempts: list[dict] = []
     work = project_dir(project_id) / "agent_solver"

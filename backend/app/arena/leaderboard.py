@@ -21,6 +21,10 @@ def to_out(r: SubmissionRow, finalized: bool) -> SubmissionOut:
         error=r.error,
         eval_seconds=r.eval_seconds,
         gates=[GateResult(**g) for g in json.loads(r.gates_json)] if r.gates_json else [],
+        origin=r.origin or "local",
+        hotkey=r.hotkey,
+        uid=r.uid,
+        chain_block=r.chain_block,
     )
 
 

@@ -17,3 +17,6 @@ frontend/.next-*/
 
 # filled-in production settings
 deploy/.env
+
+# subnet
+subnet/.venv/

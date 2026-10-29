@@ -1,0 +1,14 @@
+[project]
+name = "concours-subnet"
+version = "0.1.0"
+description = "Concours on Bittensor: miner submit command and validator for the Concours fraud subnet"
+requires-python = ">=3.10,<3.13"
+dependencies = ["bittensor>=9.0"]
+
+[project.scripts]
+concours-miner = "concours_subnet.miner:main"
+concours-validator = "concours_subnet.validator:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

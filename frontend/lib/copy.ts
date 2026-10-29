@@ -339,7 +339,7 @@ export const overview = {
   falseAlarmsSub: "Per 1,000 legitimate payments",
   timeline: "Versions",
   timelineSub: "A version replaces the one before only when it passes all five promotion gates.",
-  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network" },
+  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network", bittensor: "Improved by an outside solver on Bittensor" },
   active: "Active",
   retired: "Retired",
   health: "Health",
@@ -535,7 +535,7 @@ export const model = {
   firstModel: "Your first model",
   timeline: "Versions",
   timelineSub: "Each version replaced the one before it because it measured better on the private holdout.",
-  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network" },
+  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network", bittensor: "Improved by an outside solver on Bittensor" },
   active: "Active",
   retired: "Retired",
   today: "today",
@@ -632,6 +632,24 @@ export const improve = {
   next: "Launch",
   agent: "Add an agent attempt",
   agentSub: "A model writes a solver from the schema alone, up to three attempts.",
+};
+
+export const chain = {
+  title: "On Bittensor",
+  sub: "Outside solvers submit on chain. Each is measured like any attempt here; the one that becomes your model gets the weights.",
+  live: "Live",
+  badge: (network: string, netuid: number) => `Bittensor ${network === "test" ? "testnet" : network} · netuid ${netuid}`,
+  network: "Network",
+  networkName: (n: string) => (n === "test" ? "testnet" : n === "finney" ? "mainnet" : n),
+  block: "Block",
+  solvers: "Solvers registered",
+  winner: "Your model comes from",
+  noWinner: "No outside solver yet",
+  weights: "Weights set to",
+  noWeights: "Not yet",
+  validator: "Validator",
+  solver: (uid: number | null | undefined) => (uid != null ? `Outside solver, uid ${uid}` : "Outside solver"),
+  minerLine: (hotkey: string, block: number | null | undefined) => `${hotkey ? `${hotkey.slice(0, 5)}…${hotkey.slice(-4)}` : "hotkey unknown"}${block != null ? ` · committed at block ${block.toLocaleString("en-US")}` : ""}`,
 };
 
 export const value = {

@@ -67,7 +67,7 @@ export default function OverviewPage() {
         </Card>
       ) : null}
 
-      <section>
+      <section className="rounded-2xl border border-border bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="inline-flex h-8 items-center gap-2 rounded-lg border border-border-strong bg-card-2 px-3 text-[13px] font-medium">
             <span className="num">v{active.version}</span>

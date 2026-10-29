@@ -40,15 +40,45 @@ def start_run(project_id: str, solvers: list[str], *, replay: bool = True, rebui
         solvers = with_champion(s, project_id, spec, dh, list(solvers)) if purpose == "contest" else list(solvers)
         ids = []
         for name in solvers:
-            sub = SubmissionRow(project_id=project_id, solver=name, status="queued", data_hash=f"{dh}:{solver_hash(name)}", logs_path="")
-            s.add(sub)
-            s.commit()
-            s.refresh(sub)
+            sub = _new_submission(s, project_id, name, dh)
             ids.append(sub.id)
         row.finalized = False
         s.add(row)
         s.commit()
     jobs.enqueue(project_id, "arena_run", {"ids": ids, "replay": replay, "rebuild": rebuild, "purpose": purpose})
+    return ids
+
+
+def _new_submission(s, project_id: str, name: str, dh: str) -> SubmissionRow:
+    """A queued attempt for a built-in solver, or a re-run of a miner's code (the active version can be a miner's)."""
+    miner = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id, SubmissionRow.solver == name,
+                                               SubmissionRow.origin == "chain")).first()
+    if miner is not None:
+        sub = SubmissionRow(project_id=project_id, solver=name, status="queued", data_hash=f"{dh}:{miner.code_sha[:16]}", logs_path="",
+                            origin="chain", hotkey=miner.hotkey, uid=miner.uid, chain_block=miner.chain_block,
+                            code_sha=miner.code_sha, code_path=miner.code_path)
+    else:
+        sub = SubmissionRow(project_id=project_id, solver=name, status="queued", data_hash=f"{dh}:{solver_hash(name)}", logs_path="")
+    s.add(sub)
+    s.commit()
+    s.refresh(sub)
+    return sub
+
+
+def start_chain_run(project_id: str, sub_ids: list[str]) -> list[str]:
+    """An improvement round for attempts miners committed on chain (rows already created by the chain intake).
+    The active version runs first when the window moved, as in a local round."""
+    if jobs.busy(project_id):
+        raise RuntimeError("a run is already in progress")
+    with session() as s:
+        row = s.get(ProjectRow, project_id)
+        dh = data_hash(project_id)
+        champion = [x for x in with_champion(s, project_id, row.spec(), dh, []) if x]
+        ids = [_new_submission(s, project_id, name, dh).id for name in champion] + list(sub_ids)
+        row.finalized = False
+        s.add(row)
+        s.commit()
+    jobs.enqueue(project_id, "arena_run", {"ids": ids, "replay": True, "rebuild": False, "purpose": "contest"})
     return ids
 
 
@@ -159,10 +189,11 @@ def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, re
     try:
         with session() as s:
             need_build = rebuild or any(_cached(s, project_id, s.get(SubmissionRow, i), spec) is None for i in ids)
-        if need_build and (rebuild or runner.image_id(project_id, "player") is None or runner.image_id(project_id, "referee") is None or rebuild):
+        dh = data_hash(project_id)
+        if need_build and (rebuild or not runner.images_current(project_id, dh)):
             log("staging competition folder and building player and referee images")
             stage(project_id, spec)
-            runner.build_images(project_id, log)
+            runner.build_images(project_id, log, data=dh)
         config = round_config(spec)
         for sid in ids:
             with session() as s:
@@ -171,6 +202,8 @@ def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, re
                 s.add(sub)
                 s.commit()
                 solver = sub.solver
+                code_path = Path(sub.code_path) if sub.code_path else None
+                origin = sub.origin or "local"
                 cached = _cached(s, project_id, sub, spec) if replay else None
                 cached_vals = (cached.public_score, cached.private_score, cached.secondary_public, cached.secondary_private, cached.eval_seconds, cached.logs_path, cached.result_json) if cached else None
             events.publish(project_id, "submission_started", {"id": sid, "solver": solver, "cached": cached_vals is not None})
@@ -186,7 +219,7 @@ def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, re
                 log(f"{solver}: replayed cached score (same data, same solver code)")
             else:
                 log(f"{solver}: running in Docker ({runner.SOLVER_CPUS} CPUs, {runner.SOLVER_MEM}, {runner.SOLVER_TIMEOUT_S}s limit)")
-                res = runner.run_submission(project_id, sid, solver, config)
+                res = runner.run_submission(project_id, sid, solver, config, submission_path=code_path)
                 with session() as s:
                     sub = s.get(SubmissionRow, sid)
                     sub.logs_path = str(res.logs_dir)
@@ -216,7 +249,7 @@ def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, re
                 log(f"{solver}: {out.status} in {res.seconds:.0f}s" + (f" ({out.error})" if out.error else ""))
             events.publish(project_id, "submission_scored", out.model_dump())
             if purpose == "contest":
-                promote_after_score(project_id, sid, spec)
+                promote_after_score(project_id, sid, spec, source="bittensor" if origin == "chain" else "local_contest")
             _emit_board(project_id, spec)
         with session() as s:
             made = promotion.after_run(s, project_id, ids)

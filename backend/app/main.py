@@ -702,12 +702,13 @@ def build_package(project_id: str, s: Session = Depends(get_session)) -> Package
         raise HTTPException(409, "run protection first")
     if arena.is_running(project_id):
         raise HTTPException(409, "wait for the arena run to finish")
-    if runner.image_id(project_id, "player") is None or runner.image_id(project_id, "referee") is None:
-        # cached replays never built this project's images; build them now
-        from app.arena.stage import stage  # noqa: PLC0415
+    from app.arena.stage import data_hash, stage  # noqa: PLC0415
 
+    dh = data_hash(project_id)
+    if not runner.images_current(project_id, dh):
+        # cached replays never built this project's images, or the window moved since: build them now
         stage(project_id, row.spec())
-        runner.build_images(project_id, lambda line: None)
+        runner.build_images(project_id, lambda line: None, data=dh)
     comp, _ = generator.generate(project_id)
     steps = [validate.preflight(comp), validate.screen(comp), validate.local_run(project_id)]
     status = validate.overall(steps)
@@ -993,3 +994,8 @@ def arena_agent(project_id: str, replay: bool = True, s: Session = Depends(get_s
 @app.get("/projects/{project_id}/arena/agent/status")
 def arena_agent_status(project_id: str) -> dict:
     return {"running": agent_solver.is_running(project_id)}
+
+
+from app import chain  # noqa: E402
+
+app.include_router(chain.router)

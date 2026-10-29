@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Lock, Play, RotateCcw, ShieldCheck, Terminal, Trophy, X } from "lucide-react";
 import { ActionBar, NextLink, useProject } from "@/components/ProjectShell";
 import { Alert, Badge, Button, Card, ResultFigure, Spinner, cx } from "@/components/ui";
-import { api, errorText, type DockerStatus, type GateResult, type LeaderboardOut, type ModelVersionOut, type SolverOut, type SubmissionOut } from "@/lib/api";
+import { api, errorText, type ChainOut, type DockerStatus, type GateResult, type LeaderboardOut, type ModelVersionOut, type SolverOut, type SubmissionOut } from "@/lib/api";
 import { openArenaStream } from "@/lib/sse";
 import { attemptLabel } from "@/lib/format";
-import { gates as gateCopy, improve as copy } from "@/lib/copy";
+import { chain as chainCopy, gates as gateCopy, improve as copy } from "@/lib/copy";
 
 const money = (x: number | null | undefined) => (x == null ? "–" : `${x < 0 ? "-" : ""}$${Math.abs(Math.round(x)).toLocaleString("en-US")}`);
 
@@ -27,6 +27,7 @@ export default function ImprovePage() {
   const [logOpen, setLogOpen] = useState(false);
   const [connected, setConnected] = useState(false);
   const [promoted, setPromoted] = useState<ModelVersionOut | null>(null);
+  const [chain, setChain] = useState<ChainOut | null>(null);
   const seen = useRef<Set<string>>(new Set());
   const logEnd = useRef<HTMLDivElement>(null);
 
@@ -47,6 +48,14 @@ export default function ImprovePage() {
     api.arenaStatus(project.id).then((s) => setRunning(s.running)).catch(() => undefined);
   }, [project.id, loadBoard]);
 
+  // the Bittensor network's state while a validator reports it (outside solvers' attempts also arrive on the live stream)
+  useEffect(() => {
+    const load = () => api.chain(project.id).then(setChain).catch(() => setChain(null));
+    void load();
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
+  }, [project.id, boardVersion]);
+
   useEffect(() => {
     const close = openArenaStream(api.streamUrl(project.id), (ev) => {
       switch (ev.type) {
@@ -61,7 +70,7 @@ export default function ImprovePage() {
           break;
         case "submission_started":
           setRunning(true);
-          setPending((p) => (p.some((r) => r.id === ev.id) ? p : [...p, { id: ev.id, solver: ev.solver, status: "running", logs_path: "", is_leader: false, placeholder: true, gates: [], champion: false }]));
+          setPending((p) => (p.some((r) => r.id === ev.id) ? p : [...p, { id: ev.id, solver: ev.solver, status: "running", logs_path: "", is_leader: false, placeholder: true, gates: [], champion: false, origin: "local" }]));
           break;
         case "submission_scored":
           setPending((p) => p.filter((r) => r.id !== ev.submission.id));
@@ -189,7 +198,7 @@ export default function ImprovePage() {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-12">
-        <Card pad={false} className="lg:col-span-8" title={copy.attempts} subtitle={gateCopy.sub} actions={<Badge>{copy.localSolvers}</Badge>}>
+        <Card pad={false} className="lg:col-span-8" title={copy.attempts} subtitle={gateCopy.sub} actions={<Badge tone={chain?.netuid != null ? "accent" : undefined}>{chain?.netuid != null ? chainCopy.badge(chain.network ?? "test", chain.netuid) : copy.localSolvers}</Badge>}>
           {ordered.length === 0 ? (
             <div className="px-4 pb-5 text-[13px] text-muted sm:px-5">{copy.noAttempts(contestCount)}</div>
           ) : (
@@ -209,10 +218,11 @@ export default function ImprovePage() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="truncate text-[14px] font-medium">{isV1 ? copy.v1 : ver ? `Version ${ver.version}` : champ ? gateCopy.champion : attemptLabel(r.solver, attemptIndex)}</span>
+                        <span className="truncate text-[14px] font-medium">{isV1 ? copy.v1 : ver ? `Version ${ver.version}` : champ ? gateCopy.champion : r.origin === "chain" ? chainCopy.solver(r.uid) : attemptLabel(r.solver, attemptIndex)}</span>
+                        {r.origin === "chain" && ver ? <span className="text-[12px] text-muted">{chainCopy.solver(r.uid)}</span> : null}
                         {isActive ? <Badge tone="accent">{copy.active}</Badge> : ver ? <Badge>v{ver.version}</Badge> : r.is_leader ? <Badge>{copy.leading}</Badge> : null}
                       </div>
-                      <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted sm:truncate">{r.error ? <span className="text-danger">{r.error}</span> : r.status === "scored" ? copy.perDayLabel(project.fraud_settings?.daily_capacity ?? 200) : <StatusText status={r.status} />}</div>
+                      <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted sm:truncate">{r.error ? <span className="text-danger">{r.error}</span> : r.origin === "chain" ? chainCopy.minerLine(r.hotkey ?? "", r.chain_block) : r.status === "scored" ? copy.perDayLabel(project.fraud_settings?.daily_capacity ?? 200) : <StatusText status={r.status} />}</div>
                       {r.gates?.length ? <GateChips gates={r.gates} /> : null}
                     </div>
                     <div className="grid shrink-0 grid-cols-2 items-end gap-4 text-right sm:gap-6">
@@ -235,6 +245,7 @@ export default function ImprovePage() {
         </Card>
 
         <div className="min-w-0 space-y-4 lg:col-span-4">
+          {chain?.netuid != null ? <SubnetCard chain={chain} /> : null}
           <Card title={gateCopy.title} actions={<ShieldCheck className="icon-brand h-4 w-4" />}>
             <ol className="space-y-2.5 text-[13px]">
               {gateCopy.list.map((g, i) => (
@@ -287,6 +298,35 @@ export default function ImprovePage() {
         {project.versions.length > 1 || hasScores ? <NextLink stage="launch" label={copy.next} /> : <span />}
       </ActionBar>
     </div>
+  );
+}
+
+const short = (k: string | null | undefined) => (k ? `${k.slice(0, 5)}…${k.slice(-4)}` : "–");
+
+/** The Bittensor network this project runs on: where, which outside solver holds the weights, what the validator last did. */
+function SubnetCard({ chain }: { chain: ChainOut }) {
+  const weights = Object.entries(chain.weights ?? {});
+  const top = weights.sort((a, b) => b[1] - a[1])[0];
+  const rows: [string, React.ReactNode][] = [
+    [chainCopy.network, <span key="n" className="num">{chainCopy.networkName(chain.network ?? "test")} · netuid {chain.netuid}</span>],
+    [chainCopy.block, <span key="b" className="num">{chain.block?.toLocaleString("en-US") ?? "–"}</span>],
+    [chainCopy.solvers, <span key="m" className="num">{chain.solvers ?? 0}</span>],
+    [chainCopy.winner, chain.winner_uid != null ? <span key="w" className="num">uid {chain.winner_uid} · {short(chain.winner_hotkey)}</span> : <span key="w" className="text-muted">{chainCopy.noWinner}</span>],
+    [chainCopy.weights, top ? <span key="x" className="num">uid {top[0]}{chain.weights_block ? ` · block ${chain.weights_block.toLocaleString("en-US")}` : ""}</span> : <span key="x" className="text-muted">{chainCopy.noWeights}</span>],
+    [chainCopy.validator, <span key="v" className="num">{short(chain.validator_hotkey)}</span>],
+  ];
+  return (
+    <Card title={chainCopy.title} subtitle={chainCopy.sub} actions={<Badge tone="accent">{chainCopy.live}</Badge>}>
+      <dl className="space-y-2 text-[13px]">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex items-baseline justify-between gap-3">
+            <dt className="text-subtle">{k}</dt>
+            <dd className="min-w-0 truncate text-right">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {chain.note ? <p className="mt-3 border-t border-border pt-3 text-[12px] text-muted">{chain.note}</p> : null}
+    </Card>
   );
 }
 

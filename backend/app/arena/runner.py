@@ -41,18 +41,31 @@ def image_tag(project_id: str, side: str) -> str:
     return f"concours-{side}-{project_id}"
 
 
-def build_images(project_id: str, log) -> None:
+DATA_LABEL = "concours.data_hash"
+
+
+def build_images(project_id: str, log, data: str | None = None) -> None:
+    """Build both images from the staged folder. `data` (the protected data's hash) is stored as a label, so a
+    later round can tell an image built from an older window."""
     comp = competition_dir(project_id)
     cli = client()
     for side in ("player", "referee"):
         tag = image_tag(project_id, side)
         log(f"building {tag} from {comp}/{side}/Dockerfile")
         t0 = time.monotonic()
-        _, stream = cli.images.build(path=str(comp), dockerfile=f"{side}/Dockerfile", tag=tag, rm=True)
+        _, stream = cli.images.build(path=str(comp), dockerfile=f"{side}/Dockerfile", tag=tag, rm=True, labels={DATA_LABEL: data or ""})
         for chunk in stream:
             if "stream" in chunk and chunk["stream"].strip():
                 log(chunk["stream"].rstrip())
         log(f"built {tag} in {time.monotonic() - t0:.0f}s")
+
+
+def images_current(project_id: str, data: str) -> bool:
+    """Both images exist and were built from this protected data (the window moves when the clock does)."""
+    try:
+        return all((client().images.get(image_tag(project_id, side)).labels or {}).get(DATA_LABEL) == data for side in ("player", "referee"))
+    except (ImageNotFound, DockerException):
+        return False
 
 
 def image_id(project_id: str, side: str) -> str | None:
@@ -113,14 +126,19 @@ def run_submission(project_id: str, submission_id: str, solver: str, config: dic
                 pass
             player.reload()
             if player.status in ("exited", "dead"):
+                referee.reload()
+                if referee.status in ("exited", "dead"):
+                    # the referee finished between the wait and this check: use its result
+                    exit_code = referee.attrs.get("State", {}).get("ExitCode", 1)
+                    break
                 # the submission crashed at startup; do not wait for the referee's readiness timeout
-                referee.kill()
+                _kill(referee)
                 exit_code = -2
                 tail = player.logs(tail=30).decode(errors="replace").strip()
                 (logs_dir / "error.txt").write_text(f"player failed to start: {tail[-500:]}")
                 break
             if time.monotonic() > deadline:
-                referee.kill()
+                _kill(referee)
                 exit_code = -1
                 (logs_dir / "error.txt").write_text(f"timed out after {timeout_s}s")
                 break
@@ -150,6 +168,14 @@ def run_submission(project_id: str, submission_id: str, solver: str, config: dic
                 net.remove()
             except (NotFound, DockerException):
                 pass
+
+
+def _kill(container) -> None:
+    """Stop a container that may already have exited on its own."""
+    try:
+        container.kill()
+    except (NotFound, DockerException):
+        pass
 
 
 def docker_available() -> tuple[bool, str]:

@@ -25,6 +25,8 @@ export type MaturitySummary = S["MaturitySummary"];
 export type FairnessColumn = S["FairnessColumn"];
 export type LeaderboardOut = S["LeaderboardOut"];
 export type SubmissionOut = S["SubmissionOut"];
+export type ChainOut = S["ChainOut"];
+export type MinerOut = S["MinerOut"];
 export type PackageOut = S["PackageOut"];
 export type ValidationStep = S["ValidationStep"];
 export type ValueReport = S["ValueReport"];
@@ -171,6 +173,7 @@ export const api = {
   arenaStatus: (id: string) => request<{ running: boolean }>(`/projects/${id}/arena/status`),
   arenaAgent: (id: string) => request<{ started: boolean; max_attempts: number }>(`/projects/${id}/arena/agent`, { method: "POST" }),
   leaderboard: (id: string) => request<LeaderboardOut>(`/projects/${id}/arena/leaderboard`),
+  chain: (id: string) => request<ChainOut>(`/projects/${id}/chain`),
   finalize: (id: string) => request<LeaderboardOut>(`/projects/${id}/arena/finalize`, { method: "POST" }),
   value: (id: string, solver?: string) => request<ValueReport>(`/projects/${id}/value${solver ? `?solver=${encodeURIComponent(solver)}` : ""}`),
   putValueParams: (id: string, body: ValueParamsIn, solver?: string) =>

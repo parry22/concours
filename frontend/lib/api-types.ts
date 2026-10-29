@@ -4,6 +4,146 @@
  */
 
 export interface paths {
+    "/auth/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Auth Config
+         * @description What the sign-in screen should offer.
+         */
+        get: operations["auth_config_auth_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Signup */
+        post: operations["signup_auth_signup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login */
+        post: operations["login_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["logout_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["me_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Keys */
+        get: operations["list_keys_auth_keys_get"];
+        put?: never;
+        /** Create Key */
+        post: operations["create_key_auth_keys_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/keys/{key_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Key */
+        delete: operations["revoke_key_auth_keys__key_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Invite */
+        post: operations["create_invite_auth_invites_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/templates": {
         parameters: {
             query?: never;
@@ -455,7 +595,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Arena Stream */
+        /**
+         * Arena Stream
+         * @description Live events (from the database, so the worker can be another process). Starts at the newest event.
+         */
         get: operations["arena_stream_projects__project_id__arena_stream_get"];
         put?: never;
         post?: never;
@@ -753,6 +896,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/chain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Chain */
+        get: operations["get_chain_projects__project_id__chain_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/chain/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put State
+         * @description The validator's heartbeat: network, netuid, current block, miner count and the weights it last set.
+         */
+        put: operations["put_state_projects__project_id__chain_state_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/chain/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Submission
+         * @description One miner's committed code. Starts an improvement round for it; 409 while another round runs.
+         */
+        post: operations["post_submission_projects__project_id__chain_submissions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -786,6 +986,76 @@ export interface components {
         Body_upload_data_projects__project_id__data_post: {
             /** File */
             file: string;
+        };
+        /** ChainOut */
+        ChainOut: {
+            /** Network */
+            network?: string | null;
+            /** Netuid */
+            netuid?: number | null;
+            /** Validator Hotkey */
+            validator_hotkey?: string | null;
+            /** Block */
+            block?: number | null;
+            /** Solvers */
+            solvers?: number | null;
+            /** Weights */
+            weights?: {
+                [key: string]: number;
+            };
+            /** Weights Block */
+            weights_block?: number | null;
+            /** Note */
+            note?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Winner Hotkey */
+            winner_hotkey?: string | null;
+            /** Winner Uid */
+            winner_uid?: number | null;
+            /** Attempts */
+            attempts?: components["schemas"]["MinerOut"][];
+        };
+        /** ChainStateIn */
+        ChainStateIn: {
+            /** Network */
+            network: string;
+            /** Netuid */
+            netuid: number;
+            /** Validator Hotkey */
+            validator_hotkey: string;
+            /** Block */
+            block?: number | null;
+            /** Solvers */
+            solvers?: number | null;
+            /** Weights */
+            weights?: {
+                [key: string]: number;
+            } | null;
+            /** Weights Block */
+            weights_block?: number | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** ChainSubmissionIn */
+        ChainSubmissionIn: {
+            /** Hotkey */
+            hotkey: string;
+            /** Uid */
+            uid: number;
+            /** Block */
+            block: number;
+            /** Sha256 */
+            sha256: string;
+            /** Code */
+            code: string;
+            /**
+             * Network
+             * @default test
+             */
+            network: string;
+            /** Netuid */
+            netuid: number;
         };
         /** ClockIn */
         ClockIn: {
@@ -1094,6 +1364,55 @@ export interface components {
             /** History */
             history: components["schemas"]["IntakeMessage"][];
         };
+        /** InviteIn */
+        InviteIn: {
+            /**
+             * Email
+             * @default
+             */
+            email: string;
+            /**
+             * Days
+             * @default 7
+             */
+            days: number;
+        };
+        /** InviteOut */
+        InviteOut: {
+            /** Token */
+            token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** KeyIn */
+        KeyIn: {
+            /**
+             * Name
+             * @default CLI
+             */
+            name: string;
+        };
+        /** KeyOut */
+        KeyOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Prefix */
+            prefix: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Used At */
+            last_used_at?: string | null;
+            /** Token */
+            token?: string | null;
+        };
         /** LeaderboardOut */
         LeaderboardOut: {
             /** Project Id */
@@ -1154,6 +1473,13 @@ export interface components {
             /** Download */
             download: string;
         };
+        /** LoginIn */
+        LoginIn: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+        };
         /**
          * MaturitySummary
          * @description Late labels: what was knowable when. Days are ISO dates.
@@ -1195,6 +1521,32 @@ export interface components {
              */
             analyst_labels: number;
         };
+        /** MinerOut */
+        MinerOut: {
+            /** Submission Id */
+            submission_id: string;
+            /** Hotkey */
+            hotkey: string;
+            /** Uid */
+            uid: number | null;
+            /** Block */
+            block: number | null;
+            /** Code Sha */
+            code_sha: string;
+            /** Status */
+            status: string;
+            /** Private Score */
+            private_score?: number | null;
+            /** Gates Passed */
+            gates_passed?: number | null;
+            /** Error */
+            error?: string | null;
+            /**
+             * Active
+             * @default false
+             */
+            active: boolean;
+        };
         /** ModelVersionOut */
         ModelVersionOut: {
             /** Id */
@@ -1207,7 +1559,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "baseline" | "local_contest" | "apex_contest";
+            source: "baseline" | "local_contest" | "apex_contest" | "bittensor";
             /** Solver Name */
             solver_name: string;
             /** Submission Id */
@@ -1609,6 +1961,25 @@ export interface components {
             /** High Net */
             high_net: number;
         };
+        /** SignupIn */
+        SignupIn: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Org Name
+             * @default
+             */
+            org_name: string;
+            /** Invite */
+            invite?: string | null;
+        };
         /**
          * SpecPatch
          * @description Partial ProblemSpec: every field optional. Applied by the intake agent.
@@ -1704,6 +2075,37 @@ export interface components {
              * @default false
              */
             champion: boolean;
+            /**
+             * Origin
+             * @default local
+             */
+            origin: string;
+            /** Hotkey */
+            hotkey?: string | null;
+            /** Uid */
+            uid?: number | null;
+            /** Chain Block */
+            chain_block?: number | null;
+        };
+        /** UserOut */
+        UserOut: {
+            /** Id */
+            id: string | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** Org Id */
+            org_id: string;
+            /** Org Name */
+            org_name: string;
+            /** Role */
+            role: string;
+            /** Auth */
+            auth: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -1881,6 +2283,255 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    auth_config_auth_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    signup_auth_signup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    login_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    me_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+        };
+    };
+    list_keys_auth_keys_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyOut"][];
+                };
+            };
+        };
+    };
+    create_key_auth_keys_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_key_auth_keys__key_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_invite_auth_invites_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     templates_templates_get: {
         parameters: {
             query?: never;
@@ -3418,6 +4069,107 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_chain_projects__project_id__chain_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChainOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_state_projects__project_id__chain_state_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChainStateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChainOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_submission_projects__project_id__chain_submissions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChainSubmissionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinerOut"];
                 };
             };
             /** @description Validation Error */
