@@ -180,11 +180,15 @@ def put_settings(project_id: str, body: ProjectSettingsIn, s: Session = Depends(
 
 @app.delete("/projects/{project_id}")
 def delete_project(project_id: str, s: Session = Depends(get_session)) -> dict:
+    from app.cleanup import purge_project  # noqa: PLC0415
+
     row = get_project(project_id, s)
+    if arena.is_running(project_id):
+        raise HTTPException(409, "wait for the running round to finish")
+    done = purge_project(s, project_id)
     s.delete(row)
     s.commit()
-    shutil.rmtree(project_dir(project_id), ignore_errors=True)
-    return {"ok": True}
+    return {"ok": True, "removed": done}
 
 
 # ---------- data ----------
