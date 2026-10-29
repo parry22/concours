@@ -85,8 +85,11 @@ Complications, and what the script does about each:
 
 Pre-demo checklist (Plan B):
 
-- [ ] Wednesday: `scripts/apex_local_run.sh pull` on the demo laptop (needs `docker login ghcr.io` once; a
-      read-only PAT).
+- [ ] Wednesday: on the demo laptop, create a fine-grained GitHub PAT with package read only, then
+      `docker logout ghcr.io && docker login ghcr.io -u parry22` with that PAT (never the `gh` token).
+- [ ] Wednesday: `scripts/apex_local_run.sh verify && scripts/apex_local_run.sh pull`.
+- [ ] Wednesday: `scripts/demo.sh` with the laptop off the venue network; afterwards set `CONCOURS_SIGNUP=invite` in
+      `backend/.env` so nobody else can create an account.
 - [ ] Wednesday: `scripts/apex_local_run.sh run 6974713c0ea7` with Wi-Fi on, all four solvers. Note the total time.
 - [ ] Thursday: Wi-Fi off, `scripts/demo.sh` (keeps `.cache/`), `scripts/dev.sh`, open the project, Improve:
       the four attempts replay from cache in seconds. Then `scripts/apex_local_run.sh run --fresh` for one

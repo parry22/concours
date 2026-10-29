@@ -37,6 +37,8 @@ please activate 0.2.0 instead.
 - **Images.** Built for `linux/amd64` and `linux/arm64` (`buildx`), the index is what cosign signs and what
   `spec.yaml` pins. Base image pinned by digest. Actions pinned by commit SHA; the release workflow's jobs have
   split, least-privilege permissions.
+- **Repository hygiene.** The holdout is committed encrypted from v0.2.0 on (`referee/data/*.enc`, decrypted in the
+  release workflow from a repository secret); v0.1.0's commit still has it in clear in this repo's history.
 - **README.** States that leading on Apex and being promoted to the customer's model are different things
   (Concours applies five gates on its side), and documents the lift formula.
 - Unchanged: train split, hidden rows, labels, `input.schema.json`, player image contents, timeouts, resources.
@@ -58,6 +60,9 @@ referee `sha256:<fill after release>`.
 
 - [ ] In the competition repo, review branch `v0.2.0` (local clone `/Users/parry/concours-fraud-repo`), then
       `git checkout main && git merge v0.2.0 && git push origin main`.
+- [ ] Add the repository secret `HOLDOUT_KEY` (Settings, Secrets and variables, Actions) with the output of
+      `cd backend && .venv/bin/python -m app.handoff.build key 6974713c0ea7`. The release workflow needs it to decrypt
+      `referee/data/*.enc`.
 - [ ] `git tag v0.2.0 && git push origin v0.2.0`; wait for the `release` workflow; confirm the "Pin image digests for
       v0.2.0" commit on `main`.
 - [ ] Paste the two digests into the comment above.

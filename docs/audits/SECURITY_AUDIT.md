@@ -176,7 +176,26 @@ Fixed on branch `claude/audit-and-demo-fallback`, one commit each:
 | 3.3, 5.1, 5.2 scoring and result hygiene | `Competition v0.2.0: lift scoring, lean result metadata, plan C workflow` | lift metric, private number only in `raw_scores`, README states promotion is separate; v0.1.0 untouched; note drafted in `docs/ISSUE_47_UPDATE.md` |
 | 7.2, 7.3, 7.7 pins and multi-arch | `Supply chain: pin Actions by commit SHA and base images by digest, least-privilege workflows` | ci.yml and release.yml pinned; base images by digest; buildx amd64+arm64 in the v0.2.0 release workflow |
 
-Still open (Medium and Low, listed above): 1.3 (read-only PAT for the demo laptop; `docker login ghcr.io` on this
-machine used the `gh` token, which is broader), 1.5, 2.2 keyed hashing and salt storage, 2.3 timestamp rounding,
-2.4, 2.5, 2.6, 3.1(b) encrypted holdout in the repo, 3.4, 4.5, 6.2, 6.4, 6.5, 6.8 SSE limits, 7.6 `next` bump
-for the postcss advisories, 8.2 deletion of images and caches with a project.
+Second pass (same day), one commit each:
+
+| Finding | Commit | What landed |
+|---|---|---|
+| 2.2, 2.3 keyed hashing, salt storage, re-identification | `Security: protection version 2 ...` | new projects: blake2b keyed by the salt, salt encrypted in the database, times rounded to the minute for solvers, a card-number customer column refused; existing and seeded projects stay on version 1 so cached runs replay |
+| 3.1(b) holdout in the repo | `Security: the holdout travels encrypted in the competition repo export` | `.enc` files, gitignored plaintext, `HOLDOUT_KEY` secret decrypts in the release workflow; applied to branch `v0.2.0` of the competition repo. The v0.1.0 commit `d19fe8b` still holds the plaintext in that repository's history; removing it needs a history rewrite, which is the founder's call |
+| 6.8 stream limits | `Security: limits on the live event stream` | 10 streams per project, slower polling when idle, 30-minute cap |
+| 7.6 postcss | `Supply chain: override the postcss that next pins` | pnpm override to 8.5.23+, audit clean, build passes |
+| 8.2 deletion | `Security: deleting a project purges what was made from its data` | rows, images, private cache entries, pickles |
+| 2.4, 2.5, 2.6, 4.5, 6.4, 6.5 | `Security: small hardening items` | card numbers in text and sparse columns, exception types only in traces, generic client errors, binary uploads refused, strict path check, aligned screening list |
+
+Documented rather than changed in code:
+
+- 1.3: `docker login ghcr.io` on this Mac used the `gh` token. On the demo laptop, log in with a fine-grained PAT
+  that has package read only (`docs/DEMO_FALLBACK_PLAN.md`, checklist).
+- 1.5: verified that `scripts/demo.sh` and `make clean` keep `workspace/.data_key` (the glob skips dotfiles).
+- 3.4: `protected/` stays in clear on the laptop. It is the Docker build context for the solver images and is
+  read by the gates, the value model and serving; encrypting it would mean decrypting it to disk before every
+  build anyway. The laptop disk (FileVault) is the boundary; hashed IDs only, no card numbers.
+- 6.2: seed before enabling the network, or set `CONCOURS_SIGNUP=invite` once the owner account exists
+  (`docs/DEMO_FALLBACK_PLAN.md`, checklist).
+
+Nothing from the findings list remains open in code.

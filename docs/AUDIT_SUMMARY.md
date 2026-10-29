@@ -39,10 +39,10 @@ jump control hidden on real projects.
 
 ## What remains, and why
 
-- Medium and Low security findings (keyed ID hashing and salt storage, timestamp rounding, SSE limits, the
-  `next` bump for postcss advisories, project deletion of images and caches, a read-only PAT on the demo
-  laptop): each under a few hours; listed in the security audit's status section.
-- The encrypted-holdout repo and a runtime key: a few hours plus a spec change; not before the demo.
+- Every Medium and Low finding is now fixed in code or documented as accepted (3.4: the protected files stay in
+  clear on the laptop because Docker builds from them; 1.3 and 6.2 are laptop steps in the demo checklist).
+- The v0.1.0 commit in the competition repo still holds the holdout in clear in git history; v0.2.0 commits it
+  encrypted. Rewriting that history is the founder's call.
 - v0.2.0 is committed on branch `v0.2.0` of `/Users/parry/concours-fraud-repo` and validated locally, but not
   pushed or tagged: tagging triggers the release workflow and a public-ish artifact, so that is the founder's
   call (checklist in `docs/ISSUE_47_UPDATE.md`).
