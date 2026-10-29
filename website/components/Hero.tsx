@@ -77,7 +77,7 @@ export function Hero() {
         </p>
         <h1
           id="hero-title"
-          className="mx-auto mt-[22px] max-w-[880px] text-[clamp(42px,6.3vw,76px)] leading-[0.98] font-semibold tracking-[-0.045em] text-balance text-foreground"
+          className="mx-auto mt-[22px] max-w-[700px] text-[clamp(36px,5vw,60px)] leading-[1.02] font-semibold tracking-[-0.045em] text-balance text-foreground"
         >
           Fraud models that keep up with fraudsters.
         </h1>
