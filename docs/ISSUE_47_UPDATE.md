@@ -1,4 +1,4 @@
-# Update for issue #47 (ready to post, not yet posted)
+# Update for issue #47 (posted 2026-10-29)
 
 To post as a comment on
 [macrocosm-os/apex-competitions-builder#47](https://github.com/macrocosm-os/apex-competitions-builder/issues/47).
@@ -71,4 +71,4 @@ referee `sha256:ba26636bed0dd3789283aa9e12b754a0a5e4538c4ca87b1b90e8073c9943482a
       v0.2.0" commit on `main`.
 - [x] Paste the two digests into the comment above.
 - [ ] Attach the new `spec.yaml` and `HANDOFF.md`.
-- [ ] Post the comment (command above); do not edit the original issue body.
+- [x] Posted: https://github.com/macrocosm-os/apex-competitions-builder/issues/47#issuecomment-6496166629

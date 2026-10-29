@@ -45,8 +45,8 @@ jump control hidden on real projects.
   encrypted. Rewriting that history is the founder's call.
 - v0.2.0 is released: tag `v0.2.0` on `parry22/concours-fraud`, digests pinned on `main` at `918b1a3`
   (player `sha256:f83dfa64...`, referee `sha256:ba26636b...`), both indexes amd64 and arm64, both verified
-  with cosign, `HOLDOUT_KEY` secret set. The issue #47 comment is written but not posted: posting to an
-  external issue was blocked for this session, so run the command in `docs/ISSUE_47_UPDATE.md` yourself.
+  with cosign, `HOLDOUT_KEY` secret set. The v0.2.0 update is posted on issue #47
+  (issuecomment-6496166629).
 - Macrocosmos package read access: waiting on the account name they give.
 - Journey items tagged later: case management, alerts and digests, rules with backtests, dispute-file import,
   webhooks and API, progress estimates for cold Docker runs.
