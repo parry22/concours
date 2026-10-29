@@ -1,11 +1,17 @@
 """Fit a version's solver on the public train split (cached on disk) and score new rows. Lists and the performance
-watch go through `fitted_model`; the module keeps the `brief_sub_` module prefix because cached pickles reference it."""
+watch go through `fitted_model`; the module keeps the `brief_sub_` module prefix because cached pickles reference it.
+
+Only the built-in solvers under backend/solvers/ are ever imported here. Code from outside (an agent-written attempt,
+a chain miner's file) is scored through the player container instead (`scores_in_sandbox`), so it never runs with
+the API's access to the data key, the ID map or the database."""
 from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 import pickle
 import sys
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -18,12 +24,20 @@ from app.packager.transform import Transform
 from app.shared.csv_safe import safe_frame
 from app.shared.metrics import threshold_at_fpr
 
+BUILT_IN = frozenset(p.name for p in SOLVERS_DIR.iterdir() if (p / "submission.py").exists())
+
+
+class OutsideCodeError(ValueError):
+    """Code that did not ship with Concours (an agent attempt, a chain miner) is never imported on the host."""
+
 
 def _load_solver_class(solver: str, submission_path: Path | None = None):
+    if submission_path is not None or solver not in BUILT_IN:
+        raise OutsideCodeError(f"{solver} is outside code: it is scored in the sandbox only")
     if str(SOLVERS_DIR) not in sys.path:
         sys.path.insert(0, str(SOLVERS_DIR))
-    path = submission_path or (SOLVERS_DIR / solver / "submission.py")
-    name = f"brief_sub_{solver}" + (f"_{_file_hash(path)}" if submission_path else "")
+    path = SOLVERS_DIR / solver / "submission.py"
+    name = f"brief_sub_{solver}"
     if name in sys.modules:
         return sys.modules[name].Solver
     spec = importlib.util.spec_from_file_location(name, path)
@@ -39,7 +53,7 @@ def _file_hash(path: Path) -> str:
 
 def fitted_model(project_id: str, solver: str, spec: ProblemSpec, submission_path: Path | None = None) -> tuple[object, float]:
     """Return (solver instance, threshold). Cached on disk per (solver code, data).
-    `submission_path` points at code outside solvers/ (an agent-written attempt)."""
+    `submission_path` is refused: outside code (agent attempts, chain miners) is scored by `scores_in_sandbox`."""
     protected = project_dir(project_id) / "protected"
     # next to the arena cache, outside workspace/: the same data and solver code reuse the fit after a reseed
     cache_dir = ARENA_CACHE_DIR.parent / "serving"
@@ -66,11 +80,54 @@ def fitted_model(project_id: str, solver: str, spec: ProblemSpec, submission_pat
         thr = float(np.quantile(s_lb, 1 - k))
     else:
         thr = threshold_at_fpr(y_lb, s_lb, float(spec.metric_params.get("fpr", 0.001)))
-    tmp = cache.with_suffix(".tmp")
+    tmp = cache.with_name(f"{cache.name}.{os.getpid()}.{threading.get_ident()}.tmp")  # two requests may fit at once
     with open(tmp, "wb") as f:
         pickle.dump((model, thr), f)
     tmp.replace(cache)
     return model, thr
+
+
+def code_path_for(project_id: str, version) -> Path | None:
+    """Where a version's code lives when it is not a built-in solver: an agent attempt or a chain miner's file.
+    None for the built-in solvers (which the host may import)."""
+    from app.value.scores import submission_path  # noqa: PLC0415
+
+    if version.solver_name in BUILT_IN:
+        return None
+    p = submission_path(project_id, version.solver_name)
+    if p is not None:
+        return p
+    if version.submission_id:
+        from app.db import session  # noqa: PLC0415
+        from app.models import SubmissionRow  # noqa: PLC0415
+
+        with session() as s:
+            sub = s.get(SubmissionRow, version.submission_id)
+            if sub is not None and sub.code_path:
+                return Path(sub.code_path)
+    raise OutsideCodeError(f"no code on disk for version {version.version} ({version.solver_name})")
+
+
+def scores_in_sandbox(project_id: str, version, spec: ProblemSpec, feats: pd.DataFrame, code_path: Path) -> np.ndarray:
+    """Score `feats` with outside code inside the player container (runner.score_rows). Cached per (code, rows)."""
+    from app.arena import runner  # noqa: PLC0415
+    from app.arena.stage import round_config  # noqa: PLC0415
+
+    key = hashlib.sha256(code_path.read_bytes() + pd.util.hash_pandas_object(feats, index=False).to_numpy().tobytes()).hexdigest()[:16]
+    cache_dir = project_dir(project_id) / "sandbox_scores"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cached = cache_dir / f"{key}.csv"
+    if cached.exists():
+        return pd.read_csv(cached)["score"].to_numpy(dtype=float)
+    rows = cache_dir / f"{key}.rows.csv"
+    feats.to_csv(rows, index=False)
+    out = runner.score_rows(project_id, key, code_path, rows, round_config(spec))
+    scores = pd.read_csv(out)["score"].to_numpy(dtype=float)
+    if len(scores) != len(feats):
+        raise RuntimeError(f"sandbox returned {len(scores)} scores for {len(feats)} rows")
+    pd.DataFrame({"score": scores}).to_csv(cached, index=False)
+    rows.unlink(missing_ok=True)
+    return scores
 
 
 def score_csv(project_id: str, solver: str, spec: ProblemSpec, src: Path, dst: Path) -> dict:

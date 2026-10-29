@@ -123,14 +123,18 @@ def _hashed(df: pd.DataFrame, salt: str) -> pd.DataFrame:
 
 
 def score_window(pid: str, version: ModelVersionRow, spec: ProblemSpec, frame: pd.DataFrame) -> tuple[object, pd.DataFrame, np.ndarray]:
-    """Score a time-ordered frame of hashed canonical rows with the version's solver (fit on the current train split)."""
+    """Score a time-ordered frame of hashed canonical rows with the version's solver (fit on the current train split).
+    The model is None when the version's code is outside code: it was scored in the sandbox and reasons use the rows."""
     from app.packager.transform import Transform  # noqa: PLC0415
-    from app.serving.score import fitted_model  # noqa: PLC0415
-    from app.value.scores import submission_path  # noqa: PLC0415
+    from app.serving.score import code_path_for, fitted_model, scores_in_sandbox  # noqa: PLC0415
 
     transform = Transform.load(project_dir(pid) / "protected" / "transform.json")
     feats = transform.apply(frame.drop(columns=[c for c in ("is_fraud",) if c in frame.columns])).reset_index(drop=True)
-    model, _ = fitted_model(pid, version.solver_name, spec, submission_path=submission_path(pid, version.solver_name))
+    code = code_path_for(pid, version)
+    if code is not None:
+        # outside code (an agent attempt, a chain miner): scored inside the player container, never imported here
+        return None, feats, scores_in_sandbox(pid, version, spec, feats, code)
+    model, _ = fitted_model(pid, version.solver_name, spec)
     if hasattr(model, "buffer"):
         model.buffer = None  # velocity history comes from this frame, not from an earlier scoring call
     scores = np.asarray(model.score_frame(feats), dtype=float)
@@ -163,7 +167,7 @@ def build_queue(s: Session, row: ProjectRow, version: ModelVersionRow) -> QueueO
         amt = frame["amount"].to_numpy(dtype=float)
         el = scores * (amt + st.fraud_fee)
         pick = today[np.argsort(-el[today], kind="stable")[: st.daily_capacity]]
-        why = reasons_mod.explain(model, feats, pick)
+        why = reasons_mod.explain(model, feats, pick) if model is not None else reasons_mod.explain_plain(frame, scores, pick)
         cases = [
             QueueCase(rank=i + 1, transaction_id=str(frame.at[j, "transaction_id"]),
                       time=frame.at[j, "transaction_time"].strftime("%Y-%m-%d %H:%M"), amount=round(float(amt[j]), 2),

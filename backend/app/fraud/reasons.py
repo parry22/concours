@@ -108,3 +108,32 @@ def explain(solver, frame: pd.DataFrame, rows: np.ndarray) -> list[list[tuple[st
     Xs = X.iloc[rows]
     contrib = contributions(solver, Xs)
     return top_reasons(contrib, list(Xs.columns), [extra[i] for i in rows] if extra is not None else None)
+
+
+def explain_plain(frame: pd.DataFrame, scores: np.ndarray, rows: np.ndarray, k: int = TOP) -> list[list[tuple[str, float]]]:
+    """Reasons without the model: for versions scored in the sandbox (outside code), from the rows themselves.
+    Amount against the customer's and the window's usual, time of day, activity on the card and at the terminal."""
+    amt = frame["amount"].to_numpy(dtype=float) if "amount" in frame.columns else np.zeros(len(frame))
+    t = pd.to_datetime(frame["transaction_time"]) if "transaction_time" in frame.columns else None
+    cust = frame["customer_id"].to_numpy() if "customer_id" in frame.columns else None
+    term = frame["merchant_or_terminal_id"].to_numpy() if "merchant_or_terminal_id" in frame.columns else None
+    p95 = float(np.quantile(amt, 0.95)) if len(amt) else 0.0
+    cust_mean = frame.groupby("customer_id")["amount"].transform("mean").to_numpy(dtype=float) if cust is not None else None
+    cust_n = frame.groupby("customer_id")["amount"].transform("size").to_numpy() if cust is not None else None
+    term_n = frame.groupby("merchant_or_terminal_id")["amount"].transform("size").to_numpy() if term is not None else None
+    out = []
+    for i in rows:
+        r: list[tuple[str, float]] = []
+        if cust_mean is not None and cust_mean[i] > 0 and amt[i] > 3 * cust_mean[i]:
+            r.append(("Unusual amount for this customer", round(float(amt[i] / cust_mean[i]), 2)))
+        elif amt[i] >= p95:
+            r.append(("Unusual amount", round(float(amt[i] / max(p95, 1e-9)), 2)))
+        if t is not None and (t.iloc[i].hour < 6 or t.iloc[i].hour >= 22):
+            r.append(("Night-time payment", 1.0))
+        if cust_n is not None and cust_n[i] >= 4:
+            r.append(("Many payments on this card", float(cust_n[i])))
+        if term_n is not None and term_n[i] >= 30:
+            r.append(("Unusual activity at this terminal", float(term_n[i])))
+        r.append((f"Risk score {float(scores[i]):.0%} from the model", float(scores[i])))
+        out.append(r[:k])
+    return out

@@ -17,7 +17,7 @@ from pathlib import Path
 import docker
 from docker.errors import DockerException, ImageNotFound, NotFound
 
-from app.config import SOLVER_CPUS, SOLVER_MEM, SOLVER_TIMEOUT_S, SOLVERS_DIR, project_dir
+from app.config import REFEREE_DIR, SOLVER_CPUS, SOLVER_MEM, SOLVER_TIMEOUT_S, SOLVERS_DIR, project_dir
 from app.arena.stage import competition_dir
 
 SOLVERS = ["baseline_logreg", "lgbm_default", "lgbm_tuned", "lgbm_regularized", "lgbm_ensemble", "lgbm_velocity"]
@@ -171,6 +171,77 @@ def run_submission(project_id: str, submission_id: str, solver: str, config: dic
         return RunResult(False, None, f"docker error: {e}"[:500], time.monotonic() - t0, logs_dir)
     finally:
         for c in (referee, player):
+            if c is not None:
+                try:
+                    c.remove(force=True)
+                except (NotFound, DockerException):
+                    pass
+        if net is not None:
+            try:
+                net.remove()
+            except (NotFound, DockerException):
+                pass
+
+
+SCORE_ROWS_SCRIPT = REFEREE_DIR / "score_rows.py"
+
+
+def score_rows(project_id: str, run_id: str, submission_path: Path, rows_csv: Path, config: dict, *, seed: int = 0,
+               timeout_s: int = SOLVER_TIMEOUT_S) -> Path:
+    """Score `rows_csv` (features only) with `submission_path` inside the sandbox: the player container trains on the
+    public split as usual, and a scorer (the referee image running score_rows.py, no referee data read) drives it.
+    Returns the path of the scores file. Used for every version whose code came from outside the built-in solvers,
+    so that code never runs on the host. Raises RuntimeError on failure."""
+    cli = client()
+    run_dir = project_dir(project_id) / "sandbox_scores" / run_id
+    out_dir = run_dir / "out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.chmod(0o777)
+    sub_path = run_dir / "submission.py"
+    shutil.copyfile(submission_path, sub_path)
+    rows_path = run_dir / "rows.csv"
+    shutil.copyfile(rows_csv, rows_path)
+    net_name = f"concours-score-net-{project_id}-{run_id}"
+    player_name = f"concours-score-player-{project_id}-{run_id}"
+    net = player = scorer = None
+    try:
+        net = cli.networks.create(net_name, driver="bridge", internal=True)
+        player = cli.containers.run(image_tag(project_id, "player"), name=player_name, network=net_name, detach=True,
+                                    volumes={str(sub_path): {"bind": "/app/submission.py", "mode": "ro"}}, **player_limits())
+        scorer = cli.containers.run(
+            image_tag(project_id, "referee"),
+            command=["python", "/app/score_rows.py"],
+            network=net_name,
+            detach=True,
+            environment={"MATCH_ID": run_id, "SEED": str(seed), "PLAYER_URLS": f"http://{player_name}:8000", "CONFIG_JSON": json.dumps(config)},
+            volumes={str(out_dir): {"bind": "/data", "mode": "rw"}, str(rows_path): {"bind": "/rows/rows.csv", "mode": "ro"},
+                     str(SCORE_ROWS_SCRIPT): {"bind": "/app/score_rows.py", "mode": "ro"}},
+            **referee_limits(),
+        )
+        deadline = time.monotonic() + timeout_s
+        while True:
+            try:
+                code = scorer.wait(timeout=5).get("StatusCode", 1)
+                break
+            except Exception:  # noqa: BLE001  (still running)
+                pass
+            player.reload()
+            if player.status in ("exited", "dead"):
+                _kill(scorer)
+                raise RuntimeError("the solver crashed while starting: " + player.logs(tail=10).decode(errors="replace")[-300:])
+            if time.monotonic() > deadline:
+                _kill(scorer)
+                raise RuntimeError(f"sandbox scoring timed out after {timeout_s}s")
+        (run_dir / "scorer.log").write_bytes(scorer.logs())
+        (run_dir / "player.log").write_bytes(player.logs())
+        out = out_dir / "scores.csv"
+        if code != 0 or not out.exists():
+            raise RuntimeError("sandbox scoring failed: " + scorer.logs(tail=5).decode(errors="replace")[-300:])
+        return out
+    except DockerException as e:
+        raise RuntimeError(f"docker error: {e}"[:300]) from e
+    finally:
+        for c in (scorer, player):
             if c is not None:
                 try:
                     c.remove(force=True)

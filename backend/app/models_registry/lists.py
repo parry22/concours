@@ -14,8 +14,7 @@ from app.models import ListOut, ListRow, ModelVersionRow, ProblemSpec, ProjectRo
 from app.models_registry.promotion import list_framing
 from app.packager.transform import Transform
 from app.shared.csv_safe import safe_frame
-from app.serving.score import fitted_model
-from app.value.scores import submission_path
+from app.serving.score import code_path_for, fitted_model, scores_in_sandbox
 
 PREVIEW_ROWS = 25
 
@@ -26,7 +25,10 @@ def score_frame(project_id: str, version: ModelVersionRow, spec: ProblemSpec, df
     feats = transform.apply(df)  # raises ValueError naming the missing columns
     if transform.target_column in feats.columns:
         feats = feats.drop(columns=[transform.target_column])
-    model, _ = fitted_model(project_id, version.solver_name, spec, submission_path=submission_path(project_id, version.solver_name))
+    code = code_path_for(project_id, version)
+    if code is not None:
+        return scores_in_sandbox(project_id, version, spec, feats, code)
+    model, _ = fitted_model(project_id, version.solver_name, spec)
     return np.asarray(model.score_frame(feats), dtype=float)
 
 

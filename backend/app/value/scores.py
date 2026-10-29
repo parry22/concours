@@ -60,11 +60,10 @@ def _write(d: Path, scores: dict[str, np.ndarray]) -> None:
 def _refit(project_id: str, sub: SubmissionRow, spec: ProblemSpec) -> dict[str, np.ndarray] | None:
     from app.serving.score import fitted_model  # noqa: PLC0415 - heavy import, only on the slow path
 
-    path = submission_path(project_id, sub.solver)
-    if path is not None and not path.exists():
-        return None
+    if submission_path(project_id, sub.solver) is not None or (sub.origin or "local") != "local":
+        return None  # outside code is never re-fit on the host; its scores come from the sandbox run (score files)
     try:
-        model, _ = fitted_model(project_id, sub.solver, spec, submission_path=path)
+        model, _ = fitted_model(project_id, sub.solver, spec)
     except Exception as e:  # noqa: BLE001 - a solver that cannot be re-fit simply has no value report
         log.warning("value: re-fit of %s failed: %s", sub.solver, e)
         return None
