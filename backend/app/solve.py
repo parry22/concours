@@ -15,6 +15,7 @@ import hashlib
 import io
 import re
 import secrets
+import threading
 import zipfile
 from datetime import datetime, timezone
 
@@ -31,8 +32,18 @@ from app.db import get_session
 from app.models import ProjectRow, SubmissionRow
 
 MAX_CODE_BYTES = 200_000
+MAX_BODY_BYTES = 1_000_000  # any /solve/* request body; checked from Content-Length before the body is read
+MAX_ATTEMPTS_PER_DAY = 20  # per solver key
 ORIGIN = "direct"
 SOLVE_PREFIX = "/solve/"
+SANDBOX_ERROR = "the attempt failed inside the sandbox (timed out, crashed, or returned no scores)"
+_locks: dict[str, threading.Lock] = {}
+_locks_guard = threading.Lock()
+
+
+def project_lock(project_id: str) -> threading.Lock:
+    with _locks_guard:
+        return _locks.setdefault(project_id, threading.Lock())
 
 
 def _now() -> datetime:
@@ -88,31 +99,35 @@ def intake_code(s: Session, row: ProjectRow, code: bytes, *, origin: str, label:
     if reason:
         raise HTTPException(400, f"submission.py was not accepted: {reason}. Allowed imports are listed in the kit's README.")
     sha = hashlib.sha256(code).hexdigest()
-    seen = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id, SubmissionRow.origin == origin,
-                                              SubmissionRow.code_sha == sha)).first()
-    if seen is not None:
-        return seen, False
-    if arena.is_running(project_id):
-        raise HTTPException(409, "a round is running; try again after it finishes")
-    if fraud.window_moved(row):
-        _fraud_protect(row, s, keep_versions=True)  # the clock moved: score on the newest mature window, like a local round
-    folder = project_dir(project_id) / origin
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{sha}.py"
-    path.write_bytes(code)
-    sub = SubmissionRow(project_id=project_id, solver=label, status="queued", data_hash=f"{data_hash(project_id)}:{sha[:16]}",
-                        logs_path="", origin=origin, submitted_by=submitted_by, hotkey=hotkey, uid=uid, chain_block=block,
-                        code_sha=sha, code_path=str(path))
-    s.add(sub)
-    s.commit()
-    s.refresh(sub)
-    try:
-        arena.start_chain_run(project_id, [sub.id])
-    except RuntimeError as e:
-        s.delete(sub)
+    with project_lock(project_id):  # dedupe, the busy check and the enqueue as one step: two submits cannot both start a round
+        seen = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id, SubmissionRow.origin == origin,
+                                                  SubmissionRow.code_sha == sha)).first()
+        if seen is not None:
+            return seen, False
+        if arena.is_running(project_id):
+            raise HTTPException(409, "a round is running; try again after it finishes")
+        if fraud.window_moved(row):
+            try:
+                _fraud_protect(row, s, keep_versions=True)  # the clock moved: score on the newest mature window, like a local round
+            except HTTPException as e:  # the owner's data problem, in the owner's words: not for an outside solver
+                raise HTTPException(503, "the project is not ready for a round right now; try again later") from e
+        folder = project_dir(project_id) / origin
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{sha}.py"
+        path.write_bytes(code)
+        sub = SubmissionRow(project_id=project_id, solver=label, status="queued", data_hash=f"{data_hash(project_id)}:{sha[:16]}",
+                            logs_path="", origin=origin, submitted_by=submitted_by, hotkey=hotkey, uid=uid, chain_block=block,
+                            code_sha=sha, code_path=str(path))
+        s.add(sub)
         s.commit()
-        raise HTTPException(409, str(e)) from e
-    return sub, True
+        s.refresh(sub)
+        try:
+            arena.start_chain_run(project_id, [sub.id])
+        except RuntimeError as e:
+            s.delete(sub)
+            s.commit()
+            raise HTTPException(409, str(e)) from e
+        return sub, True
 
 
 # ---------- owner side: keys ----------
@@ -162,6 +177,10 @@ def create_key(project_id: str, body: SolverKeyIn, s: Session = Depends(get_sess
     name = " ".join(body.name.split())[:60]
     if not name:
         raise HTTPException(400, "give the solver a name")
+    live = s.exec(select(SolverKeyRow.id).where(SolverKeyRow.project_id == project_id, SolverKeyRow.name == name,
+                                                 SolverKeyRow.revoked == False)).first()  # noqa: E712
+    if live is not None:
+        raise HTTPException(409, f"a key named {name!r} already exists; revoke it or pick another name")
     token = new_token()
     k = SolverKeyRow(project_id=project_id, name=name, prefix=token[:7], token_hash=token_hash(token))
     s.add(k)
@@ -199,12 +218,12 @@ def solver(request: Request, s: Session = Depends(get_session), x_solver_key: st
         token = auth[7:].strip()
     ip = request.client.host if request.client else "?"
     if not token.startswith("sk_"):
-        throttle(ip)  # the same per-address limit as sign-in, so key guessing is slow and cheap to spot
+        throttle(f"solve:{ip}")  # the sign-in limiter, in its own bucket, so key guessing is slow and cheap to spot
         raise HTTPException(401, "send your solver key in the X-Solver-Key header")
     k = s.exec(select(SolverKeyRow).where(SolverKeyRow.token_hash == token_hash(token))).first()
     row = s.get(ProjectRow, k.project_id) if k is not None and not k.revoked else None
     if row is None:
-        throttle(ip)
+        throttle(f"solve:{ip}")
         raise HTTPException(401, "this solver key is not valid")
     k.last_used_at = _now()
     s.add(k)
@@ -223,6 +242,7 @@ class AttemptOut(BaseModel):
     error: str | None = None
     active: bool = False
     version: int | None = None
+    final: bool = False  # measured and considered for promotion: poll until this is true
     created_at: datetime
 
 
@@ -245,24 +265,29 @@ class SubmitIn(BaseModel):
 public = APIRouter(prefix="/solve", tags=["solvers"])
 
 
-def _attempts(s: Session, who: Solver) -> list[AttemptOut]:
+def _attempt_out(s: Session, pid: str, r: SubmissionRow, by_sub: dict, running: bool) -> AttemptOut:
     import json  # noqa: PLC0415
 
+    gates = json.loads(r.gates_json) if r.gates_json else []
+    v = by_sub.get(r.id)
+    bv = f"${r.private_score:,.0f} of fraud caught per day" if r.status == "scored" and r.private_score is not None else None
+    done = r.status in ("scored", "failed") and not running  # gates and promotion are written after the score, inside the same job
+    return AttemptOut(id=r.id, status=r.status, code_sha=r.code_sha or "", private_score=r.private_score, business_value=bv,
+                      gates=gates, gates_passed=sum(1 for g in gates if g.get("passed")) if gates else None,
+                      error=SANDBOX_ERROR if r.error else None,  # the worker's text can name host paths; the owner sees it on Improve
+                      active=v is not None and v.status == "active", version=v.version if v else None, final=done, created_at=r.created_at)
+
+
+def _attempts(s: Session, who: Solver) -> list[AttemptOut]:
+    from app.arena import service as arena  # noqa: PLC0415
     from app.models_registry import promotion  # noqa: PLC0415
 
     pid = who.project.id
     by_sub = {v.submission_id: v for v in promotion.versions_for(s, pid) if v.submission_id}
+    running = arena.is_running(pid)
     subs = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == pid, SubmissionRow.origin == ORIGIN,
                                               SubmissionRow.submitted_by == who.key.name).order_by(SubmissionRow.created_at.desc())).all()
-    out = []
-    for r in subs:
-        gates = json.loads(r.gates_json) if r.gates_json else []
-        v = by_sub.get(r.id)
-        bv = f"${r.private_score:,.0f} of fraud caught per day" if r.status == "scored" and r.private_score is not None else None
-        out.append(AttemptOut(id=r.id, status=r.status, code_sha=r.code_sha or "", private_score=r.private_score, business_value=bv,
-                              gates=gates, gates_passed=sum(1 for g in gates if g.get("passed")) if gates else None, error=r.error,
-                              active=v is not None and v.status == "active", version=v.version if v else None, created_at=r.created_at))
-    return out
+    return [_attempt_out(s, pid, r, by_sub, running) for r in subs]
 
 
 @public.get("/me", response_model=MeOut)
@@ -325,7 +350,8 @@ def kit(request: Request, who: Solver = Depends(solver), s: Session = Depends(ge
     from app.config import SOLVER_TIMEOUT_S  # noqa: PLC0415
 
     m = me(who, s)
-    base = str(request.base_url).rstrip("/")
+    fh, fp = request.headers.get("x-forwarded-host"), request.headers.get("x-forwarded-proto")
+    base = f"{fp or 'https'}://{fh}/api" if fh else str(request.base_url).rstrip("/")  # behind the UI proxy the API lives under /api
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("README.md", README.format(project=m.project, capacity=m.daily_capacity or 200,
@@ -342,11 +368,25 @@ def kit(request: Request, who: Solver = Depends(solver), s: Session = Depends(ge
 @public.post("/submissions", response_model=AttemptOut, status_code=202)
 def submit(body: SubmitIn, who: Solver = Depends(solver), s: Session = Depends(get_session)) -> AttemptOut:
     """One attempt. Starts an improvement round for it; the same code is returned, not re-scored."""
+    from datetime import timedelta  # noqa: PLC0415
+
+    from app.arena import service as arena  # noqa: PLC0415
+    from app.models_registry import promotion  # noqa: PLC0415
+
     code = body.code.encode()
     sha = hashlib.sha256(code).hexdigest()
+    pid = who.project.id
+    since = _now() - timedelta(days=1)
+    today = s.exec(select(SubmissionRow.id).where(SubmissionRow.project_id == pid, SubmissionRow.origin == ORIGIN,
+                                                  SubmissionRow.submitted_by == who.key.name, SubmissionRow.created_at > since)).all()
+    if len(today) >= MAX_ATTEMPTS_PER_DAY:
+        raise HTTPException(429, f"{MAX_ATTEMPTS_PER_DAY} attempts in the last day; try again tomorrow")
     safe = re.sub(r"-+", "-", "".join(ch if ch.isalnum() else "-" for ch in who.key.name.lower()))[:16].strip("-") or "solver"
     sub, _ = intake_code(s, who.project, code, origin=ORIGIN, label=f"solver-{safe}-{sha[:8]}", submitted_by=who.key.name)
-    return next(a for a in _attempts(s, who) if a.id == sub.id)
+    if sub.submitted_by != who.key.name:
+        raise HTTPException(409, "this exact code was already submitted by another solver; change it and submit again")
+    by_sub = {v.submission_id: v for v in promotion.versions_for(s, pid) if v.submission_id}
+    return _attempt_out(s, pid, sub, by_sub, arena.is_running(pid))
 
 
 @public.get("/submissions/{sub_id}", response_model=AttemptOut)
@@ -355,3 +395,17 @@ def attempt(sub_id: str, who: Solver = Depends(solver), s: Session = Depends(get
         if a.id == sub_id:
             return a
     raise HTTPException(404, "no such attempt")
+
+
+async def body_guard(request: Request, call_next):
+    """Refuse oversized bodies on /solve/* from the Content-Length alone, before FastAPI buffers and parses them."""
+    if request.url.path.startswith(SOLVE_PREFIX):
+        try:
+            n = int(request.headers.get("content-length") or 0)
+        except ValueError:
+            n = MAX_BODY_BYTES + 1
+        if n > MAX_BODY_BYTES:
+            from fastapi.responses import JSONResponse  # noqa: PLC0415
+
+            return JSONResponse({"detail": f"request body over {MAX_BODY_BYTES // 1_000_000} MB"}, status_code=413)
+    return await call_next(request)

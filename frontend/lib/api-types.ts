@@ -1195,6 +1195,11 @@ export interface components {
             /** Version */
             version?: number | null;
             /**
+             * Final
+             * @default false
+             */
+            final: boolean;
+            /**
              * Created At
              * Format: date-time
              */

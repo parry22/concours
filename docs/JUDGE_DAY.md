@@ -7,7 +7,7 @@ assumed. Read this file, nothing else, before the demo. `docs/DEMO_SCRIPT.md` is
 
 | Item | State |
 |---|---|
-| Backend tests | 167 pass (`cd backend && .venv/bin/python -m pytest -q`) |
+| Backend tests | 171 pass (`cd backend && .venv/bin/python -m pytest -q`) |
 | Frontend | copy lint clean, type check clean (`cd frontend && pnpm test`) |
 | Marketing site | `website/` builds (`NEXT_DIST_DIR=.next-build pnpm build`) |
 | Demo workspace | seeded and ready in `workspace/`: "Card fraud review queue, Q4" (v2, not yet jumped forward), "Marketplace payments" (v1, slipping, round ready), "Card fraud on Bittensor" (v2 credited to an outside solver on a local chain) |
@@ -176,7 +176,8 @@ Bittensor testnet subnet, netuid 603, where an outside miner's code became versi
   Staking on a fresh pool needs `--no-slippage-protection` (0.2 τ staked on the validator hotkey).
 - Weights: `weights_rate_limit` is 100 blocks (about 20 minutes); the validator retries each pass and logs
   "weights not set: ... Retry in ~N blocks" until then. First weights landed at block 8335151 ("set weights {1: 1.0}");
-  the Improve card shows "Weights set to uid 1 · block 8,335,151".
+  the Improve card shows "Weights set to uid 1 · block 8,335,151". Read back from chain storage after the reveal:
+  `Weights[603][uid 0] = [(1, 65535)]`, `LastUpdate[603] = [8335153, 8335084]`.
 - The validator's intake (port 8091, all interfaces, so miners can reach it) accepts only signed uploads from hotkeys
   registered on netuid 603 and keeps eight uploads per hotkey. Start it with `scripts/testnet_validator.sh`.
 

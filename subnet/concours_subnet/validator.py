@@ -71,6 +71,7 @@ class State:
         self.lock = threading.Lock()
         self.registered: set[str] | None = None  # hotkeys on the subnet after the first pass; uploads from others are refused
         self.uploads: dict[str, list[str]] = {}  # hotkey -> shas uploaded this run, newest last (capped)
+        self.uploaders: dict[str, set[str]] = {}  # sha -> hotkeys that uploaded it; a shared file goes only when none is left
 
     def code_path(self, sha: str) -> Path:
         return self.root / "code" / f"{sha}.py"
@@ -96,7 +97,10 @@ def intake(state: State, netuid: int, port: int) -> ThreadingHTTPServer:
         def do_POST(self):  # noqa: N802
             if self.path != "/submit":
                 return self._send(404, {"error": "not found"})
-            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return self._send(400, {"error": "bad Content-Length"})
             if n > MAX_CODE_BYTES * 2 + 4096:
                 return self._send(413, {"error": "too large"})
             try:
@@ -116,9 +120,12 @@ def intake(state: State, netuid: int, port: int) -> ThreadingHTTPServer:
                 shas = state.uploads.setdefault(hotkey, [])
                 if sha not in shas:
                     shas.append(sha)
+                state.uploaders.setdefault(sha, set()).add(hotkey)
                 while len(shas) > MAX_UPLOADS_PER_HOTKEY:
                     old_sha = shas.pop(0)
-                    if f"{hotkey}:{old_sha}" not in state.forwarded:
+                    owners = state.uploaders.get(old_sha, set())
+                    owners.discard(hotkey)
+                    if not owners and f"{hotkey}:{old_sha}" not in state.forwarded:
                         state.code_path(old_sha).unlink(missing_ok=True)
             state.code_path(sha).write_bytes(code)
             log.info("upload %s from %s", sha[:12], hotkey)
@@ -132,6 +139,8 @@ def intake(state: State, netuid: int, port: int) -> ThreadingHTTPServer:
 
         def log_message(self, *args):  # quiet
             pass
+
+        timeout = 30  # seconds an idle connection may hold a handler thread
 
     srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()

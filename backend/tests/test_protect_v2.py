@@ -42,6 +42,6 @@ def test_hash_ids_survives_blank_ids():
     s = pd.Series(["a", np.nan, "b", None, "a"])
     out, m = hash_ids(s, "salt-1", keyed=True)
     assert out.dtype == "int64" and out.iloc[0] == out.iloc[4] and out.iloc[1] == out.iloc[3] and out.iloc[0] != out.iloc[2]
-    assert set(m["original"]) == {"a", "", "b"} and (out >= 0).all()
+    assert set(m["original"]) == {"a", "nan", "b"} and (out >= 0).all()
     out1, _ = hash_ids(s, "salt-1", keyed=False)
     assert out1.iloc[1] == out1.iloc[3] and out1.iloc[0] != out1.iloc[1]

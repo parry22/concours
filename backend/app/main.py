@@ -1074,6 +1074,7 @@ from app import solve  # noqa: E402
 
 app.include_router(solve.owner)
 app.include_router(solve.public)
+app.middleware("http")(solve.body_guard)
 
 from app.arena import apex_local  # noqa: E402
 

@@ -15,7 +15,11 @@ miner ──signed upload──▶ validator intake (:8091) ──▶ Concours A
   earlier commitment gets it.
 - The private holdout never leaves the Concours server. Neither miners nor this validator process see it.
 - A submission is one `submission.py` with a `Solver` class, the same contract as `backend/solvers/*/submission.py`.
-  The limit is 200 KB. It runs with no network except the referee's, 2 CPUs and 2 GB of memory.
+  The limit is 200 KB. It runs with no network except the referee's, 2 CPUs and 2 GB of memory. Before it runs, Concours
+  screens the file: only these imports are allowed: numpy, pandas, sklearn, lightgbm, xgboost, common, math, typing,
+  __future__, collections, itertools, functools, re, json, datetime; no `exec`, `eval`, `open` or `__import__`. A file
+  that fails the screen is refused (400) and the validator records that hash as refused, so check your imports before
+  committing: the commitment costs a fee.
 
 Files: `concours_subnet/miner.py`, `concours_subnet/validator.py`, `concours_subnet/common.py`,
 `scripts/localnet_setup.py`. Backend side: `backend/app/chain.py`, with the routes `GET /projects/{id}/chain`,

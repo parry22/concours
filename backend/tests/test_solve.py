@@ -154,3 +154,43 @@ def test_bad_keys_are_throttled(setup, monkeypatch):
     codes = [c.get("/solve/me", headers={"X-Solver-Key": f"sk_guess{i}"}).status_code for i in range(5)]
     assert codes == [401, 401, 401, 429, 429]
     auth._attempts.clear()
+
+
+def test_same_code_from_two_solvers_and_duplicate_names(setup):
+    c, pid, started = setup
+    a = c.post(f"/projects/{pid}/solvers/keys", json={"name": "Ada"}).json()["token"]
+    assert c.post(f"/projects/{pid}/solvers/keys", json={"name": "Ada"}).status_code == 409
+    b = c.post(f"/projects/{pid}/solvers/keys", json={"name": "Bo"}).json()["token"]
+    first = c.post("/solve/submissions", json={"code": CODE}, headers={"X-Solver-Key": a})
+    assert first.status_code == 202 and first.json()["final"] is False
+    again = c.post("/solve/submissions", json={"code": CODE}, headers={"X-Solver-Key": b})
+    assert again.status_code == 409 and "another solver" in again.json()["detail"]
+    assert c.get("/solve/me", headers={"X-Solver-Key": b}).json()["attempts"] == []
+    assert len(started) == 1
+
+
+def test_body_guard_and_daily_cap(setup, monkeypatch):
+    c, pid, started = setup
+    token = c.post(f"/projects/{pid}/solvers/keys", json={"name": "Ada"}).json()["token"]
+    h = {"X-Solver-Key": token}
+    r = c.post("/solve/submissions", content=b"{}", headers={**h, "Content-Type": "application/json", "Content-Length": str(solve_mod.MAX_BODY_BYTES + 1)})
+    assert r.status_code == 413
+    monkeypatch.setattr(solve_mod, "MAX_ATTEMPTS_PER_DAY", 2)
+    for i in range(2):
+        assert c.post("/solve/submissions", json={"code": CODE + f"# {i}\n"}, headers=h).status_code == 202
+    assert c.post("/solve/submissions", json={"code": CODE + "# 3\n"}, headers=h).status_code == 429
+    assert len(started) == 2
+
+
+def test_errors_are_not_leaked_to_solvers(setup, engine):
+    c, pid, _ = setup
+    token = c.post(f"/projects/{pid}/solvers/keys", json={"name": "Ada"}).json()["token"]
+    h = {"X-Solver-Key": token}
+    sub_id = c.post("/solve/submissions", json={"code": CODE}, headers=h).json()["id"]
+    with Session(engine) as s:
+        sub = s.get(SubmissionRow, sub_id)
+        sub.status, sub.error = "failed", "docker error: /Users/owner/secret/path: boom"
+        s.add(sub)
+        s.commit()
+    a = c.get(f"/solve/submissions/{sub_id}", headers=h).json()
+    assert a["error"] == solve_mod.SANDBOX_ERROR and a["final"] is True

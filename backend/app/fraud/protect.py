@@ -38,7 +38,7 @@ COLUMN_CHECKS = (id_like.run, pii.run, post_outcome_name.run, target_leak.run, c
 def hash_ids(values: pd.Series, salt: str, *, keyed: bool = True) -> tuple[pd.Series, pd.DataFrame]:
     """BLAKE2b of each distinct value, as a positive 63-bit integer. Returns the hashed column and the map.
     `keyed` (protection version 2) uses the salt as the hash key, the keyed construction; version 1 prefixed it."""
-    text = values.where(values.notna(), "").astype(str)  # blank IDs (NaN stays NaN through astype(str)) share one bucket
+    text = values.where(values.notna(), "nan").astype(str)  # blank IDs share one bucket, "nan", as version 1 always hashed them
     uniq = pd.unique(text)
     if keyed:
         key = hashlib.sha256(salt.encode()).digest()  # any salt length becomes a 32-byte key

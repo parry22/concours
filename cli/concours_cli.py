@@ -542,7 +542,7 @@ def cmd_solve_kit(args, cfg):
     c = _solver_client(args)
     out = Path(args.out or "concours-solver-kit.zip")
     out.write_bytes(c.raw("GET", "/solve/kit", headers={"X-Solver-Key": c.solver_key}).read())
-    print(f"Wrote {out}. Unzip it, start from submission.py, read README.md for the contract.")
+    emit(args, {"wrote": str(out)}, lambda: print(f"Wrote {out}. Unzip it, start from submission.py, read README.md for the contract."))
 
 
 def _attempt_line(a: dict) -> str:
@@ -569,16 +569,45 @@ def cmd_solve_status(args, cfg):
     emit(args, me, human)
 
 
+def _read_code(path: str) -> str:
+    try:
+        return Path(path).read_bytes().decode("utf-8")
+    except FileNotFoundError:
+        raise CliError(f"{path}: no such file") from None
+    except UnicodeDecodeError:
+        raise CliError(f"{path} is not UTF-8 text; submission.py must be plain Python source") from None
+
+
+def _poll_attempt(c: Client, sub_id: str, deadline_s: float = 3600) -> dict:
+    """Wait until the server says the attempt is final (scored and considered for promotion). A transient 5xx or a
+    dropped connection is retried a few times; a flat failure or the deadline ends the wait."""
+    t0, errors = time.time(), 0
+    while True:
+        time.sleep(5)
+        try:
+            a = c.call_as_solver("GET", f"/solve/submissions/{sub_id}")
+            errors = 0
+        except CliError as e:
+            errors += 1
+            if errors > 5 or " 4" in str(e):
+                raise
+            continue
+        if a.get("final") or a["status"] == "failed":
+            return a
+        if time.time() - t0 > deadline_s:
+            raise CliError(f"attempt {sub_id} is still {a['status']} after {deadline_s:.0f}s; `concours solve status` later")
+
+
 def cmd_solve_submit(args, cfg):
     c = _solver_client(args)
-    code = Path(args.file).read_text()
-    a = c.call_as_solver("POST", "/solve/submissions", {"code": code})
-    print(f"Attempt {a['id']} {a['status']}.")
-    if args.no_wait:
+    a = c.call_as_solver("POST", "/solve/submissions", {"code": _read_code(args.file)})
+    if not args.json:
+        print(f"Attempt {a['id']} {a['status']}.")
+    if not args.no_wait:
+        a = _poll_attempt(c, a["id"])
+    if args.json:
+        print(json.dumps(a, indent=2))
         return
-    while a["status"] in ("queued", "running"):
-        time.sleep(5)
-        a = c.call_as_solver("GET", f"/solve/submissions/{a['id']}")
     print(_attempt_line(a))
     if a.get("active"):
         print("Your attempt passed all five gates and is now the active version.")
