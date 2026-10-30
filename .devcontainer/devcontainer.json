@@ -1,14 +1,23 @@
 {
   "name": "Concours demo",
   "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
   },
-  "hostRequirements": { "cpus": 4, "memory": "16gb", "storage": "32gb" },
-  "forwardPorts": [3000],
+  "forwardPorts": [
+    3000
+  ],
   "portsAttributes": {
-    "3000": { "label": "Concours", "onAutoForward": "silent" },
-    "8000": { "label": "API (local only)", "onAutoForward": "ignore" }
+    "3000": {
+      "label": "Concours",
+      "onAutoForward": "silent"
+    },
+    "8000": {
+      "label": "API (local only)",
+      "onAutoForward": "ignore"
+    }
   },
   "postCreateCommand": "bash .devcontainer/setup.sh"
 }
