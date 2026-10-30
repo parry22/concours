@@ -24,6 +24,8 @@ from pydantic import BaseModel
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, select
 
+from app.arena.agent_solver import ALLOWED_TOP, screen_code
+from app.auth import throttle
 from app.config import SOLVERS_DIR, project_dir
 from app.db import get_session
 from app.models import ProjectRow, SubmissionRow
@@ -82,8 +84,9 @@ def intake_code(s: Session, row: ProjectRow, code: bytes, *, origin: str, label:
         raise HTTPException(409, "your first model is not ready yet")
     if len(code) > MAX_CODE_BYTES:
         raise HTTPException(413, f"submission is over {MAX_CODE_BYTES // 1000} KB")
-    if b"class Solver" not in code:
-        raise HTTPException(400, "submission.py must define a class named Solver (see the kit's README)")
+    reason = screen_code(code.decode(errors="replace"))  # the sandbox is the real boundary; this is the polite refusal first
+    if reason:
+        raise HTTPException(400, f"submission.py was not accepted: {reason}. Allowed imports are listed in the kit's README.")
     sha = hashlib.sha256(code).hexdigest()
     seen = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id, SubmissionRow.origin == origin,
                                               SubmissionRow.code_sha == sha)).first()
@@ -194,13 +197,14 @@ def solver(request: Request, s: Session = Depends(get_session), x_solver_key: st
     auth = request.headers.get("authorization", "")
     if not token and auth.lower().startswith("bearer "):
         token = auth[7:].strip()
+    ip = request.client.host if request.client else "?"
     if not token.startswith("sk_"):
+        throttle(ip)  # the same per-address limit as sign-in, so key guessing is slow and cheap to spot
         raise HTTPException(401, "send your solver key in the X-Solver-Key header")
     k = s.exec(select(SolverKeyRow).where(SolverKeyRow.token_hash == token_hash(token))).first()
-    if k is None or k.revoked:
-        raise HTTPException(401, "this solver key is not valid")
-    row = s.get(ProjectRow, k.project_id)
+    row = s.get(ProjectRow, k.project_id) if k is not None and not k.revoked else None
     if row is None:
+        throttle(ip)
         raise HTTPException(401, "this solver key is not valid")
     k.last_used_at = _now()
     s.add(k)
@@ -296,7 +300,8 @@ Submit one file, `submission.py`, under 200 KB, that defines `class Solver(Solve
 `common/base.py` (in this kit, present in the container at `/app/common/`) prepares the features the same way for
 every solver and wraps your class; read it to see which columns you get. `submission.py` in this kit is the baseline:
 start from it. The container has pandas, numpy, scikit-learn and lightgbm, no network, 2 CPUs, 2 GB of memory and
-{timeout} s to train and score.
+{timeout} s to train and score. Allowed imports: {allowed}. No `exec`, `eval`, `open` or `__import__`; a submission
+that uses anything else is refused before it runs.
 
 Customer and merchant IDs are hashed; card numbers are not present. You never see the holdout.
 
@@ -326,7 +331,7 @@ def kit(request: Request, who: Solver = Depends(solver), s: Session = Depends(ge
         z.writestr("README.md", README.format(project=m.project, capacity=m.daily_capacity or 200,
                                                active=f"${m.active_per_day:,.0f}" if m.active_per_day is not None else "n/a",
                                                bar=f"${m.bar_per_day:,.0f}" if m.bar_per_day is not None else "n/a",
-                                               timeout=SOLVER_TIMEOUT_S, url=base))
+                                               timeout=SOLVER_TIMEOUT_S, url=base, allowed=", ".join(sorted(ALLOWED_TOP))))
         z.write(SOLVERS_DIR / "baseline_logreg" / "submission.py", "submission.py")
         for p in sorted((SOLVERS_DIR / "common").glob("*.py")):
             z.write(p, f"common/{p.name}")

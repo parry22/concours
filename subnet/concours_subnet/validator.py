@@ -5,7 +5,9 @@
 
 Two things run side by side:
 
-- an upload intake on --port: miners POST their submission.py signed with their hotkey (see miner.py). The code is
+- an upload intake on --port: miners POST their submission.py signed with their hotkey (see miner.py); only hotkeys
+  registered on the subnet are accepted once the first pass has read the metagraph, and each keeps its newest eight
+  uploads, so a stranger on the network cannot fill the disk. The code is
   kept on disk under --state, keyed by sha256. Nothing is scored yet.
 - a loop every --interval seconds: read every commitment on the subnet; for each registered hotkey whose committed
   sha256 matches an uploaded file, forward it to Concours (`POST /projects/{id}/chain/submissions`). Concours scores
@@ -67,6 +69,8 @@ class State:
         self.file = root / "forwarded.json"
         self.forwarded: dict[str, dict] = json.loads(self.file.read_text()) if self.file.exists() else {}
         self.lock = threading.Lock()
+        self.registered: set[str] | None = None  # hotkeys on the subnet after the first pass; uploads from others are refused
+        self.uploads: dict[str, list[str]] = {}  # hotkey -> shas uploaded this run, newest last (capped)
 
     def code_path(self, sha: str) -> Path:
         return self.root / "code" / f"{sha}.py"
@@ -74,6 +78,9 @@ class State:
     def save(self) -> None:
         with self.lock:
             self.file.write_text(json.dumps(self.forwarded, indent=1))
+
+
+MAX_UPLOADS_PER_HOTKEY = 8
 
 
 def intake(state: State, netuid: int, port: int) -> ThreadingHTTPServer:
@@ -103,6 +110,16 @@ def intake(state: State, netuid: int, port: int) -> ThreadingHTTPServer:
                 return self._send(400, {"error": "sha256 does not match the code"})
             if not verify_message(upload_message(netuid, sha), sig, hotkey):
                 return self._send(401, {"error": "signature does not match the hotkey"})
+            if state.registered is not None and hotkey not in state.registered:
+                return self._send(403, {"error": f"hotkey is not registered on netuid {netuid}"})
+            with state.lock:  # a registered hotkey keeps its newest MAX_UPLOADS_PER_HOTKEY uploads; older unforwarded files go
+                shas = state.uploads.setdefault(hotkey, [])
+                if sha not in shas:
+                    shas.append(sha)
+                while len(shas) > MAX_UPLOADS_PER_HOTKEY:
+                    old_sha = shas.pop(0)
+                    if f"{hotkey}:{old_sha}" not in state.forwarded:
+                        state.code_path(old_sha).unlink(missing_ok=True)
             state.code_path(sha).write_bytes(code)
             log.info("upload %s from %s", sha[:12], hotkey)
             return self._send(202, {"sha256": sha, "next": "publish the commitment; the validator scores it on its next pass"})
@@ -126,6 +143,7 @@ def one_pass(sub: bt.Subtensor, api: Concours, state: State, a, my_hotkey: str) 
     if meta is None:
         raise SystemExit(f"netuid {a.netuid} does not exist on {a.network}")
     uid_of = {n.hotkey: n.uid for n in meta.neurons}
+    state.registered = set(uid_of)
     # 1. forward new committed code, oldest commitment first (first to commit a hash gets it)
     commits = sorted(meta.commitments.values(), key=lambda c: c.block)
     for c in commits:

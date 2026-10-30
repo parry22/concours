@@ -92,6 +92,10 @@ def test_bad_keys_and_bad_code_are_refused(setup):
     k = c.post(f"/projects/{pid}/solvers/keys", json={"name": "Ada"}).json()
     h = {"X-Solver-Key": k["token"]}
     assert c.post("/solve/submissions", json={"code": "print('hi')"}, headers=h).status_code == 400
+    r = c.post("/solve/submissions", json={"code": "import os\nclass Solver: pass\n"}, headers=h)
+    assert r.status_code == 400 and "import of `os`" in r.json()["detail"]
+    r = c.post("/solve/submissions", json={"code": "class Solver:\n    def fit(self, X, y): exec('1')\n"}, headers=h)
+    assert r.status_code == 400 and "exec" in r.json()["detail"]
     big = "class Solver:\n" + "#" * (solve_mod.MAX_CODE_BYTES + 1)
     assert c.post("/solve/submissions", json={"code": big}, headers=h).status_code == 413
     assert started == []
@@ -139,3 +143,14 @@ def test_source_for_origin():
     from app.models_registry.promotion import source_for
 
     assert source_for("direct") == "outside" and source_for("chain") == "bittensor" and source_for(None) == "local_contest"
+
+
+def test_bad_keys_are_throttled(setup, monkeypatch):
+    from app import auth  # noqa: PLC0415
+
+    c, _, _ = setup
+    monkeypatch.setattr(auth, "MAX_ATTEMPTS", 3)
+    auth._attempts.clear()
+    codes = [c.get("/solve/me", headers={"X-Solver-Key": f"sk_guess{i}"}).status_code for i in range(5)]
+    assert codes == [401, 401, 401, 429, 429]
+    auth._attempts.clear()
