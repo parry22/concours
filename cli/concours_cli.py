@@ -72,6 +72,15 @@ class Client:
         self.url = url.rstrip("/")
         self.key = api_key
         self.cookies: dict[str, str] = {}
+        self.solver_key: str | None = None
+
+    def call_as_solver(self, method: str, path: str, body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        h = {"X-Solver-Key": self.solver_key or ""}
+        if data is not None:
+            h["Content-Type"] = "application/json"
+        out = self.raw(method, path, data, h).read()
+        return json.loads(out) if out else None
 
     def _headers(self, extra: dict | None = None) -> dict:
         h = {"User-Agent": f"concours-cli/{__version__}", "Accept": "application/json"}
@@ -92,7 +101,7 @@ class Client:
             except json.JSONDecodeError:
                 detail = body
             if e.code == 401:
-                raise CliError(f"{detail} Run `concours login`.") from e
+                raise CliError(f"{detail} {'Check your solver key.' if self.solver_key else 'Run `concours login`.'}") from e
             raise CliError(f"{method} {path}: {e.code} {detail if isinstance(detail, str) else json.dumps(detail)}") from e
         except urllib.error.URLError as e:
             raise CliError(f"Could not reach {self.url}: {e.reason}. Is the server running?") from e
@@ -517,6 +526,66 @@ def cmd_keys(args, cfg):
                                            ["id", "name", "key", "last used"])))
 
 
+# ---------- outside solvers (a solver key, no account) ----------
+
+
+def _solver_client(args) -> Client:
+    key = args.key or os.environ.get("CONCOURS_SOLVER_KEY")
+    if not key:
+        raise CliError("give your solver key with --key or CONCOURS_SOLVER_KEY (the project owner creates it on Improve).")
+    c = Client(args.url or os.environ.get("CONCOURS_URL") or DEFAULT_URL)
+    c.solver_key = key
+    return c
+
+
+def cmd_solve_kit(args, cfg):
+    c = _solver_client(args)
+    out = Path(args.out or "concours-solver-kit.zip")
+    out.write_bytes(c.raw("GET", "/solve/kit", headers={"X-Solver-Key": c.solver_key}).read())
+    print(f"Wrote {out}. Unzip it, start from submission.py, read README.md for the contract.")
+
+
+def _attempt_line(a: dict) -> str:
+    gates = f"{a['gates_passed']}/5 gates" if a.get("gates_passed") is not None else ""
+    tag = " · active version" if a.get("active") else (f" · v{a['version']}" if a.get("version") else "")
+    val = a.get("business_value") or (a.get("error") or a["status"])
+    return f"{a['id']}  {a['created_at'][:16]}  {val}  {gates}{tag}".rstrip()
+
+
+def cmd_solve_status(args, cfg):
+    c = _solver_client(args)
+    me = c.call_as_solver("GET", "/solve/me")
+
+    def human():
+        active = f"v{me['active_version']} catches {money(me['active_per_day'])}/day" if me.get("active_version") else "no model yet"
+        print(f"{me['project']}: {active}; a new version must reach {money(me['bar_per_day'])}/day and pass five gates.")
+        if me.get("round_running"):
+            print("A round is running now.")
+        for a in me["attempts"]:
+            print("  " + _attempt_line(a))
+        if not me["attempts"]:
+            print("  No attempts yet. `concours solve submit submission.py`.")
+
+    emit(args, me, human)
+
+
+def cmd_solve_submit(args, cfg):
+    c = _solver_client(args)
+    code = Path(args.file).read_text()
+    a = c.call_as_solver("POST", "/solve/submissions", {"code": code})
+    print(f"Attempt {a['id']} {a['status']}.")
+    if args.no_wait:
+        return
+    while a["status"] in ("queued", "running"):
+        time.sleep(5)
+        a = c.call_as_solver("GET", f"/solve/submissions/{a['id']}")
+    print(_attempt_line(a))
+    if a.get("active"):
+        print("Your attempt passed all five gates and is now the active version.")
+    elif a["status"] == "scored":
+        print("Measured. It did not pass every gate, so the active version stays.")
+
+
 # ---------- parser ----------
 
 
@@ -588,6 +657,24 @@ def parser() -> argparse.ArgumentParser:
     p = add("keys", cmd_keys, "API keys: list, create NAME, revoke ID", project=False)
     p.add_argument("action", nargs="?", default="list", choices=["list", "create", "revoke"])
     p.add_argument("name", nargs="?")
+
+    sp = sub.add_parser("solve", help="For outside solvers: kit, submit, status (needs a solver key, not an account)")
+    ssub = sp.add_subparsers(dest="solve_cmd", required=True)
+
+    def add_solve(name, fn, help_):
+        q = ssub.add_parser(name, help=help_, description=help_)
+        q.set_defaults(fn=fn)
+        q.add_argument("--key", help="your solver key (or CONCOURS_SOLVER_KEY)")
+        q.add_argument("--url", help=f"API address (or CONCOURS_URL; default {DEFAULT_URL})")
+        q.add_argument("--json", action="store_true", help="machine-readable output")
+        return q
+
+    q = add_solve("kit", cmd_solve_kit, "Download the solver kit: README, the baseline submission.py, the shared feature code")
+    q.add_argument("--out", help="where to write the zip")
+    q = add_solve("submit", cmd_solve_submit, "Submit a submission.py and wait for its measurement")
+    q.add_argument("file")
+    q.add_argument("--no-wait", action="store_true")
+    add_solve("status", cmd_solve_status, "The active version, the bar, and your attempts")
     return ap
 
 

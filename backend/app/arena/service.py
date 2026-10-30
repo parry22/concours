@@ -23,6 +23,7 @@ from app.db import session
 from app.models import ProblemSpec, ProjectRow, SubmissionRow
 
 REPLAY_STAGGER_S = 1.5
+OUTSIDE_ORIGINS = ("chain", "direct")  # code that came from outside: a miner on chain, or a solver with a key
 
 
 def _log(project_id: str, line: str) -> None:
@@ -50,13 +51,13 @@ def start_run(project_id: str, solvers: list[str], *, replay: bool = True, rebui
 
 
 def _new_submission(s, project_id: str, name: str, dh: str) -> SubmissionRow:
-    """A queued attempt for a built-in solver, or a re-run of a miner's code (the active version can be a miner's)."""
+    """A queued attempt for a built-in solver, or a re-run of an outside solver's code (the active version can be theirs)."""
     miner = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id, SubmissionRow.solver == name,
-                                               SubmissionRow.origin == "chain")).first()
+                                               SubmissionRow.origin.in_(OUTSIDE_ORIGINS))).first()  # type: ignore[attr-defined]
     if miner is not None:
         sub = SubmissionRow(project_id=project_id, solver=name, status="queued", data_hash=f"{dh}:{miner.code_sha[:16]}", logs_path="",
-                            origin="chain", hotkey=miner.hotkey, uid=miner.uid, chain_block=miner.chain_block,
-                            code_sha=miner.code_sha, code_path=miner.code_path)
+                            origin=miner.origin, submitted_by=miner.submitted_by, hotkey=miner.hotkey, uid=miner.uid,
+                            chain_block=miner.chain_block, code_sha=miner.code_sha, code_path=miner.code_path)
     else:
         sub = SubmissionRow(project_id=project_id, solver=name, status="queued", data_hash=f"{dh}:{solver_hash(name)}", logs_path="")
     s.add(sub)
@@ -257,7 +258,7 @@ def _worker(project_id: str, ids: list[str], spec: ProblemSpec, replay: bool, re
                 log(f"{solver}: {out.status} in {res.seconds:.0f}s" + (f" ({out.error})" if out.error else ""))
             events.publish(project_id, "submission_scored", out.model_dump())
             if purpose == "contest":
-                promote_after_score(project_id, sid, spec, source="bittensor" if origin == "chain" else "local_contest")
+                promote_after_score(project_id, sid, spec, source=promotion.source_for(origin))
             _emit_board(project_id, spec)
         with session() as s:
             made = promotion.after_run(s, project_id, ids)

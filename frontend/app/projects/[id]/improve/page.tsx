@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Lock, Play, RotateCcw, ShieldCheck, Terminal, Trophy, X } from "lucide-react";
+import { Check, Copy, KeyRound, Lock, Play, RotateCcw, ShieldCheck, Terminal, Trash2, Trophy, X } from "lucide-react";
 import { ActionBar, NextLink, useProject } from "@/components/ProjectShell";
-import { Alert, Badge, Button, Card, ResultFigure, Spinner, cx } from "@/components/ui";
-import { api, errorText, type ApexStatus, type ChainOut, type DockerStatus, type GateResult, type LeaderboardOut, type ModelVersionOut, type SolverOut, type SubmissionOut } from "@/lib/api";
+import { Alert, Badge, Button, Card, ResultFigure, Skeleton, Spinner, cx } from "@/components/ui";
+import { api, errorText, type ApexStatus, type ChainOut, type DockerStatus, type GateResult, type LeaderboardOut, type ModelVersionOut, type SolverKey, type SolverOut, type SubmissionOut } from "@/lib/api";
 import { openArenaStream } from "@/lib/sse";
-import { attemptLabel } from "@/lib/format";
-import { apexStatus as apexCopy, chain as chainCopy, gates as gateCopy, improve as copy } from "@/lib/copy";
+import { attemptLabel, fmtAgo } from "@/lib/format";
+import { apexStatus as apexCopy, chain as chainCopy, gates as gateCopy, improve as copy, solvers as solverCopy } from "@/lib/copy";
 
 const money = (x: number | null | undefined) => (x == null ? "–" : `${x < 0 ? "-" : ""}$${Math.abs(Math.round(x)).toLocaleString("en-US")}`);
 
@@ -225,11 +225,11 @@ export default function ImprovePage() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="truncate text-[14px] font-medium">{isV1 ? copy.v1 : ver ? `Version ${ver.version}` : champ ? gateCopy.champion : r.origin === "chain" ? chainCopy.solver(r.uid) : r.origin === "apex_local" || r.origin === "apex_actions" ? apexCopy.attempt(attemptIndex) : attemptLabel(r.solver, attemptIndex)}</span>
-                        {r.origin === "chain" && ver ? <span className="text-[12px] text-muted">{chainCopy.solver(r.uid)}</span> : null}
+                        <span className="truncate text-[14px] font-medium">{isV1 ? copy.v1 : ver ? `Version ${ver.version}` : champ ? gateCopy.champion : r.origin === "chain" ? chainCopy.solver(r.uid) : r.origin === "direct" ? solverCopy.solver(r.submitted_by) : r.origin === "apex_local" || r.origin === "apex_actions" ? apexCopy.attempt(attemptIndex) : attemptLabel(r.solver, attemptIndex)}</span>
+                        {r.origin === "chain" && ver ? <span className="text-[12px] text-muted">{chainCopy.solver(r.uid)}</span> : r.origin === "direct" && ver ? <span className="text-[12px] text-muted">{solverCopy.solver(r.submitted_by)}</span> : null}
                         {isActive ? <Badge tone="accent">{copy.active}</Badge> : ver ? <Badge>v{ver.version}</Badge> : r.is_leader ? <Badge>{copy.leading}</Badge> : null}
                       </div>
-                      <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted sm:truncate">{r.error ? <span className="text-danger">{r.error}</span> : r.origin === "chain" ? chainCopy.minerLine(r.hotkey ?? "", r.chain_block) : r.origin === "apex_local" ? apexCopy.attemptLine : r.origin === "apex_actions" ? apexCopy.actionsLine : r.status === "scored" ? copy.perDayLabel(project.fraud_settings?.daily_capacity ?? 200) : <StatusText status={r.status} />}</div>
+                      <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted sm:truncate">{r.error ? <span className="text-danger">{r.error}</span> : r.origin === "chain" ? chainCopy.minerLine(r.hotkey ?? "", r.chain_block) : r.origin === "direct" ? solverCopy.line : r.origin === "apex_local" ? apexCopy.attemptLine : r.origin === "apex_actions" ? apexCopy.actionsLine : r.status === "scored" ? copy.perDayLabel(project.fraud_settings?.daily_capacity ?? 200) : <StatusText status={r.status} />}</div>
                       {r.gates?.length ? <GateChips gates={r.gates} /> : null}
                     </div>
                     <div className="grid shrink-0 grid-cols-2 items-end gap-4 text-right sm:gap-6">
@@ -253,6 +253,7 @@ export default function ImprovePage() {
 
         <div className="min-w-0 space-y-4 lg:col-span-4">
           {chain?.netuid != null ? <SubnetCard chain={chain} /> : null}
+          <SolversCard projectId={project.id} />
           <Card title={gateCopy.title} actions={<ShieldCheck className="icon-brand h-4 w-4" />}>
             <ol className="space-y-2.5 text-[13px]">
               {gateCopy.list.map((g, i) => (
@@ -333,6 +334,88 @@ function SubnetCard({ chain }: { chain: ChainOut }) {
         ))}
       </dl>
       {chain.note ? <p className="mt-3 border-t border-border pt-3 text-[12px] text-muted">{chain.note}</p> : null}
+    </Card>
+  );
+}
+
+/** Keys for outside solvers: one per person, shown once, revocable. Their attempts land in the list above. */
+function SolversCard({ projectId }: { projectId: string }) {
+  const [keys, setKeys] = useState<SolverKey[] | null>(null);
+  const [fresh, setFresh] = useState<SolverKey | null>(null);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const load = useCallback(() => api.solverKeys(projectId).then(setKeys).catch((e) => setErr(errorText(e))), [projectId]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const act = async (id: string, fn: () => Promise<void>) => {
+    setBusy(id);
+    setErr(null);
+    try {
+      await fn();
+    } catch (e) {
+      setErr(errorText(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <Card title={solverCopy.title} subtitle={solverCopy.sub} actions={<Badge>{solverCopy.badge}</Badge>}>
+      {err ? <Alert>{err}</Alert> : null}
+      {fresh?.token ? (
+        <div className="mb-3 rounded-xl border border-border-strong bg-card-2 p-3">
+          <div className="text-[12px] font-medium">{solverCopy.freshTitle}</div>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="num min-w-0 flex-1 truncate rounded-lg bg-background px-2.5 py-2 text-[12px]">{fresh.token}</code>
+            <Button size="sm" variant="secondary" onClick={() => void navigator.clipboard?.writeText(fresh.token ?? "")}>
+              <Copy className="h-3.5 w-3.5" />
+              {solverCopy.copy}
+            </Button>
+          </div>
+          <p className="num mt-2 text-[12px] leading-snug text-muted">{solverCopy.kitHint(origin)}</p>
+        </div>
+      ) : null}
+      {!keys ? (
+        <Skeleton className="h-12" />
+      ) : (
+        <ul className="divide-y divide-border">
+          {keys.length === 0 ? <li className="py-1 text-[13px] text-muted">{solverCopy.none}</li> : null}
+          {keys.map((k) => (
+            <li key={k.id} className="flex items-center gap-3 py-2">
+              <KeyRound className="h-4 w-4 shrink-0 text-muted" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-medium">{k.name}</span>
+                <span className="num block text-[11px] text-muted">
+                  {k.prefix}… · {solverCopy.attempts(k.attempts)} · {k.last_used_at ? solverCopy.used(fmtAgo(k.last_used_at)) : solverCopy.neverUsed}
+                </span>
+              </span>
+              <Button size="sm" variant="ghost" busy={busy === k.id} aria-label={solverCopy.revoke} onClick={() => void act(k.id, async () => {
+                await api.revokeSolverKey(projectId, k.id);
+                await load();
+              })}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="mt-3 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void act("create", async () => {
+            setFresh(await api.createSolverKey(projectId, name.trim() || "Solver"));
+            setName("");
+            await load();
+          });
+        }}
+      >
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={solverCopy.name}
+          className="h-9 min-w-0 flex-1 rounded-lg border border-border-strong bg-card-2 px-3 text-[13px] placeholder:text-muted" />
+        <Button type="submit" size="sm" busy={busy === "create"}>{solverCopy.create}</Button>
+      </form>
     </Card>
   );
 }

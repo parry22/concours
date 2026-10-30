@@ -46,7 +46,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
     },
     "model_version": {"gates_json": "VARCHAR"},
     "submission": {"gates_json": "VARCHAR", "origin": "VARCHAR DEFAULT 'local'", "hotkey": "VARCHAR", "uid": "INTEGER",
-                   "chain_block": "INTEGER", "code_sha": "VARCHAR", "code_path": "VARCHAR"},
+                   "chain_block": "INTEGER", "code_sha": "VARCHAR", "code_path": "VARCHAR", "submitted_by": "VARCHAR"},
     "chain_state": {"solvers": "INTEGER"},
 }
 _LEGACY_STAGES = {"arena": "improve", "serve": "improve"}
@@ -56,6 +56,7 @@ def init_db() -> None:
     import app.auth  # noqa: F401  (register tables)
     import app.chain  # noqa: F401
     import app.jobs  # noqa: F401
+    import app.solve  # noqa: F401
     import app.models  # noqa: F401
 
     SQLModel.metadata.create_all(engine)

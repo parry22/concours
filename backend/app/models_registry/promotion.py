@@ -86,11 +86,17 @@ def versions_out(s: Session, project_id: str, spec: ProblemSpec | None) -> list[
     return out
 
 
+def source_for(origin: str | None) -> str:
+    """The version source an attempt's origin maps to when it is promoted."""
+    return {"chain": "bittensor", "direct": "outside"}.get(origin or "local", "local_contest")
+
+
 SOURCE_LINES = {
     "baseline": "Your first model: the better of two simple models, trained on your payments and measured on days it never saw.",
     "local_contest": "Came from an improvement round run on this machine.",
     "apex_contest": "Came from the solver network.",
     "bittensor": "Written by an outside solver and submitted on chain; measured here like any attempt.",
+    "outside": "Written by an outside solver with a solver key; measured here like any attempt.",
     "apex_local": "Came from a run of the signed scorer images on this machine (not a live network run).",
     "apex_actions": "Came from a run of the signed scorer images on a GitHub Actions runner (not a live network run).",
 }
@@ -230,7 +236,7 @@ def after_run(s: Session, project_id: str, submission_ids: list[str]) -> list[Mo
         sub = s.get(SubmissionRow, sid)
         if sub is None:
             continue
-        v = consider(s, project_id, sub, source="bittensor" if sub.origin == "chain" else "local_contest")
+        v = consider(s, project_id, sub, source=source_for(sub.origin))
         if v:
             made.append(v)
     return made

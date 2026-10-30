@@ -344,7 +344,7 @@ export const overview = {
   falseAlarmsSub: "Per 1,000 legitimate payments",
   timeline: "Versions",
   timelineSub: "A version replaces the one before only when it passes all five promotion gates.",
-  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network", bittensor: "Improved by an outside solver on Bittensor", apex_local: SIGNED_RUN_SOURCE, apex_actions: SIGNED_RUN_SOURCE },
+  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network", bittensor: "Improved by an outside solver on Bittensor", outside: "Improved by an outside solver", apex_local: SIGNED_RUN_SOURCE, apex_actions: SIGNED_RUN_SOURCE },
   active: "Active",
   retired: "Retired",
   health: "Health",
@@ -555,7 +555,7 @@ export const model = {
   firstModel: "Your first model",
   timeline: "Versions",
   timelineSub: "Each version replaced the one before it because it measured better on the private holdout.",
-  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network", bittensor: "Improved by an outside solver on Bittensor", apex_local: SIGNED_RUN_SOURCE, apex_actions: SIGNED_RUN_SOURCE },
+  source: { baseline: "Your first model", local_contest: "Improved in a local round", apex_contest: "Improved by the network", bittensor: "Improved by an outside solver on Bittensor", outside: "Improved by an outside solver", apex_local: SIGNED_RUN_SOURCE, apex_actions: SIGNED_RUN_SOURCE },
   active: "Active",
   retired: "Retired",
   today: "today",
@@ -670,6 +670,24 @@ export const chain = {
   validator: "Validator",
   solver: (uid: number | null | undefined) => (uid != null ? `Outside solver, uid ${uid}` : "Outside solver"),
   minerLine: (hotkey: string, block: number | null | undefined) => `${hotkey ? `${hotkey.slice(0, 5)}…${hotkey.slice(-4)}` : "hotkey unknown"}${block != null ? ` · committed at block ${block.toLocaleString("en-US")}` : ""}`,
+};
+
+export const solvers = {
+  title: "Outside solvers",
+  sub: "Give each solver a key. They download the kit, write one submission.py and submit it; it is measured here like any attempt and becomes the next version only if it passes all five gates.",
+  badge: "Solver keys",
+  none: "No outside solver yet. Create a key to invite one.",
+  name: "Solver's name",
+  create: "Create key",
+  freshTitle: "Give this key to the solver. It is shown once.",
+  copy: "Copy",
+  kitHint: (url: string) => `They run: concours solve kit --key <key> --url ${url}/api, then concours solve submit submission.py`,
+  attempts: (n: number) => (n === 1 ? "1 attempt" : `${n} attempts`),
+  used: (ago: string) => `used ${ago}`,
+  neverUsed: "not used yet",
+  revoke: "Revoke",
+  solver: (name: string | null | undefined) => (name ? `Outside solver: ${name}` : "Outside solver"),
+  line: "Submitted with a solver key; measured here on the private holdout like any attempt.",
 };
 
 export const value = {

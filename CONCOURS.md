@@ -77,6 +77,21 @@ relative drop over 15% or a PSI over 0.2 (amount, hour of day, payments per term
 `POST /projects/{id}/clock` then moves the window and starts a round. `scripts/inject_drift.py` adds card
 testing followed by cash-outs at terminals new to the card; `lgbm_velocity` catches it.
 
+## Outside solvers (`backend/app/solve.py`)
+
+Three ways code from outside becomes an attempt, all scored the same way (player container, referee, private
+holdout, five gates) and credited on the Improve screen and the version's "what changed" line:
+
+1. **A solver key.** The owner creates a key per solver on Improve ("Outside solvers" card). The solver runs
+   `concours solve kit`, writes `submission.py`, runs `concours solve submit`; `concours solve status` shows the
+   bar and their attempts. Origin `direct`, version source `outside`. Works today on any Concours server.
+2. **Concours's own Bittensor subnet** (`subnet/`): the validator forwards on-chain commitments to
+   `POST /projects/{id}/chain/submissions`. Origin `chain`, source `bittensor`. Verified on a local chain.
+3. **Apex** (Macrocosmos): the packaged competition. Waiting on activation.
+
+One `submission.py` under 200 KB with `class Solver(SolverBase)` (`fit`, `predict_proba`); `common/base.py`
+prepares features. Same code from the same origin is never scored twice. One round at a time per project.
+
 ## Endpoints (fraud)
 
 | Method and path | Purpose |
@@ -91,6 +106,9 @@ testing followed by cash-outs at terminals new to the card; `lgbm_velocity` catc
 | `POST /projects/{id}/arena/run` | An improvement round (moves the window first if the clock moved). |
 | `GET /projects/{id}/versions`, `GET .../arena/leaderboard` | Versions and attempts, each with its gates. |
 | `POST /projects/{id}/package`, `GET /projects/{id}/handoff` | The Apex package; HANDOFF.md carries fraud_settings, the embargo and the gate thresholds. |
+| `GET/POST /projects/{id}/solvers/keys`, `DELETE .../keys/{key_id}` | Keys for outside solvers (owner side; the token is shown once). |
+| `GET /solve/me`, `GET /solve/kit`, `POST /solve/submissions`, `GET /solve/submissions/{id}` | The outside solver's side, authenticated by `X-Solver-Key: sk_...` (no account): the bar, the kit, code in, the attempt's fate out. |
+| `GET /projects/{id}/chain`, `PUT .../chain/state`, `POST .../chain/submissions` | The Bittensor validator's intake (`subnet/`). |
 
 ## Copy guidelines
 

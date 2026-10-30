@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app import cleanup
 from app.config import ARENA_CACHE_DIR
-from app.db import session
+from app.db import migrate, session
 from app.main import app
 from app.models import CaseLabelRow, SubmissionRow
 
@@ -15,6 +15,7 @@ def test_delete_removes_rows_folder_and_private_cache(monkeypatch, tmp_path: Pat
     import app.auth as auth
 
     monkeypatch.setattr(auth, "AUTH_MODE", "off")
+    migrate()  # TestClient without a context manager runs no startup event; columns added since the file was made
     c = TestClient(app)
     p = c.post("/projects", json={"template": "fraud", "sample": False, "name": "to delete"}).json()
     other = c.post("/projects", json={"template": "fraud", "sample": False, "name": "keeps shared"}).json()

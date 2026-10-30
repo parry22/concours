@@ -123,6 +123,7 @@ function form(file: File): FormData {
 
 export type Me = { id: string | null; email: string | null; name: string; org_id: string; org_name: string; role: string; auth: "required" | "off" };
 export type AuthConfig = { auth: "required" | "off"; signup: string; first_run: boolean; can_signup: boolean };
+export type SolverKey = { id: string; name: string; prefix: string; created_at: string; last_used_at?: string | null; attempts: number; token?: string | null };
 export type ApiKey = { id: string; name: string; prefix: string; created_at: string; last_used_at?: string | null; token?: string | null };
 
 export const api = {
@@ -181,6 +182,9 @@ export const api = {
   arenaStatus: (id: string) => request<{ running: boolean }>(`/projects/${id}/arena/status`),
   arenaAgent: (id: string) => request<{ started: boolean; max_attempts: number }>(`/projects/${id}/arena/agent`, { method: "POST" }),
   leaderboard: (id: string) => request<LeaderboardOut>(`/projects/${id}/arena/leaderboard`),
+  solverKeys: (id: string) => request<SolverKey[]>(`/projects/${id}/solvers/keys`),
+  createSolverKey: (id: string, name: string) => request<SolverKey>(`/projects/${id}/solvers/keys`, json("POST", { name })),
+  revokeSolverKey: (id: string, keyId: string) => request<{ ok: boolean }>(`/projects/${id}/solvers/keys/${keyId}`, { method: "DELETE" }),
   chain: (id: string) => request<ChainOut>(`/projects/${id}/chain`),
   finalize: (id: string) => request<LeaderboardOut>(`/projects/${id}/arena/finalize`, { method: "POST" }),
   value: (id: string, solver?: string) => request<ValueReport>(`/projects/${id}/value${solver ? `?solver=${encodeURIComponent(solver)}` : ""}`),

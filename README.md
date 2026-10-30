@@ -64,7 +64,9 @@ verified contract and where it differs from the product brief's assumptions. In 
   suggested contest reward and the promotion margin), and a prefilled onboarding issue. The private holdout
   is excluded; its checksums are included.
 
-Nothing is launched on a live network. The improvement plan on the Launch screen is illustrative.
+Nothing is launched on a live network. The improvement plan on the Launch screen is illustrative. Outside solvers
+can already take part without Apex: a solver key from the Improve screen, `concours solve kit`, `concours solve
+submit submission.py` (see `CONCOURS.md`, "Outside solvers").
 
 ## Layout
 

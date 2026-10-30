@@ -6,6 +6,9 @@
 #   scripts/hosted.sh keepalive   hold an ssh session open so the codespace is not stopped for idleness (Ctrl-C to end)
 #   scripts/hosted.sh logs        last lines of the backend and frontend logs
 #   scripts/hosted.sh ssh         a shell in the codespace
+#   scripts/hosted.sh claude-login  sign the codespace's Claude CLI in with your Claude subscription (interactive, once;
+#                                   it prints a URL to open on this machine and asks for the code). Enables agent attempts there.
+#   scripts/hosted.sh deploy      pull the pushed branch in the codespace, reinstall, rebuild the frontend, restart
 #
 # The codespace name comes from `gh codespace list` (display name "concours-demo") unless CODESPACE is set.
 set -euo pipefail
@@ -32,5 +35,11 @@ case "${1:-status}" in
     gh codespace ssh -c "$CS" -- 'cd /workspaces/concours && echo "--- backend"; tail -15 workspace/backend.log; echo "--- frontend"; tail -8 workspace/frontend.log' 2>&1 | quiet
     ;;
   ssh) exec gh codespace ssh -c "$CS" ;;
+  claude-login) exec gh codespace ssh -c "$CS" -- -t 'export PATH=$HOME/.local/bin:$PATH; claude auth login && claude auth status' ;;
+  deploy)
+    echo "[hosted] updating $CS from origin/claude/website, then restarting"
+    gh codespace ssh -c "$CS" -- 'set -e; cd /workspaces/concours && git fetch -q origin && git reset -q --hard origin/claude/website && export PATH=$HOME/.local/bin:$PATH UV_CACHE_DIR=/tmp/uv-cache && (cd backend && uv sync -q) && (cd frontend && pnpm install --frozen-lockfile --silent) && REBUILD=1 bash .devcontainer/start.sh' 2>&1 | quiet
+    echo "link: $(url)"
+    ;;
   *) sed -n 2,10p "$0"; exit 2 ;;
 esac

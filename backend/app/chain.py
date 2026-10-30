@@ -18,7 +18,6 @@ from pydantic import BaseModel, Field
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, select
 
-from app.config import project_dir
 from app.db import get_session
 from app.models import ProjectRow, SubmissionRow
 
@@ -154,49 +153,16 @@ def put_state(project_id: str, body: ChainStateIn, s: Session = Depends(get_sess
 @router.post("/submissions", response_model=MinerOut, status_code=202)
 def post_submission(project_id: str, body: ChainSubmissionIn, s: Session = Depends(get_session)) -> MinerOut:
     """One miner's committed code. Starts an improvement round for it; 409 while another round runs."""
-    from app.arena import service as arena  # noqa: PLC0415
-    from app.models_registry import promotion  # noqa: PLC0415
+    from app.solve import intake_code  # noqa: PLC0415
 
-    _project(project_id, s)
-    if promotion.active_version(s, project_id) is None:
-        raise HTTPException(409, "your first model is not ready yet")
+    row = _project(project_id, s)
     if not SS58.match(body.hotkey):
         raise HTTPException(400, "hotkey is not an ss58 address")
     code = body.code.encode()
-    if len(code) > MAX_CODE_BYTES:
-        raise HTTPException(413, f"submission is over {MAX_CODE_BYTES // 1000} KB")
     sha = hashlib.sha256(code).hexdigest()
     if sha != body.sha256.lower().removeprefix("0x"):
         raise HTTPException(400, "sha256 does not match the code")
-    seen = s.exec(select(SubmissionRow).where(SubmissionRow.project_id == project_id, SubmissionRow.origin == "chain",
-                                              SubmissionRow.code_sha == sha)).first()
-    if seen is not None:
-        return MinerOut(submission_id=seen.id, hotkey=seen.hotkey or "", uid=seen.uid, block=seen.chain_block, code_sha=sha,
-                        status=seen.status, private_score=seen.private_score, error=seen.error)
-    if arena.is_running(project_id):
-        raise HTTPException(409, "a round is running; try again after it finishes")
-    row = _project(project_id, s)
-    from app.fraud import service as fraud  # noqa: PLC0415
-    from app.main import _fraud_protect  # noqa: PLC0415
-
-    if fraud.window_moved(row):
-        _fraud_protect(row, s, keep_versions=True)  # the clock moved: score on the newest mature window, like a local round
-    folder = project_dir(project_id) / "chain"
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{sha}.py"
-    path.write_bytes(code)
-    from app.arena.stage import data_hash  # noqa: PLC0415
-
-    sub = SubmissionRow(project_id=project_id, solver=f"miner-{body.hotkey[:8]}-{sha[:8]}", status="queued",
-                        data_hash=f"{data_hash(project_id)}:{sha[:16]}", logs_path="", origin="chain", hotkey=body.hotkey,
-                        uid=body.uid, chain_block=body.block, code_sha=sha, code_path=str(path))
-    s.add(sub)
-    s.commit()
-    s.refresh(sub)
-    try:
-        arena.start_chain_run(project_id, [sub.id])
-    except RuntimeError as e:
-        s.delete(sub)
-        s.commit()
-        raise HTTPException(409, str(e)) from e
-    return MinerOut(submission_id=sub.id, hotkey=body.hotkey, uid=body.uid, block=body.block, code_sha=sha, status="queued")
+    sub, _ = intake_code(s, row, code, origin="chain", label=f"miner-{body.hotkey[:8]}-{sha[:8]}",
+                         hotkey=body.hotkey, uid=body.uid, block=body.block)
+    return MinerOut(submission_id=sub.id, hotkey=sub.hotkey or body.hotkey, uid=sub.uid, block=sub.chain_block, code_sha=sha,
+                    status=sub.status, private_score=sub.private_score, error=sub.error)

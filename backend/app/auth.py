@@ -34,6 +34,7 @@ COOKIE = "concours_session"
 COOKIE_SECURE = env("COOKIE_SECURE", "0") == "1"
 SESSION_DAYS = int(env("SESSION_DAYS", "14"))
 LOCAL_ORG = "local"
+SOLVE_PREFIX = "/solve/"  # app.solve routes, authenticated by a solver key
 PUBLIC_PATHS = {"/auth/login", "/auth/signup", "/auth/config", "/healthz", "/readyz", "/docs", "/openapi.json", "/redoc"}
 
 current_org: ContextVar[str | None] = ContextVar("current_org", default=None)
@@ -204,6 +205,8 @@ async def require_auth(request: Request, s: Session = Depends(get_session)) -> C
     organisation it sets in a context variable is then copied into the thread that runs a sync endpoint."""
     if request.url.path in PUBLIC_PATHS or request.method == "OPTIONS":
         return None
+    if request.url.path.startswith(SOLVE_PREFIX):
+        return None  # outside solvers: app.solve checks the solver key itself
     caller = resolve(request, s)
     if caller is None:
         raise HTTPException(401, "Sign in first.")

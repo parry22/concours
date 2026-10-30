@@ -993,6 +993,121 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/solvers/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Keys */
+        get: operations["list_keys_projects__project_id__solvers_keys_get"];
+        put?: never;
+        /**
+         * Create Key
+         * @description A key for one outside solver, shown once.
+         */
+        post: operations["create_key_projects__project_id__solvers_keys_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/solvers/keys/{key_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Key */
+        delete: operations["revoke_key_projects__project_id__solvers_keys__key_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/solve/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Me
+         * @description What the solver is up against: the active version's money per day, the bar, their own attempts.
+         */
+        get: operations["me_solve_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/solve/kit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Kit
+         * @description A zip: README, the baseline submission.py, the shared feature code.
+         */
+        get: operations["kit_solve_kit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/solve/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit
+         * @description One attempt. Starts an improvement round for it; the same code is returned, not re-scored.
+         */
+        post: operations["submit_solve_submissions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/solve/submissions/{sub_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Attempt */
+        get: operations["attempt_solve_submissions__sub_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/apex/status": {
         parameters: {
             query?: never;
@@ -1002,6 +1117,26 @@ export interface paths {
         };
         /** Apex Status */
         get: operations["apex_status_apex_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/trust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trust Facts
+         * @description What leaves this machine, who can see what, and how the data is held: facts from the project, for the trust page.
+         */
+        get: operations["trust_facts_projects__project_id__trust_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1028,6 +1163,42 @@ export interface components {
              * @default false
              */
             rebuild: boolean;
+        };
+        /** AttemptOut */
+        AttemptOut: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+            /** Code Sha */
+            code_sha: string;
+            /** Private Score */
+            private_score?: number | null;
+            /** Business Value */
+            business_value?: string | null;
+            /**
+             * Gates
+             * @default []
+             */
+            gates: {
+                [key: string]: unknown;
+            }[];
+            /** Gates Passed */
+            gates_passed?: number | null;
+            /** Error */
+            error?: string | null;
+            /**
+             * Active
+             * @default false
+             */
+            active: boolean;
+            /** Version */
+            version?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** Body_check_health_projects__project_id__health_post */
         Body_check_health_projects__project_id__health_post: {
@@ -1578,6 +1749,33 @@ export interface components {
              */
             analyst_labels: number;
         };
+        /** MeOut */
+        MeOut: {
+            /** Project */
+            project: string;
+            /** Solver */
+            solver: string;
+            /** Active Version */
+            active_version?: number | null;
+            /** Active Per Day */
+            active_per_day?: number | null;
+            /** Bar Per Day */
+            bar_per_day?: number | null;
+            /** Min Improvement */
+            min_improvement: number;
+            /** Daily Capacity */
+            daily_capacity?: number | null;
+            /**
+             * Round Running
+             * @default false
+             */
+            round_running: boolean;
+            /**
+             * Attempts
+             * @default []
+             */
+            attempts: components["schemas"]["AttemptOut"][];
+        };
         /** MinerOut */
         MinerOut: {
             /** Submission Id */
@@ -1616,7 +1814,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "baseline" | "local_contest" | "apex_contest" | "bittensor" | "apex_local" | "apex_actions";
+            source: "baseline" | "local_contest" | "apex_contest" | "bittensor" | "outside" | "apex_local" | "apex_actions";
             /** Solver Name */
             solver_name: string;
             /** Submission Id */
@@ -1759,6 +1957,8 @@ export interface components {
             sample_file?: string | null;
             /** Salt */
             salt?: string | null;
+            /** Protect Version */
+            protect_version?: number | null;
         };
         /** ProjectOut */
         ProjectOut: {
@@ -2061,6 +2261,34 @@ export interface components {
             /** Invite */
             invite?: string | null;
         };
+        /** SolverKeyIn */
+        SolverKeyIn: {
+            /** Name */
+            name: string;
+        };
+        /** SolverKeyOut */
+        SolverKeyOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Prefix */
+            prefix: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Used At */
+            last_used_at?: string | null;
+            /**
+             * Attempts
+             * @default 0
+             */
+            attempts: number;
+            /** Token */
+            token?: string | null;
+        };
         /**
          * SpecPatch
          * @description Partial ProblemSpec: every field optional. Applied by the intake agent.
@@ -2161,12 +2389,19 @@ export interface components {
              * @default local
              */
             origin: string;
+            /** Submitted By */
+            submitted_by?: string | null;
             /** Hotkey */
             hotkey?: string | null;
             /** Uid */
             uid?: number | null;
             /** Chain Block */
             chain_block?: number | null;
+        };
+        /** SubmitIn */
+        SubmitIn: {
+            /** Code */
+            code: string;
         };
         /** UserOut */
         UserOut: {
@@ -4328,6 +4563,236 @@ export interface operations {
             };
         };
     };
+    list_keys_projects__project_id__solvers_keys_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SolverKeyOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_key_projects__project_id__solvers_keys_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolverKeyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SolverKeyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_key_projects__project_id__solvers_keys__key_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    me_solve_me_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-solver-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    kit_solve_kit_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-solver-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_solve_submissions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-solver-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttemptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attempt_solve_submissions__sub_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-solver-key"?: string | null;
+            };
+            path: {
+                sub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttemptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     apex_status_apex_status_get: {
         parameters: {
             query?: never;
@@ -4346,6 +4811,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    trust_facts_projects__project_id__trust_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -1070,6 +1070,10 @@ def arena_agent_status(project_id: str) -> dict:
 from app import chain  # noqa: E402
 
 app.include_router(chain.router)
+from app import solve  # noqa: E402
+
+app.include_router(solve.owner)
+app.include_router(solve.public)
 
 from app.arena import apex_local  # noqa: E402
 
