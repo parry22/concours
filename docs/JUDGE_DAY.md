@@ -14,7 +14,55 @@ assumed. Read this file, nothing else, before the demo. `docs/DEMO_SCRIPT.md` is
 | Signed-image runs | the four Apex v0.2.0 results are imported into the Q4 project as "signed-image runs" and kept under `.cache/apex_local/`, so a reseed keeps them |
 | Sign-in | `demo@concours.local`, password in `.env` at the repo root (reset on 2026-10-30; the browser's saved session also works for 14 days) |
 | Apex (Macrocosmos) | competition `concours_fraud_6974713c0ea7` v0.2.0 is released and signed on `parry22/concours-fraud`; onboarding issue #47 is open, unlabelled, no reply. Not activated anywhere. Never say "live on Apex". |
-| Git | this repo has no remote: every branch exists only on this laptop. `claude/website` holds everything (master is 33 commits behind it). |
+| Git | remote `origin` = private `parry22/concours` (added 2026-10-30); `claude/website` is pushed and holds everything (master is 33 commits behind it). |
+
+## The link to give judges (hosted copy, free)
+
+**https://concours-demo-49wqv46v5pghxqr-3000.app.github.dev**
+
+That is the product running in a GitHub Codespace (4 cores, 16 GB, Docker inside) created from the private repo
+`parry22/concours`, branch `claude/website`, on the personal free quota. Verified on 2026-10-30: the seeded
+workspace (both projects, the four signed-image runs with gates against v2), sign-in through the frontend proxy,
+and the public page. The laptop is not involved; judges can open it on a phone.
+
+What they see first: GitHub's one-time page "You are about to access a development port served by someone's
+codespace" with a **Continue** button. Tell them to press it. After that the Concours sign-in page. Sign-in is
+required and sign-up is closed (`CONCOURS_SIGNUP=first`, the owner exists), so judges need the credentials from
+`.env` at the repo root (the hosted owner is the same `demo@concours.local` with the same password as the laptop).
+Give them to a judge in person, never in the deck.
+
+Rules of the hosted copy:
+
+- It stops after 4 hours idle (the maximum). Open the link or run `gh codespace ssh -c concours-demo-49wqv46v5pghxqr`
+  to wake it, then start the stack again (the servers do not survive a stop):
+
+  ```bash
+  gh codespace ssh -c concours-demo-49wqv46v5pghxqr -- 'cd /workspaces/concours && bash .devcontainer/start.sh'
+  ```
+
+  The seeded workspace and the caches are on the codespace disk and survive stops. Before leaving for the venue,
+  open the link once so the codespace is awake and the first page load is warm.
+- The improvement rounds replay from `.cache/arena` (copied in), so the scripted demo runs in seconds there too.
+  A round that is not cached runs in Docker inside the codespace (the Docker images build on first use, a few minutes).
+- Free quota: 120 core-hours a month on a personal account, so about 30 hours on this 4-core machine. The
+  codespace is kept for 30 days after its last stop, then deleted. `gh codespace list` shows it; `gh codespace delete`
+  removes it when the demo is over.
+- It is public to anyone with the link, behind sign-in. If the password leaks, reset it in the codespace:
+
+  ```bash
+  gh codespace ssh -c concours-demo-49wqv46v5pghxqr -- 'cd /workspaces/concours/backend && .venv/bin/python -m app.admin reset-password demo@concours.local'
+  ```
+
+How it was built (for a rebuild): `.devcontainer/devcontainer.json` (universal image, 4 cores, port 3000 forwarded),
+`.devcontainer/setup.sh` (uv, Python 3.11, pnpm), `.devcontainer/start.sh` (API on 127.0.0.1:8000, production
+frontend on 0.0.0.0:3000). `data/`, `.cache/arena`, `.cache/serving`, `.cache/apex_local` and `.env` are not in git
+and were copied in over `gh codespace ssh -- 'cat > file' < file`; the competition `spec.yaml` sits at
+`/workspaces/apex-spec/spec.yaml` and `APEX_REPO=/workspaces/apex-spec scripts/demo.sh` seeds and imports. Then
+`gh codespace ports visibility 3000:public -c <name>`. Caches go to `/tmp` there (the 32 GB root disk is mostly the
+image); the first dependency install ran out of disk and left a broken numpy, so `rm -rf backend/.venv && uv sync`
+if the API dies on `import numpy`.
+
+The laptop path below is the fallback if the codespace or the venue network fails.
 
 ## The easiest demo path
 
@@ -109,5 +157,5 @@ the Improve tab of Q4 lists the four signed-image runs with the same money figur
 - [ ] Laptop charged; Docker Desktop started; do not update Docker Desktop or macOS.
 - [ ] Port 3000 free; `./scripts/dev.sh`; sign in; open the Q4 project once so the first page load is warm.
 - [ ] Wi-Fi can be off: the three questions are parsed in code, no language model call is made for fraud.
-- [ ] Back this repo up: it has no git remote. At least `git bundle create ~/concour-$(date +%F).bundle --all` onto a USB
-      stick, or push every branch to a private GitHub repo.
+- [ ] `git push origin claude/website` so the private GitHub repo has tonight's commits.
+- [ ] Open the hosted link once (wakes the codespace); if it was stopped, run the `start.sh` command above.
