@@ -23,3 +23,6 @@ deploy/.env
 
 # subnet
 subnet/.venv/
+
+# rehearsal copy of the workspace (scripts/demo.sh with CONCOURS_WORKSPACE set)
+workspace-rehearsal/

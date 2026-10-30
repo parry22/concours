@@ -623,7 +623,7 @@ export const improve = {
   rerun: "Rerun",
   protectFirst: "Protect the data first.",
   noDocker: (info: string) => `Docker is not available: ${info}. Cached results still replay; new attempts need Docker Desktop.`,
-  live: "Live",
+  live: "Connected",
   reconnecting: "Reconnecting",
   promoted: (v: number) => `New model v${v} promoted`,
   promotedSub: (line: string) => line,

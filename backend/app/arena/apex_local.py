@@ -109,12 +109,27 @@ def import_result(project_id: str, solver: str, run_dir: Path, *, origin: str = 
     return sub
 
 
+def find_project(name: str) -> str | None:
+    """The newest project with this name (project ids are random, so a reseed changes them; names stay)."""
+    with session() as s:
+        rows = s.exec(select(ProjectRow).where(ProjectRow.name == name)).all()
+        rows = sorted(rows, key=lambda r: r.updated_at or datetime.min, reverse=True)
+        return rows[0].id if rows else None
+
+
 def main(argv: list[str]) -> int:
     if len(argv) >= 4 and argv[0] == "import":
         digests = json.loads(argv[4]) if len(argv) > 4 else None
         import_result(argv[1], argv[2], Path(argv[3]), digests=digests)
         return 0
-    print("usage: python -m app.arena.apex_local import <project_id> <solver> <run_dir> [digests_json]", file=sys.stderr)
+    if len(argv) == 2 and argv[0] == "find":
+        pid = find_project(argv[1])
+        if pid is None:
+            print(f"no project named {argv[1]!r}", file=sys.stderr)
+            return 1
+        print(pid)
+        return 0
+    print("usage: python -m app.arena.apex_local import <project_id> <solver> <run_dir> [digests_json] | find <project name>", file=sys.stderr)
     return 2
 
 

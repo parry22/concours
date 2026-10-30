@@ -71,7 +71,7 @@ Complications, and what the script does about each:
   the index, so the arm64 image is covered by the same signature. Until then, the script also accepts
   `--platform linux/arm64` to run a locally built image, but then labels the run "local build, unsigned".
 - **Venue Wi-Fi.** `scripts/apex_local_run.sh pull` the night before stores both images locally and records
-  the verification result in `workspace/<pid>/apex_local/verified.json` with the digests. `run` works with the
+  the verification result in `.cache/apex_local/<competition id>/verified.json` with the digests (outside `workspace/`, so `scripts/demo.sh` keeps it). `run` works with the
   network off: it re-checks the local image digest against the pinned one and skips the cosign online step if
   `verified.json` is fresh (cosign verification needs the Rekor transparency log, which is online; the
   verification result is recorded offline). Completed runs are cached under `.cache/arena/` like every arena
@@ -90,7 +90,7 @@ Pre-demo checklist (Plan B):
 - [ ] Wednesday: `scripts/apex_local_run.sh verify && scripts/apex_local_run.sh pull`.
 - [ ] Wednesday: `scripts/demo.sh` with the laptop off the venue network; afterwards set `CONCOURS_SIGNUP=invite` in
       `backend/.env` so nobody else can create an account.
-- [ ] Wednesday: `scripts/apex_local_run.sh run 6974713c0ea7` with Wi-Fi on, all four solvers. Note the total time.
+- [ ] Wednesday: `scripts/apex_local_run.sh run` with Wi-Fi on, all four solvers. Note the total time.
 - [ ] Thursday: Wi-Fi off, `scripts/demo.sh` (keeps `.cache/`), `scripts/dev.sh`, open the project, Improve:
       the four attempts replay from cache in seconds. Then `scripts/apex_local_run.sh run --fresh` for one
       solver to prove a cold run works offline.

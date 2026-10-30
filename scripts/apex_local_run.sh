@@ -4,18 +4,21 @@
 #
 #   scripts/apex_local_run.sh verify   [--repo DIR]            cosign-verify both images (needs network)
 #   scripts/apex_local_run.sh pull     [--repo DIR]            docker pull both images by digest (needs network)
-#   scripts/apex_local_run.sh run      [--project PID] [--solvers a,b] [--fresh]   run the referee (works offline)
+#   scripts/apex_local_run.sh run      [--solvers a,b] [--fresh]                   run the referee (works offline)
 #   scripts/apex_local_run.sh import   [--project PID] [--solvers a,b]             feed result.json files into the app
 #   scripts/apex_local_run.sh all      (verify, pull, run, import)
 #
 # Defaults: repo /Users/parry/concours-fraud-repo (the private competition repo, spec.yaml holds the digests),
-# project 6974713c0ea7, solvers baseline_logreg,lgbm_default,lgbm_tuned,lgbm_velocity.
+# solvers baseline_logreg,lgbm_default,lgbm_tuned,lgbm_velocity. Results live under .cache/apex_local/<competition id>/
+# so they survive `scripts/demo.sh` wiping workspace/. The project to import into is found by name
+# ("Card fraud review queue, Q4", the seeded project; ids change on every reseed) unless --project or APEX_PROJECT is given.
 # Honesty: this is NOT a live network run. The app labels these attempts "Apex-compatible local run".
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CMD="${1:-}"; shift || true
 REPO="${APEX_REPO:-/Users/parry/concours-fraud-repo}"
-PID="${APEX_PROJECT:-6974713c0ea7}"
+PID="${APEX_PROJECT:-}"
+PROJECT_NAME="${APEX_PROJECT_NAME:-Card fraud review queue, Q4}"
 SOLVERS="baseline_logreg,lgbm_default,lgbm_tuned,lgbm_velocity"
 FRESH=0
 while [ $# -gt 0 ]; do
@@ -37,7 +40,8 @@ REFEREE_DIGEST=$(grep -A2 '^  image:' "$SPEC" | grep -oE 'sha256:[0-9a-f]{64}')
 IDENTITY=$(grep -oE 'cosign_identity: .*' "$SPEC" | cut -d' ' -f2)
 ISSUER=$(grep -oE 'cosign_issuer: .*' "$SPEC" | cut -d' ' -f2)
 PLAYER="$PLAYER_REF@$PLAYER_DIGEST"; REFEREE="$REFEREE_REF@$REFEREE_DIGEST"
-BASE="$ROOT/workspace/$PID/apex_local"
+COMPETITION=$(grep -oE '^id: [a-z0-9_]+' "$SPEC" | cut -d' ' -f2)
+BASE="$ROOT/.cache/apex_local/${COMPETITION:-competition}"
 mkdir -p "$BASE"
 VERIFIED="$BASE/verified.json"
 HARDEN=(--cap-drop ALL --security-opt no-new-privileges:true --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m)
@@ -108,7 +112,15 @@ run() {
   say "all runs finished; results under $BASE/<solver>/out/result.json"
 }
 
+resolve_project() {
+  [ -n "$PID" ] && return 0
+  PID=$(cd "$ROOT/backend" && .venv/bin/python -m app.arena.apex_local find "$PROJECT_NAME") \
+    || { echo "no project named '$PROJECT_NAME' in the workspace: seed first (scripts/demo.sh) or pass --project PID" >&2; exit 2; }
+  say "importing into project $PID ($PROJECT_NAME)"
+}
+
 import_results() {
+  resolve_project
   IFS=',' read -r -a list <<< "$SOLVERS"
   local digests; digests=$(printf '{"player": "%s", "referee": "%s"}' "$PLAYER" "$REFEREE")
   for s in "${list[@]}"; do

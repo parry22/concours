@@ -88,17 +88,20 @@ cd /Users/parry/concour && scripts/apex_local_run.sh verify && scripts/apex_loca
 cd /Users/parry/concour && scripts/apex_local_run.sh run && scripts/apex_local_run.sh import
 ```
 
-Demo day (works offline):
+Demo day (works offline; `docs/JUDGE_DAY.md` is the runbook):
 
 ```bash
-cd /Users/parry/concour && ./scripts/demo.sh && ./scripts/dev.sh
+cd /Users/parry/concour && ./scripts/dev.sh
 ```
 
-Then open http://localhost:3000, project "Card fraud review queue, Q4", Improve: the signed-image runs are
-listed as attempts with the badge "Apex-compatible local run". To show a cold run live, one solver:
+The workspace is already seeded. Only if it has to be rebuilt: `./scripts/demo.sh` wipes `workspace/`, reseeds both
+projects and re-imports the signed-image runs from `.cache/apex_local/` (the importer finds the project by name,
+since ids change on every reseed). Then open http://localhost:3000, project "Card fraud review queue, Q4",
+Improve: the signed-image runs are listed as attempts with the badge "Apex-compatible local run". To show a cold
+run live, one solver:
 
 ```bash
-cd /Users/parry/concour && scripts/apex_local_run.sh run --solvers baseline_logreg --fresh
+cd /Users/parry/concour && scripts/apex_local_run.sh run --solvers baseline_logreg --fresh && scripts/apex_local_run.sh import
 ```
 
 Backend tests: `cd backend && .venv/bin/python -m pytest -q` (154 pass). Frontend: `cd frontend && pnpm test`.
