@@ -76,14 +76,15 @@ project 6 s, protection 13 s, v1 4 s, tuned contest 3 s (v2, $3,961 a day), jump
 38 s (v3, $6,543 a day), 76 s in all. The rounds replayed from the copied cache, no Docker build was needed. The
 numbers are the ones in `docs/DEMO_SCRIPT.md`.
 
-Agent attempts ("Add an agent attempt" on Improve) use the Claude CLI on your subscription. On the laptop it is
-signed in. On the hosted copy the CLI is installed but needs one interactive sign-in from this machine:
+Agent attempts ("Add an agent attempt" on Improve) use the Claude CLI on your subscription. Signed in on the laptop
+and on the hosted copy (done 2026-10-30; the sign-in lives in the codespace's home directory and survives stops). If the
+hosted button ever answers "no model available", sign in again from this machine:
 
 ```bash
 scripts/hosted.sh claude-login
 ```
 
-It prints a URL to open here and asks for the code. Until then the hosted button answers "no model available".
+It prints a URL to open here and asks for the code.
 
 To push tonight's commits to the hosted copy (fetch, dependencies, frontend rebuild, restart; about 3 minutes):
 
