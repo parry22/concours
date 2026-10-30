@@ -17,6 +17,14 @@ const nextConfig: NextConfig = {
       { source: "/app/:path*", destination: `${app}/app/:path*` },
     ];
   },
+  // Links from before the app moved under /app.
+  async redirects() {
+    return ["/login", "/signup", "/account", "/projects/:path*"].map((source) => ({
+      source,
+      destination: `/app${source}`,
+      permanent: false,
+    }));
+  },
   async headers() {
     return [
       {
