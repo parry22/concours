@@ -7,7 +7,7 @@ assumed. Read this file, nothing else, before the demo. `docs/DEMO_SCRIPT.md` is
 
 | Item | State |
 |---|---|
-| Backend tests | 159 pass (`cd backend && .venv/bin/python -m pytest -q`) |
+| Backend tests | 167 pass (`cd backend && .venv/bin/python -m pytest -q`) |
 | Frontend | copy lint clean, type check clean (`cd frontend && pnpm test`) |
 | Marketing site | `website/` builds (`NEXT_DIST_DIR=.next-build pnpm build`) |
 | Demo workspace | seeded and ready in `workspace/`: "Card fraud review queue, Q4" (v2, not yet jumped forward), "Marketplace payments" (v1, slipping, round ready), "Card fraud on Bittensor" (v2 credited to an outside solver on a local chain) |
