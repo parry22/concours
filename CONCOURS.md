@@ -86,7 +86,8 @@ holdout, five gates) and credited on the Improve screen and the version's "what 
    `concours solve kit`, writes `submission.py`, runs `concours solve submit`; `concours solve status` shows the
    bar and their attempts. Origin `direct`, version source `outside`. Works today on any Concours server.
 2. **Concours's own Bittensor subnet** (`subnet/`): the validator forwards on-chain commitments to
-   `POST /projects/{id}/chain/submissions`. Origin `chain`, source `bittensor`. Verified on a local chain.
+   `POST /projects/{id}/chain/submissions`. Origin `chain`, source `bittensor`. Live on testnet, netuid 603
+   (2026-10-30): a miner's velocity solver became v2 credited to its uid.
 3. **Apex** (Macrocosmos): the packaged competition. Waiting on activation.
 
 One `submission.py` under 200 KB with `class Solver(SolverBase)` (`fit`, `predict_proba`); `common/base.py`

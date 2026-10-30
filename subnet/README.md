@@ -98,3 +98,14 @@ Known limit: the `devnet-ready` image pulled on 2026-10-28 (built 2026-07-01) is
 falls back to raw calls, but weights cannot be set there, because commit-reveal is on and the owner's switch-off
 call hangs on that runtime. Testnet runs the current runtime, where `bt.set_weights` handles commit-reveal itself.
 Weights on testnet are therefore not verified yet.
+
+## Testnet, done on 2026-10-30 (netuid 603)
+
+With 2 τ of test TAO: `register-subnet` (lock 1 τ), `start-call`, `burned-register` for the miner, `add-stake` 0.2 τ
+on the validator hotkey, then `concours-validator` on the laptop against a fresh project and `concours-miner submit`
+with the velocity solver. The attempt was forwarded from uid 1, scored $6,543 a day, passed the five gates and became
+v2 credited to uid 1. Gotchas: a new subnet's miner burn starts near 1 τ, so the owner lowers `max_burn` first
+(`btcli sudo set --netuid N --name max_burn --value 110000000`; the floor is 0.1 τ exclusive); staking on a fresh
+pool needs `--no-slippage-protection`; `weights_rate_limit` is 100 blocks, so the first weights land about 20
+minutes after the subnet starts. `scripts/testnet_validator.sh` at the repo root starts the validator with the key
+from `.env`.

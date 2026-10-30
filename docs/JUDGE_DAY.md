@@ -137,12 +137,19 @@ only Macrocosmos can activate it, and they have not answered the issue or the em
 - The signed Apex images (player and referee, cosign-verified against the release workflow identity) run on this
   laptop through the exact referee/player contract Apex uses. The scores match the filed numbers to four decimals.
   The UI calls them "signed-image runs" and says "not a live network run".
-- Concours as the validator of its own Bittensor subnet (`subnet/`). Verified on a local chain on 2026-10-28: a
-  miner committed the velocity solver's hash on chain, uploaded it, Concours scored it in the sandbox, it passed
-  the five gates and became v2 credited to the miner's uid ($6,543 a day against $4,685). The seeded project
-  "Card fraud on Bittensor" shows that result. Weights were not set on the local chain (the old devnet image
-  hangs on commit-reveal); on testnet they would be, but testnet needs test TAO from the Bittensor Discord, which
-  we do not have.
+- **Concours as the validator of its own Bittensor TESTNET subnet, netuid 603** (`subnet/`). Live on 2026-10-30
+  with 2 τ of test TAO: subnet registered (block 8335051) and started, miner uid 1 registered, validator staked.
+  The miner committed the velocity solver's hash on chain (block 8335086), uploaded it to the validator, Concours
+  scored it in the sandbox, it passed all five gates and became v2 credited to uid 1: $6,543 a day against v1's
+  $4,685 on the jumped window. The laptop project "Card fraud on Bittensor testnet" shows it; the Improve badge
+  reads "Bittensor testnet · netuid 603" and the card lists the winner and the weights. The earlier local-chain
+  project "Card fraud on Bittensor" stays as a second example. Weights on chain: see the section below.
+- To show the testnet loop live: `./scripts/dev.sh`, then `scripts/testnet_validator.sh` in a second terminal
+  (API key from `.env`, owner wallet in `~/.bittensor/wallets`, intake on port 8091). A miner submission from
+  this laptop: `cd subnet && .venv/bin/concours-miner submit <submission.py> --network test --netuid 603 --wallet
+  concours-miner --hotkey m1 --validator http://127.0.0.1:8091`. Each commit costs the miner a fee (~0.001 τ);
+  the miner coldkey holds about 0.09 τ, the owner about 0.59 τ. Do not spend more than that; `--dry-run` first.
+  The same code is never scored twice, so a live demo needs a solver that differs from what is already committed.
 - Do not start the local chain live on this laptop during the demo. It has 8 GB of memory; the chain container was
   killed by the kernel (exit 137) last time it ran next to the app and Docker. Show the seeded project instead.
 
@@ -155,8 +162,20 @@ only Macrocosmos can activate it, and they have not answered the issue or the em
   create a key on Improve, hand them the command, or run it yourself from the laptop against the hosted link.
 
 **If asked "is this on Apex?"**: "The competition is filed and the package is signed. Macrocosmos has not activated
-it yet, so what you see are the signed Apex images run on this machine, plus the same loop running as our own
-Bittensor subnet on a local chain."
+it yet, so what you see are the signed Apex images run on this machine, plus the same loop live on our own
+Bittensor testnet subnet, netuid 603, where an outside miner's code became version 2."
+
+## Bittensor testnet (netuid 603) facts and gotchas
+
+- Wallets on this Mac: `concours-owner` (coldkey `5HaxK3YfY6A6bo3EjGsi8M5Ay1yg9szQnFQ3trsejJp24p2T`, hotkey
+  `validator`), `concours-miner` (hotkey `m1`, uid 1). Coldkeys are unencrypted (testnet only; never reuse on mainnet).
+  Mnemonics in `~/.bittensor/*-MNEMONICS.txt`, mode 600.
+- Costs seen: subnet lock 1 τ; the new subnet's miner burn started at 0.975 τ, so the owner set `max_burn` to 0.11 τ
+  (the chain's floor for it is 0.1 τ, exclusive; pass the raw value `110000000`) and registration cost 0.109 τ.
+  Staking on a fresh pool needs `--no-slippage-protection` (0.2 τ staked on the validator hotkey).
+- Weights: `weights_rate_limit` is 100 blocks (about 20 minutes); the validator retries each pass and logs
+  "weights not set: ... Retry in ~N blocks" until then. The Improve card shows "Weights set to uid 1 · block N"
+  once it lands.
 
 ## The model: no changes tonight
 
