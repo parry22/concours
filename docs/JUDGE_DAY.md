@@ -33,15 +33,24 @@ Give them to a judge in person, never in the deck.
 
 Rules of the hosted copy:
 
-- It stops after 4 hours idle (the maximum). Open the link or run `gh codespace ssh -c concours-demo-49wqv46v5pghxqr`
-  to wake it, then start the stack again (the servers do not survive a stop):
+- It stops after 4 hours without a client session (the maximum). Visits to the link do not count as activity;
+  only an open ssh or editor session does. The servers do not survive a stop. `scripts/hosted.sh` wraps the gh
+  commands:
 
   ```bash
-  gh codespace ssh -c concours-demo-49wqv46v5pghxqr -- 'cd /workspaces/concours && bash .devcontainer/start.sh'
+  scripts/hosted.sh wake
   ```
 
-  The seeded workspace and the caches are on the codespace disk and survive stops. Before leaving for the venue,
-  open the link once so the codespace is awake and the first page load is warm.
+  starts the codespace if needed and (re)starts the API and the frontend, then prints the link. During the demo keep
+
+  ```bash
+  scripts/hosted.sh keepalive
+  ```
+
+  running in a terminal on the laptop so the codespace is not stopped mid-demo. `scripts/hosted.sh status` and
+  `scripts/hosted.sh logs` for a look. The seeded workspace and the caches are on the codespace disk and survive
+  stops. Before leaving for the venue: `scripts/hosted.sh wake`, open the link once so the first page load is warm,
+  then `scripts/hosted.sh keepalive`.
 - The improvement rounds replay from `.cache/arena` (copied in), so the scripted demo runs in seconds there too.
   A round that is not cached runs in Docker inside the codespace (the Docker images build on first use, a few minutes).
 - Free quota: 120 core-hours a month on a personal account, so about 30 hours on this 4-core machine. The
@@ -61,6 +70,11 @@ and were copied in over `gh codespace ssh -- 'cat > file' < file`; the competiti
 `gh codespace ports visibility 3000:public -c <name>`. Caches go to `/tmp` there (the 32 GB root disk is mostly the
 image); the first dependency install ran out of disk and left a broken numpy, so `rm -rf backend/.venv && uv sync`
 if the API dies on `import numpy`.
+
+Rehearsed there on 2026-10-30 with `scripts/e2e_check.py` (a throwaway project, deleted afterwards): sample
+project 6 s, protection 13 s, v1 4 s, tuned contest 3 s (v2, $3,961 a day), jump forward 4 weeks with a round
+38 s (v3, $6,543 a day), 76 s in all. The rounds replayed from the copied cache, no Docker build was needed. The
+numbers are the ones in `docs/DEMO_SCRIPT.md`.
 
 The laptop path below is the fallback if the codespace or the venue network fails.
 
@@ -158,4 +172,4 @@ the Improve tab of Q4 lists the four signed-image runs with the same money figur
 - [ ] Port 3000 free; `./scripts/dev.sh`; sign in; open the Q4 project once so the first page load is warm.
 - [ ] Wi-Fi can be off: the three questions are parsed in code, no language model call is made for fraud.
 - [ ] `git push origin claude/website` so the private GitHub repo has tonight's commits.
-- [ ] Open the hosted link once (wakes the codespace); if it was stopped, run the `start.sh` command above.
+- [ ] `scripts/hosted.sh wake`, open the hosted link once, then leave `scripts/hosted.sh keepalive` running.
