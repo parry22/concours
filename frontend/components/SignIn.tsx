@@ -6,10 +6,6 @@ import { Alert, Button, Logo, Spinner } from "@/components/ui";
 import { api, errorText, type AuthConfig } from "@/lib/api";
 import { auth as copy, brand } from "@/lib/copy";
 
-// The work email typed on the website's hero form, handed over in this tab's sessionStorage (never in the URL).
-// The website writes the same key (website/components/EmailForm.tsx).
-const EMAIL_HANDOFF = "concours.signup-email";
-
 export function SignIn({ start }: { start: "login" | "signup" }) {
   return (
     <Suspense fallback={null}>
@@ -37,13 +33,6 @@ function Login({ start }: { start: "login" | "signup" }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const handed = sessionStorage.getItem(EMAIL_HANDOFF);
-      if (handed) setEmail(handed);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
     api
       .authConfig()
       .then((c) => {
@@ -62,9 +51,6 @@ function Login({ start }: { start: "login" | "signup" }) {
     try {
       if (mode === "login") await api.login(email, password);
       else await api.signup({ email, password, name, org_name: org, invite });
-      try {
-        sessionStorage.removeItem(EMAIL_HANDOFF);
-      } catch {}
       router.replace(next.startsWith("/") && !/^\/(login|signup)/.test(next) ? next : "/");
     } catch (err) {
       setError(errorText(err));

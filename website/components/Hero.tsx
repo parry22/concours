@@ -1,5 +1,5 @@
 import { DotField } from "./DotField";
-import { EmailForm } from "./EmailForm";
+import { ArrowRight } from "./icons";
 import { StackDiagram } from "./StackDiagram";
 import { StackOpener } from "./StackOpener";
 
@@ -85,9 +85,13 @@ export function Hero() {
           Get a working fraud model and a daily review queue today. A global network of solvers keeps improving it as
           fraud changes.
         </p>
-        <div className="mt-7">
-          <EmailForm />
-        </div>
+        <a
+          href="/app/login"
+          className="bg-brand-x mt-9 inline-flex h-[56px] items-center gap-2.5 rounded-xl px-7 text-[17px] font-semibold tracking-[-0.01em] text-accent-ink transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.98]"
+        >
+          Sign in
+          <ArrowRight className="size-[18px]" />
+        </a>
       </div>
 
       <div className="relative overflow-hidden border-t border-border py-[36px] md:py-[48px]">

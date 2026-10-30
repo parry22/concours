@@ -27,8 +27,8 @@ and the public page. The laptop is not involved; judges can open it on a phone.
 
 What they see first: GitHub's one-time page "You are about to access a development port served by someone's
 codespace" with a **Continue** button. Tell them to press it. After that the Concours website (`website/`, on the
-forwarded port 3000). Every call to action, **Sign in** (hero email form, nav, every section button), opens
-`/app/login`; the hero form hands the typed email over. Sign-up is closed on the hosted copy (`.devcontainer/start.sh`
+forwarded port 3000). Every call to action, **Sign in** (hero, nav, every section button), opens
+`/app/login`. Sign-up is closed on the hosted copy (`.devcontainer/start.sh`
 sets `CONCOURS_SIGNUP=first`, and the owner already exists), so `/app/signup` shows the sign-in form too. Judges sign
 in as `demo@concours.local` with the password from `.env` at the repo root (same as the laptop) and land in the
 owner's workspace with the seeded demo projects. Give that password through the submission form or in person, never
