@@ -1,0 +1,388 @@
+{
+  "fps": 30,
+  "totalFrames": 1951,
+  "scenes": [
+    {
+      "id": "hook",
+      "text": "Fraud never stands still.",
+      "file": "voice/hook.wav",
+      "seconds": 1.365,
+      "from": 0,
+      "frames": 62,
+      "voiceAt": 15,
+      "phrases": [
+        {
+          "text": "Fraud never stands still.",
+          "start": 0,
+          "end": 1.365
+        }
+      ]
+    },
+    {
+      "id": "problem",
+      "text": "Rules get learned. Vendor scores are black boxes. And a data team takes months.",
+      "file": "voice/problem.wav",
+      "seconds": 5.284,
+      "from": 62,
+      "frames": 168,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "Rules get learned.",
+          "start": 0,
+          "end": 0.987
+        },
+        {
+          "text": "Vendor scores are black boxes.",
+          "start": 1.2,
+          "end": 3.478
+        },
+        {
+          "text": "And a data team takes months.",
+          "start": 3.659,
+          "end": 5.284
+        }
+      ]
+    },
+    {
+      "id": "intro",
+      "text": "Meet Concours. Fraud models that keep up with fraudsters.",
+      "file": "voice/intro.wav",
+      "seconds": 4.344,
+      "from": 230,
+      "frames": 149,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "Meet Concours.",
+          "start": 0,
+          "end": 1.356
+        },
+        {
+          "text": "Fraud models that keep up with fraudsters.",
+          "start": 1.533,
+          "end": 4.344
+        }
+      ]
+    },
+    {
+      "id": "upload",
+      "text": "Upload your transactions.",
+      "file": "voice/upload.wav",
+      "seconds": 1.38,
+      "from": 379,
+      "frames": 66,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "Upload your transactions.",
+          "start": 0,
+          "end": 1.38
+        }
+      ]
+    },
+    {
+      "id": "questions",
+      "text": "Answer three questions about your team.",
+      "file": "voice/questions.wav",
+      "seconds": 2.612,
+      "from": 445,
+      "frames": 103,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "Answer three questions about your team.",
+          "start": 0,
+          "end": 2.612
+        }
+      ]
+    },
+    {
+      "id": "protect",
+      "text": "Concours protects the data. IDs scrambled. Card numbers removed. Leaky columns caught.",
+      "file": "voice/protect.wav",
+      "seconds": 6.684,
+      "from": 548,
+      "frames": 210,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "Concours protects the data.",
+          "start": 0,
+          "end": 1.99
+        },
+        {
+          "text": "IDs scrambled.",
+          "start": 2.208,
+          "end": 3.524
+        },
+        {
+          "text": "Card numbers removed.",
+          "start": 3.738,
+          "end": 5.206
+        },
+        {
+          "text": "Leaky columns caught.",
+          "start": 5.422,
+          "end": 6.684
+        }
+      ]
+    },
+    {
+      "id": "holdout",
+      "text": "The newest days are sealed away, as a private test.",
+      "file": "voice/holdout.wav",
+      "seconds": 3.417,
+      "from": 758,
+      "frames": 112,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "The newest days are sealed away,",
+          "start": 0,
+          "end": 1.962
+        },
+        {
+          "text": "as a private test.",
+          "start": 2.181,
+          "end": 3.417
+        }
+      ]
+    },
+    {
+      "id": "v1",
+      "text": "The same day, you get a working model, measured in money.",
+      "file": "voice/v1.wav",
+      "seconds": 3.287,
+      "from": 870,
+      "frames": 123,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "The same day,",
+          "start": 0,
+          "end": 0.703
+        },
+        {
+          "text": "you get a working model,",
+          "start": 0.919,
+          "end": 2.088
+        },
+        {
+          "text": "measured in money.",
+          "start": 2.273,
+          "end": 3.287
+        }
+      ]
+    },
+    {
+      "id": "queue",
+      "text": "Analysts work a ranked queue, with reasons in plain English. Every verdict becomes a new label.",
+      "file": "voice/queue.wav",
+      "seconds": 6.655,
+      "from": 993,
+      "frames": 209,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "Analysts work a ranked queue,",
+          "start": 0,
+          "end": 2.35
+        },
+        {
+          "text": "with reasons in plain English.",
+          "start": 2.566,
+          "end": 4.36
+        },
+        {
+          "text": "Every verdict becomes a new label.",
+          "start": 4.574,
+          "end": 6.655
+        }
+      ]
+    },
+    {
+      "id": "drift",
+      "text": "When fraud shifts, Concours notices, and starts an improvement round.",
+      "file": "voice/drift.wav",
+      "seconds": 4.64,
+      "from": 1202,
+      "frames": 149,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "When fraud shifts,",
+          "start": 0,
+          "end": 1.006
+        },
+        {
+          "text": "Concours notices,",
+          "start": 1.205,
+          "end": 2.738
+        },
+        {
+          "text": "and starts an improvement round.",
+          "start": 2.953,
+          "end": 4.64
+        }
+      ]
+    },
+    {
+      "id": "solvers",
+      "text": "Solvers from a global network compete to beat your model.",
+      "file": "voice/solvers.wav",
+      "seconds": 3.401,
+      "from": 1351,
+      "frames": 112,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "Solvers from a global network compete to beat your model.",
+          "start": 0,
+          "end": 3.401
+        }
+      ]
+    },
+    {
+      "id": "gates",
+      "text": "A new version goes live only if it passes five gates.",
+      "file": "voice/gates.wav",
+      "seconds": 3.374,
+      "from": 1463,
+      "frames": 111,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "A new version goes live only if it passes five gates.",
+          "start": 0,
+          "end": 3.374
+        }
+      ]
+    },
+    {
+      "id": "v2",
+      "text": "Version two. More fraud caught, with the same team.",
+      "file": "voice/v2.wav",
+      "seconds": 3.109,
+      "from": 1574,
+      "frames": 118,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "Version two.",
+          "start": 0,
+          "end": 0.732
+        },
+        {
+          "text": "More fraud caught,",
+          "start": 0.949,
+          "end": 2.052
+        },
+        {
+          "text": "with the same team.",
+          "start": 2.264,
+          "end": 3.109
+        }
+      ]
+    },
+    {
+      "id": "trust",
+      "text": "And your private test data never leaves your server.",
+      "file": "voice/trust.wav",
+      "seconds": 3.037,
+      "from": 1692,
+      "frames": 101,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "And your private test data never leaves your server.",
+          "start": 0,
+          "end": 3.037
+        }
+      ]
+    },
+    {
+      "id": "close",
+      "text": "Concours. Fraud models that keep up with fraudsters.",
+      "file": "voice/close.wav",
+      "seconds": 3.343,
+      "from": 1793,
+      "frames": 158,
+      "voiceAt": 3,
+      "phrases": [
+        {
+          "text": "Concours.",
+          "start": 0,
+          "end": 0.715
+        },
+        {
+          "text": "Fraud models that keep up with fraudsters.",
+          "start": 0.894,
+          "end": 3.343
+        }
+      ]
+    }
+  ],
+  "clips": {
+    "hook": {
+      "file": "voice/hook.wav",
+      "seconds": 1.365
+    },
+    "problem": {
+      "file": "voice/problem.wav",
+      "seconds": 5.284
+    },
+    "intro": {
+      "file": "voice/intro.wav",
+      "seconds": 4.344
+    },
+    "questions": {
+      "file": "voice/questions.wav",
+      "seconds": 2.612
+    },
+    "protect": {
+      "file": "voice/protect.wav",
+      "seconds": 6.684
+    },
+    "v1": {
+      "file": "voice/v1.wav",
+      "seconds": 3.287
+    },
+    "queue": {
+      "file": "voice/queue.wav",
+      "seconds": 6.655
+    },
+    "drift": {
+      "file": "voice/drift.wav",
+      "seconds": 4.64
+    },
+    "solvers": {
+      "file": "voice/solvers.wav",
+      "seconds": 3.401
+    },
+    "gates": {
+      "file": "voice/gates.wav",
+      "seconds": 3.374
+    },
+    "trust": {
+      "file": "voice/trust.wav",
+      "seconds": 3.037
+    },
+    "close": {
+      "file": "voice/close.wav",
+      "seconds": 3.343
+    },
+    "holdout": {
+      "file": "voice/holdout.wav",
+      "seconds": 3.417
+    },
+    "v2": {
+      "file": "voice/v2.wav",
+      "seconds": 3.109
+    },
+    "upload": {
+      "file": "voice/upload.wav",
+      "seconds": 1.38
+    }
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "voice": {
+    "sarvam": {
+      "model": "bulbul:v4-flash",
+      "speaker": "girish_en_documentary",
+      "pace": 1.15,
+      "temperature": 0.5
+    },
+    "say": {
+      "voice": "Samantha",
+      "rate": 190
+    },
+    "elevenlabs": {
+      "voiceId": "21m00Tcm4TlvDq8ikWAM",
+      "model": "eleven_multilingual_v2"
+    },
+    "maxPause": 0.2
+  },
+  "timing": {
+    "fps": 30,
+    "lead": 0.1,
+    "tail": 0.2
+  },
+  "scenes": [
+    {
+      "id": "hook",
+      "text": "Fraud never stands still.",
+      "lead": 0.5
+    },
+    {
+      "id": "problem",
+      "text": "Rules get learned. Vendor scores are black boxes. And a data team takes months."
+    },
+    {
+      "id": "intro",
+      "text": "Meet Concours. Fraud models that keep up with fraudsters.",
+      "hold": 0.3
+    },
+    {
+      "id": "upload",
+      "text": "Upload your transactions.",
+      "hold": 0.5
+    },
+    {
+      "id": "questions",
+      "text": "Answer three questions about your team.",
+      "hold": 0.5
+    },
+    {
+      "id": "protect",
+      "text": "Concours protects the data. IDs scrambled. Card numbers removed. Leaky columns caught."
+    },
+    {
+      "id": "holdout",
+      "text": "The newest days are sealed away, as a private test."
+    },
+    {
+      "id": "v1",
+      "text": "The same day, you get a working model, measured in money.",
+      "hold": 0.5
+    },
+    {
+      "id": "queue",
+      "text": "Analysts work a ranked queue, with reasons in plain English. Every verdict becomes a new label."
+    },
+    {
+      "id": "drift",
+      "text": "When fraud shifts, Concours notices, and starts an improvement round."
+    },
+    {
+      "id": "solvers",
+      "text": "Solvers from a global network compete to beat your model."
+    },
+    {
+      "id": "gates",
+      "text": "A new version goes live only if it passes five gates."
+    },
+    {
+      "id": "v2",
+      "text": "Version two. More fraud caught, with the same team.",
+      "hold": 0.5
+    },
+    {
+      "id": "trust",
+      "text": "And your private test data never leaves your server."
+    },
+    {
+      "id": "close",
+      "text": "Concours. Fraud models that keep up with fraudsters.",
+      "hold": 1.6
+    }
+  ]
+}

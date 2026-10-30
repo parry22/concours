@@ -1,0 +1,21 @@
+{
+  "name": "concours-video",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "studio": "remotion studio",
+    "voice": "node scripts/voice.mjs",
+    "music": "../backend/.venv/bin/python scripts/music.py",
+    "render": "remotion render Demo out/concours-demo.mp4 --concurrency=2"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.539"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.8",
+    "typescript": "5.6.3"
+  }
+}
