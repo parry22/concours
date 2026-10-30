@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Start the demo stack inside the codespace: API on 127.0.0.1:8000, the product app on 127.0.0.1:3001 (under /app),
 # and the website on 0.0.0.0:3000 (the forwarded port). The website owns / and proxies /app to the app and /api to
-# the API, so the link opens on the website, its "Get started" leads to /app/signup, and sign-up lands in the app.
+# the API, so the link opens on the website and every call to action leads to the sign-in page at /app/login.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.local/bin:$PATH"
-# Visitors create their own account from the website (each gets an empty workspace of their own).
-export CONCOURS_SIGNUP="${CONCOURS_SIGNUP:-open}"
+# Visitors sign in with the demo login; nobody creates an account on the hosted copy.
+export CONCOURS_SIGNUP="${CONCOURS_SIGNUP:-first}"
 mkdir -p workspace
 pkill -f "uvicorn app.main:app" 2>/dev/null || true
 pkill -f "next-server|next start" 2>/dev/null || true

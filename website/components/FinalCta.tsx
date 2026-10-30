@@ -53,10 +53,10 @@ export function FinalCta() {
             improving it.
           </p>
           <a
-            href="/app/signup"
+            href="/app/login"
             className="bg-brand-x relative mt-9 inline-flex h-[56px] items-center gap-2.5 rounded-xl px-7 text-[17px] font-semibold tracking-[-0.01em] text-accent-ink transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.98]"
           >
-            Get started
+            Sign in
             <ArrowRight className="size-[18px]" />
           </a>
         </div>

@@ -235,7 +235,7 @@ export function TwoWays() {
                   ))}
                 </ul>
                 <a
-                  href="/app/signup"
+                  href="/app/login"
                   className={`mt-5 inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-xl text-[15.5px] font-medium transition-[background-color,filter,transform] duration-150 active:scale-[0.98] ${
                     p.primary
                       ? "bg-brand-x font-semibold text-accent-ink hover:brightness-110"

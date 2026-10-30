@@ -64,10 +64,11 @@ version is promoted **only if it passes five gates** on a private holdout. Nobod
 **Hosted copy:** https://concours-demo-49wqv46v5pghxqr-3000.app.github.dev
 
 1. GitHub first shows a one-time page, *"You are about to access a development port…"*. Press **Continue**.
-2. You land on the Concours website. Press **Get started** in the hero or the nav.
-3. Create an account. You get your own empty workspace.
-4. Choose **Try with sample data** (1.75M simulated card payments) or upload your own CSV. Then go through
-   *Your transactions → Three questions → Protect the data*. v1 and today's queue are built automatically.
+2. You land on the Concours website. Press **Sign in** in the hero, the nav or any section.
+3. Sign in as `demo@concours.local` with the password given in our submission. New accounts are closed on the
+   hosted copy.
+4. Open **Card fraud review queue, Q4**: the seeded project with its versions, review queue and improvement rounds.
+   To start from scratch, create a project and choose **Try with sample data** (1.75M simulated card payments).
 5. Open **Review queue**, **Improve** and **Trust** to see the queue, the attempts with their gates, and exactly
    what leaves the machine.
 

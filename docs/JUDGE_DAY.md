@@ -27,14 +27,14 @@ and the public page. The laptop is not involved; judges can open it on a phone.
 
 What they see first: GitHub's one-time page "You are about to access a development port served by someone's
 codespace" with a **Continue** button. Tell them to press it. After that the Concours website (`website/`, on the
-forwarded port 3000). Its main call to action, **Get started** (hero email form, nav, every section button), opens
-`/app/signup`; creating an account lands in the platform at `/app`. Sign-up is open on the hosted copy
-(`.devcontainer/start.sh` sets `CONCOURS_SIGNUP=open`), so each judge gets an empty workspace of their own and can
-start from sample data. The seeded demo projects stay in the owner's workspace: to show those, sign in at `/app/login`
-as `demo@concours.local` with the password from `.env` at the repo root (same as the laptop). Give that password to a
-judge in person, never in the deck. Open sign-up means anyone with the link can create an account and start runs,
-including agent attempts on the signed-in Claude subscription; set `CONCOURS_SIGNUP=first` and run
-`scripts/hosted.sh wake` to close it again.
+forwarded port 3000). Every call to action, **Sign in** (hero email form, nav, every section button), opens
+`/app/login`; the hero form hands the typed email over. Sign-up is closed on the hosted copy (`.devcontainer/start.sh`
+sets `CONCOURS_SIGNUP=first`, and the owner already exists), so `/app/signup` shows the sign-in form too. Judges sign
+in as `demo@concours.local` with the password from `.env` at the repo root (same as the laptop) and land in the
+owner's workspace with the seeded demo projects. Give that password through the submission form or in person, never
+in the deck or the public repo. Everyone with the password shares one workspace and can start runs, including agent
+attempts on the signed-in Claude subscription. To let visitors create their own empty workspaces again, change the
+default in `.devcontainer/start.sh` back to `open`, push, and run `scripts/hosted.sh deploy`.
 
 Layout inside the codespace: website on 0.0.0.0:3000 (proxies `/app` to the app and `/api` to the API), the app on
 127.0.0.1:3001 under basePath `/app`, the API on 127.0.0.1:8000. Logs: `workspace/website.log`,
