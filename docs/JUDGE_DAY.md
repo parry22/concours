@@ -142,8 +142,9 @@ only Macrocosmos can activate it, and they have not answered the issue or the em
   The miner committed the velocity solver's hash on chain (block 8335086), uploaded it to the validator, Concours
   scored it in the sandbox, it passed all five gates and became v2 credited to uid 1: $6,543 a day against v1's
   $4,685 on the jumped window. The laptop project "Card fraud on Bittensor testnet" shows it; the Improve badge
-  reads "Bittensor testnet · netuid 603" and the card lists the winner and the weights. The earlier local-chain
-  project "Card fraud on Bittensor" stays as a second example. Weights on chain: see the section below.
+  reads "Bittensor testnet · netuid 603" and the card lists the winner and the weights. The validator then set the
+  weights on chain: uid 1 at 1.0, block 8335151, through commit-reveal on the current runtime. The earlier local-chain
+  project "Card fraud on Bittensor" stays as a second example.
 - To show the testnet loop live: `./scripts/dev.sh`, then `scripts/testnet_validator.sh` in a second terminal
   (API key from `.env`, owner wallet in `~/.bittensor/wallets`, intake on port 8091). A miner submission from
   this laptop: `cd subnet && .venv/bin/concours-miner submit <submission.py> --network test --netuid 603 --wallet
@@ -174,8 +175,10 @@ Bittensor testnet subnet, netuid 603, where an outside miner's code became versi
   (the chain's floor for it is 0.1 τ, exclusive; pass the raw value `110000000`) and registration cost 0.109 τ.
   Staking on a fresh pool needs `--no-slippage-protection` (0.2 τ staked on the validator hotkey).
 - Weights: `weights_rate_limit` is 100 blocks (about 20 minutes); the validator retries each pass and logs
-  "weights not set: ... Retry in ~N blocks" until then. The Improve card shows "Weights set to uid 1 · block N"
-  once it lands.
+  "weights not set: ... Retry in ~N blocks" until then. First weights landed at block 8335151 ("set weights {1: 1.0}");
+  the Improve card shows "Weights set to uid 1 · block 8,335,151".
+- The validator's intake (port 8091, all interfaces, so miners can reach it) accepts only signed uploads from hotkeys
+  registered on netuid 603 and keeps eight uploads per hotkey. Start it with `scripts/testnet_validator.sh`.
 
 ## The model: no changes tonight
 
