@@ -38,7 +38,8 @@ case "${1:-status}" in
   claude-login) exec gh codespace ssh -c "$CS" -- -t 'export PATH=$HOME/.local/bin:$PATH; claude auth login && claude auth status' ;;
   deploy)
     echo "[hosted] updating $CS from origin/claude/website, then restarting"
-    gh codespace ssh -c "$CS" -- 'set -e; cd /workspaces/concours && git fetch -q origin && git reset -q --hard origin/claude/website && export PATH=$HOME/.local/bin:$PATH UV_CACHE_DIR=/tmp/uv-cache && (cd backend && uv sync -q) && (cd frontend && pnpm install --frozen-lockfile --silent) && REBUILD=1 bash .devcontainer/start.sh' 2>&1 | quiet
+    # a login shell: only there does the codespace have its GitHub credentials for the fetch
+    gh codespace ssh -c "$CS" -- bash -lc "'set -e; cd /workspaces/concours && git fetch -q origin && git reset -q --hard origin/claude/website && export PATH=\$HOME/.local/bin:\$PATH UV_CACHE_DIR=/tmp/uv-cache && (cd backend && uv sync -q) && (cd frontend && pnpm install --frozen-lockfile --silent) && REBUILD=1 bash .devcontainer/start.sh'" 2>&1 | quiet
     echo "link: $(url)"
     ;;
   *) sed -n 2,10p "$0"; exit 2 ;;

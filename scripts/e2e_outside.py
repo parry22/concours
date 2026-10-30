@@ -69,8 +69,11 @@ def wait_arena(pid: str) -> float:
 
 
 def main() -> int:
-    email, password = creds()
-    call("POST", "/auth/login", {"email": email, "password": password})
+    if call("GET", "/auth/config").get("auth") == "off":
+        email = "local"
+    else:
+        email, password = creds()
+        call("POST", "/auth/login", {"email": email, "password": password})
     print(f"[e2e] signed in as {email}; file {FILE} ({FILE.stat().st_size / 1e6:.1f} MB)")
     t0 = time.time()
     p = call("POST", "/projects", {"template": "fraud", "name": "Outside solver check (delete me)", "sample": False})

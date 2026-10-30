@@ -29,3 +29,19 @@ def test_card_number_customer_column_is_refused():
                        "pan": ["4111111111111111"] * n, "amt": ["1.00"] * n, "y": ["yes" if i % 30 == 0 else "no" for i in range(n)]})
     problems, _, _ = inspect_mapping(df, {"transaction_id": "id", "transaction_time": "t", "amount": "amt", "customer_id": "pan", "is_fraud": "y"})
     assert any("looks like card numbers" in p for p in problems)
+
+
+def test_hash_ids_survives_blank_ids():
+    """A real export has blank terminal IDs; NaN stays NaN through astype(str) on this pandas, and the keyed hash
+    used to crash on it (the 2026-10-30 hosted check). Blanks share one bucket, every other value keeps its own."""
+    import numpy as np
+    import pandas as pd
+
+    from app.fraud.protect import hash_ids
+
+    s = pd.Series(["a", np.nan, "b", None, "a"])
+    out, m = hash_ids(s, "salt-1", keyed=True)
+    assert out.dtype == "int64" and out.iloc[0] == out.iloc[4] and out.iloc[1] == out.iloc[3] and out.iloc[0] != out.iloc[2]
+    assert set(m["original"]) == {"a", "", "b"} and (out >= 0).all()
+    out1, _ = hash_ids(s, "salt-1", keyed=False)
+    assert out1.iloc[1] == out1.iloc[3] and out1.iloc[0] != out1.iloc[1]
