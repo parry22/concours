@@ -117,6 +117,7 @@ export const auth = {
   firstSub: "This is the first account on this server. You can invite your team afterwards.",
   joinTitle: "Create your account",
   joinSub: "You were invited to join a team on Concours.",
+  openSub: "Your own workspace. Start from your transactions or from sample data.",
   name: "Your name",
   org: "Company",
   orgPlaceholder: "PayCo",

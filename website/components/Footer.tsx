@@ -19,9 +19,9 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
     title: "Get started",
     links: [
-      { label: "Try with sample data", href: "#contact" },
-      { label: "Start with your transactions", href: "#contact" },
-      { label: "Book a demo", href: "#contact" },
+      { label: "Try with sample data", href: "/app/signup" },
+      { label: "Start with your transactions", href: "/app/signup" },
+      { label: "Sign in", href: "/app/login" },
     ],
   },
   {
@@ -57,10 +57,10 @@ export function Footer() {
             Fraud models that keep up with fraudsters.
           </p>
           <a
-            href="#contact"
+            href="/app/signup"
             className="bg-brand-x mt-7 inline-flex h-[50px] items-center gap-2 rounded-xl px-6 text-[16px] font-semibold text-accent-ink transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.98]"
           >
-            Book a demo
+            Get started
             <ArrowRight className="size-[17px]" />
           </a>
         </div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Copy, KeyRound, LogOut, Trash2, UserPlus } from "lucide-react";
 import { AppFrame } from "@/components/ProjectShell";
 import { Alert, Button, Card, PageHeader, Skeleton } from "@/components/ui";
-import { api, errorText, type ApiKey, type Me } from "@/lib/api";
+import { api, BASE_PATH, errorText, type ApiKey, type Me } from "@/lib/api";
 import { account as copy } from "@/lib/copy";
 import { fmtAgo } from "@/lib/format";
 
@@ -56,7 +56,7 @@ export default function AccountPage() {
             me?.auth === "required" ? (
               <Button variant="secondary" busy={busy === "logout"} onClick={() => void act("logout", async () => {
                 await api.logout();
-                window.location.assign("/login");
+                window.location.assign(`${BASE_PATH}/login`);
               })}>
                 <LogOut className="h-3.5 w-3.5" />
                 {copy.signOut}

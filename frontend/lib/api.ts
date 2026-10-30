@@ -68,6 +68,8 @@ export type IntakeStatus = { offline: boolean; model: string; has_key: boolean }
 
 // Same origin by default (Next or the reverse proxy forwards /api to the backend), so the session cookie is first-party.
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
+// Where the app's pages live (next.config.ts). Next adds it to links and router calls; plain window.location needs it.
+export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 export class ApiError extends Error {
   status: number;
@@ -98,9 +100,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new ApiError(0, `Could not reach the backend at ${API_URL}. Start it and reload.`);
   }
-  if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/") && !window.location.pathname.startsWith("/login")) {
-    // signed out (or the session expired): sign in, then come back here
-    window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+  const here = typeof window !== "undefined" ? window.location.pathname.slice(BASE_PATH.length) || "/" : "";
+  if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/") && !/^\/(login|signup)/.test(here)) {
+    // signed out (or the session expired): sign in, then come back here (`next` is an app path, without /app)
+    window.location.assign(`${BASE_PATH}/login?next=${encodeURIComponent(here + window.location.search)}`);
   }
   if (!res.ok) throw await parseError(res);
   if (res.status === 204) return undefined as T;

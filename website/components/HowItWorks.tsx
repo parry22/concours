@@ -253,10 +253,10 @@ export function HowItWorks() {
 
       <div className="mt-[41px] flex justify-center px-4">
         <a
-          href="#contact"
+          href="/app/signup"
           className="bg-brand-x inline-flex h-[56px] items-center gap-2.5 rounded-xl px-7 text-[17px] font-semibold tracking-[-0.01em] text-accent-ink transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.98]"
         >
-          Book a demo
+          Get started
           <ArrowRight className="size-[18px]" />
         </a>
       </div>

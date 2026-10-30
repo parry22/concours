@@ -32,14 +32,14 @@ case "${1:-status}" in
     gh codespace ssh -c "$CS" -- 'while true; do date +%T; sleep 300; done' 2>&1 | quiet
     ;;
   logs)
-    gh codespace ssh -c "$CS" -- 'cd /workspaces/concours && echo "--- backend"; tail -15 workspace/backend.log; echo "--- frontend"; tail -8 workspace/frontend.log' 2>&1 | quiet
+    gh codespace ssh -c "$CS" -- 'cd /workspaces/concours && echo "--- backend"; tail -15 workspace/backend.log; echo "--- frontend"; tail -8 workspace/frontend.log; echo "--- website"; tail -8 workspace/website.log' 2>&1 | quiet
     ;;
   ssh) exec gh codespace ssh -c "$CS" ;;
   claude-login) exec gh codespace ssh -c "$CS" -- -t 'export PATH=$HOME/.local/bin:$PATH; claude auth login && claude auth status' ;;
   deploy)
     echo "[hosted] updating $CS from origin/claude/website, then restarting"
     # a login shell: only there does the codespace have its GitHub credentials for the fetch
-    gh codespace ssh -c "$CS" -- bash -lc "'set -e; cd /workspaces/concours && git fetch -q origin && git reset -q --hard origin/claude/website && export PATH=\$HOME/.local/bin:\$PATH UV_CACHE_DIR=/tmp/uv-cache && (cd backend && uv sync -q) && (cd frontend && pnpm install --frozen-lockfile --silent) && REBUILD=1 bash .devcontainer/start.sh'" 2>&1 | quiet
+    gh codespace ssh -c "$CS" -- bash -lc "'set -e; cd /workspaces/concours && git fetch -q origin && git reset -q --hard origin/claude/website && export PATH=\$HOME/.local/bin:\$PATH UV_CACHE_DIR=/tmp/uv-cache && (cd backend && uv sync -q) && (cd frontend && pnpm install --frozen-lockfile --silent) && (cd website && pnpm install --frozen-lockfile --silent) && REBUILD=1 bash .devcontainer/start.sh'" 2>&1 | quiet
     echo "link: $(url)"
     ;;
   *) sed -n 2,10p "$0"; exit 2 ;;

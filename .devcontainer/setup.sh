@@ -8,4 +8,5 @@ export PATH="$HOME/.local/bin:$PATH"
 (cd backend && uv python install 3.11 && uv sync)
 corepack enable && corepack prepare pnpm@10.0.0 --activate
 (cd frontend && pnpm install --frozen-lockfile)
+(cd website && pnpm install --frozen-lockfile)
 echo "[setup] done; copy data/ and .cache/ in, then run .devcontainer/start.sh"
