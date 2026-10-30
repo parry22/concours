@@ -122,6 +122,8 @@ def main() -> int:
         while a["status"] in ("queued", "running"):
             time.sleep(3)
             a = call("GET", f"/solve/submissions/{a['id']}", headers=h, retries=5)
+        time.sleep(3)  # the gates are stored a moment after the score
+        a = call("GET", f"/solve/submissions/{a['id']}", headers=h, retries=5)
         gates = [(g.get("name"), g.get("passed")) for g in a["gates"]]
         print(f"[e2e] outside attempt measured in {time.time() - t:.0f}s: {a['business_value'] or a['error']}; gates {gates}; "
               f"active={a['active']} version={a['version']}")

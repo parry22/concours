@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import re
 import secrets
 import zipfile
 from datetime import datetime, timezone
@@ -338,7 +339,7 @@ def submit(body: SubmitIn, who: Solver = Depends(solver), s: Session = Depends(g
     """One attempt. Starts an improvement round for it; the same code is returned, not re-scored."""
     code = body.code.encode()
     sha = hashlib.sha256(code).hexdigest()
-    safe = "".join(ch if ch.isalnum() else "-" for ch in who.key.name.lower())[:16].strip("-") or "solver"
+    safe = re.sub(r"-+", "-", "".join(ch if ch.isalnum() else "-" for ch in who.key.name.lower()))[:16].strip("-") or "solver"
     sub, _ = intake_code(s, who.project, code, origin=ORIGIN, label=f"solver-{safe}-{sha[:8]}", submitted_by=who.key.name)
     return next(a for a in _attempts(s, who) if a.id == sub.id)
 
