@@ -76,6 +76,21 @@ project 6 s, protection 13 s, v1 4 s, tuned contest 3 s (v2, $3,961 a day), jump
 38 s (v3, $6,543 a day), 76 s in all. The rounds replayed from the copied cache, no Docker build was needed. The
 numbers are the ones in `docs/DEMO_SCRIPT.md`.
 
+Agent attempts ("Add an agent attempt" on Improve) use the Claude CLI on your subscription. On the laptop it is
+signed in. On the hosted copy the CLI is installed but needs one interactive sign-in from this machine:
+
+```bash
+scripts/hosted.sh claude-login
+```
+
+It prints a URL to open here and asks for the code. Until then the hosted button answers "no model available".
+
+To push tonight's commits to the hosted copy (fetch, dependencies, frontend rebuild, restart; about 3 minutes):
+
+```bash
+scripts/hosted.sh deploy
+```
+
 The laptop path below is the fallback if the codespace or the venue network fails.
 
 ## The easiest demo path
@@ -129,6 +144,14 @@ only Macrocosmos can activate it, and they have not answered the issue or the em
   we do not have.
 - Do not start the local chain live on this laptop during the demo. It has 8 GB of memory; the chain container was
   killed by the kernel (exit 137) last time it ran next to the app and Docker. Show the seeded project instead.
+
+- **Outside solvers without any chain (added 2026-10-30).** The "Outside solvers" card on Improve creates a solver
+  key per person. A solver anywhere runs `concours solve kit --key sk_… --url <link>/api`, writes `submission.py`,
+  runs `concours solve submit submission.py`; Concours scores it in the sandbox on the private holdout, through the
+  five gates, and promotes it credited to their name ("Outside solver: Ada"). This is the solver loop running for
+  real, today, with no Macrocosmos and no TAO. Verified on the hosted copy with a cold upload of a messy customer
+  file and the velocity solver sent as an outside submission (`scripts/e2e_outside.py`). Live in front of a judge:
+  create a key on Improve, hand them the command, or run it yourself from the laptop against the hosted link.
 
 **If asked "is this on Apex?"**: "The competition is filed and the package is signed. Macrocosmos has not activated
 it yet, so what you see are the signed Apex images run on this machine, plus the same loop running as our own

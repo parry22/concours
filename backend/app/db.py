@@ -18,10 +18,23 @@ WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 DATABASE_URL = env("DATABASE_URL", f"sqlite:///{DB_PATH}")
 IS_SQLITE = DATABASE_URL.startswith("sqlite")
 engine = (
-    create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    create_engine(DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 30})
     if IS_SQLITE
     else create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=10, max_overflow=20)
 )
+
+if IS_SQLITE:
+    from sqlalchemy import event as _event
+
+    @_event.listens_for(engine, "connect")
+    def _sqlite_pragmas(conn, _record) -> None:
+        """WAL so the API can read while the worker thread writes (a round logs every line; "database is locked"
+        hit the hosted copy on 2026-10-30), and a busy timeout instead of an immediate error."""
+        cur = conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=30000")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.close()
 
 
 # Columns added after the first release, per table: name -> SQL type (with default where one is needed).

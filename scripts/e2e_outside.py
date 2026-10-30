@@ -28,16 +28,24 @@ jar = http.cookiejar.CookieJar()
 opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
 
-def call(method: str, path: str, body: dict | None = None, headers: dict | None = None) -> dict:
+def call(method: str, path: str, body: dict | None = None, headers: dict | None = None, retries: int = 0) -> dict:
+    """`retries` > 0 for polling reads: a 5xx (the hosted copy once answered "database is locked") is retried."""
     data = json.dumps(body).encode() if body is not None else None
     h = {"Content-Type": "application/json", **(headers or {})}
-    req = urllib.request.Request(API + path, data=data, method=method, headers=h)
-    try:
-        with opener.open(req, timeout=3600) as r:
-            out = r.read()
-            return json.loads(out or b"null")
-    except urllib.error.HTTPError as e:
-        raise SystemExit(f"{method} {path}: {e.code} {e.read().decode(errors='replace')[:400]}") from e
+    for attempt in range(retries + 1):
+        req = urllib.request.Request(API + path, data=data, method=method, headers=h)
+        try:
+            with opener.open(req, timeout=3600) as r:
+                out = r.read()
+                return json.loads(out or b"null")
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode(errors="replace")[:400]
+            if e.code >= 500 and attempt < retries:
+                print(f"[e2e] {method} {path}: {e.code}, retrying ({detail[:80]})")
+                time.sleep(3)
+                continue
+            raise SystemExit(f"{method} {path}: {e.code} {detail}") from e
+    raise SystemExit("unreachable")
 
 
 def upload(path: str, file: Path) -> dict:
@@ -63,7 +71,7 @@ def creds() -> tuple[str, str]:
 
 def wait_arena(pid: str) -> float:
     t0 = time.time()
-    while call("GET", f"/projects/{pid}/arena/status")["running"]:
+    while call("GET", f"/projects/{pid}/arena/status", retries=5)["running"]:
         time.sleep(2)
     return time.time() - t0
 
@@ -113,7 +121,7 @@ def main() -> int:
         print(f"[e2e] submitted {a['id']}: {a['status']}")
         while a["status"] in ("queued", "running"):
             time.sleep(3)
-            a = call("GET", f"/solve/submissions/{a['id']}", headers=h)
+            a = call("GET", f"/solve/submissions/{a['id']}", headers=h, retries=5)
         gates = [(g.get("name"), g.get("passed")) for g in a["gates"]]
         print(f"[e2e] outside attempt measured in {time.time() - t:.0f}s: {a['business_value'] or a['error']}; gates {gates}; "
               f"active={a['active']} version={a['version']}")
