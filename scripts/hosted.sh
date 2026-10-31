@@ -16,6 +16,8 @@ CS="${CODESPACE:-$(gh codespace list --json name,displayName --jq '.[] | select(
 [ -n "$CS" ] || { echo "no codespace named concours-demo; see docs/JUDGE_DAY.md to create one" >&2; exit 2; }
 url() { gh codespace ports -c "$CS" --json sourcePort,browseUrl,visibility --jq '.[] | select(.sourcePort==3000) | "\(.browseUrl) (\(.visibility))"'; }
 quiet() { grep -vE 'WARNING|post-quantum|store now|openssh.com' || true; }
+# A codespace restart turns the forwarded port private again, which sends visitors to a GitHub sign-in page.
+public() { gh codespace ports visibility 3000:public -c "$CS" 2>&1 | quiet >/dev/null; }
 
 case "${1:-status}" in
   status)
@@ -25,6 +27,7 @@ case "${1:-status}" in
   wake)
     echo "[hosted] starting the servers in $CS (starts the codespace first if it is stopped)"
     gh codespace ssh -c "$CS" -- 'cd /workspaces/concours && bash .devcontainer/start.sh' 2>&1 | quiet
+    public
     echo "link: $(url)"
     ;;
   keepalive)
@@ -40,6 +43,7 @@ case "${1:-status}" in
     echo "[hosted] updating $CS from origin/claude/website, then restarting"
     # a login shell: only there does the codespace have its GitHub credentials for the fetch
     gh codespace ssh -c "$CS" -- bash -lc "'set -e; cd /workspaces/concours && git fetch -q origin && git reset -q --hard origin/claude/website && export PATH=\$HOME/.local/bin:\$PATH UV_CACHE_DIR=/tmp/uv-cache && (cd backend && uv sync -q) && (cd frontend && pnpm install --frozen-lockfile --silent) && (cd website && pnpm install --frozen-lockfile --silent) && REBUILD=1 bash .devcontainer/start.sh'" 2>&1 | quiet
+    public
     echo "link: $(url)"
     ;;
   *) sed -n 2,10p "$0"; exit 2 ;;
