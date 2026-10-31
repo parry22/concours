@@ -1,7 +1,7 @@
 """The real-customer path, cold, plus an outside solver: upload a CSV (not the sample), map, settings, protect, v1 in
 Docker (nothing cached for a new file), then a solver key, a submission through /solve, its measurement and gates.
 
-Usage: python scripts/e2e_outside.py [http://127.0.0.1:8000] [--file path.csv] [--keep]
+Usage: python scripts/e2e_outside.py [http://127.0.0.1:8000] [--file path.csv] [--capacity 200] [--keep]
 Signs in with CONCOURS_DEMO_EMAIL / CONCOURS_DEMO_PASSWORD from the environment or the repo-root .env.
 Default file: workspace/audit/messy.csv (the journey audit's messy export: mixed dates, currency symbols, blanks,
 two leak columns, a card-number column). The submission is backend/solvers/lgbm_velocity/submission.py sent as an
@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
 API = args[0] if args else "http://127.0.0.1:8000"
 KEEP = "--keep" in sys.argv
+CAPACITY = int(sys.argv[sys.argv.index("--capacity") + 1]) if "--capacity" in sys.argv else 200
 FILE = Path(sys.argv[sys.argv.index("--file") + 1]) if "--file" in sys.argv else ROOT / "workspace" / "audit" / "messy.csv"
 
 jar = http.cookiejar.CookieJar()
@@ -97,7 +98,7 @@ def main() -> int:
         t = time.time()
         call("PUT", f"/projects/{pid}/schema", {"mapping": mapping})
         print(f"[e2e] columns confirmed in {time.time() - t:.0f}s: {mapping}")
-        call("PUT", f"/projects/{pid}/fraud-settings", {"daily_capacity": 200, "review_cost": 10, "fraud_fee": 0, "label_delay_days": 30})
+        call("PUT", f"/projects/{pid}/fraud-settings", {"daily_capacity": CAPACITY, "review_cost": 10, "fraud_fee": 0, "label_delay_days": 30})
         t = time.time()
         rep = call("POST", f"/projects/{pid}/protect")
         print(f"[e2e] protected in {time.time() - t:.0f}s: {[(x['name'], x['rows']) for x in rep['parts']]}")
